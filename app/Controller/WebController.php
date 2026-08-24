@@ -105,7 +105,55 @@ final class WebController
             \render('not-found', [], 'План не найден');
             return;
         }
-        \render('plans/show', ['plan' => $plan], $plan['name']);
+        \render('plans/show', [
+            'plan' => $plan,
+            'error' => $_SESSION['flash_error'] ?? null,
+            'success' => $_SESSION['flash_success'] ?? null,
+        ], $plan['name']);
+        unset($_SESSION['flash_error'], $_SESSION['flash_success']);
+    }
+
+    public function reschedulePlan(string $id): never
+    {
+        $user = Auth::requireUser();
+        if (!Csrf::validate($_POST['_csrf'] ?? null)) {
+            $_SESSION['flash_error'] = 'Сессия формы истекла. Обновите страницу.';
+            \redirect('/plans/' . $id);
+        }
+        try {
+            $this->training->reschedulePlan(
+                (int) $id,
+                (int) $user['id'],
+                (string) ($_POST['scheduled_date'] ?? ''),
+                (int) ($_POST['version'] ?? 0),
+            );
+            $_SESSION['flash_success'] = 'Дата тренировки изменена. План и его история сохранены.';
+        } catch (\Throwable $exception) {
+            $_SESSION['flash_error'] = $exception->getMessage();
+        }
+        \redirect('/plans/' . $id);
+    }
+
+    public function deletePlan(string $id): never
+    {
+        $user = Auth::requireUser();
+        if (!Csrf::validate($_POST['_csrf'] ?? null)) {
+            $_SESSION['flash_error'] = 'Сессия формы истекла. Обновите страницу.';
+            \redirect('/plans/' . $id);
+        }
+        try {
+            $this->training->softDeletePlan(
+                (int) $id,
+                (int) $user['id'],
+                (int) ($_POST['version'] ?? 0),
+                !empty($_POST['confirm_delete']),
+            );
+            $_SESSION['flash_success'] = 'План мягко удалён; запись сохранена в истории изменений.';
+            \redirect('/');
+        } catch (\Throwable $exception) {
+            $_SESSION['flash_error'] = $exception->getMessage();
+            \redirect('/plans/' . $id);
+        }
     }
 
     public function comingSoon(): void

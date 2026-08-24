@@ -25,6 +25,8 @@ $router->add('POST', '/plans/import/preview', [$web, 'importPreview']);
 $router->add('POST', '/plans/import/confirm', [$web, 'importConfirm']);
 $router->add('POST', '/plans/import/cancel', [$web, 'importCancel']);
 $router->add('GET', '/plans/{id}', [$web, 'plan']);
+$router->add('POST', '/plans/{id}/reschedule', [$web, 'reschedulePlan']);
+$router->add('POST', '/plans/{id}/delete', [$web, 'deletePlan']);
 $router->add('GET', '/sessions/{id}', [$web, 'session']);
 $router->add('POST', '/sessions/{id}/edit', [$web, 'editCompletedSession']);
 $router->add('POST', '/sessions/{id}/cancel', [$web, 'cancelSession']);

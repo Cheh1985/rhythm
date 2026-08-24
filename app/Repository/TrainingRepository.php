@@ -86,6 +86,76 @@ final class TrainingRepository
         return $plan;
     }
 
+    public function reschedulePlan(int $planId, int $userId, string $scheduledDate, int $version): void
+    {
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $scheduledDate);
+        if (!$date || $date->format('Y-m-d') !== $scheduledDate) {
+            throw new InvalidArgumentException('Укажите корректную дату тренировки.');
+        }
+
+        $this->transaction(function (PDO $pdo) use ($planId, $userId, $scheduledDate, $version): void {
+            $query = $pdo->prepare("SELECT * FROM workout_plans WHERE id=? AND user_id=? AND status='planned' AND deleted_at IS NULL" . $this->lock());
+            $query->execute([$planId, $userId]);
+            $before = $query->fetch();
+            if (!$before) {
+                throw new InvalidArgumentException('Перенести можно только свой ещё не начатый план.');
+            }
+            if ($version !== (int) $before['version']) {
+                throw new VersionConflictException('План уже изменён в другой вкладке. Обновите страницу.');
+            }
+            if ((string) $before['scheduled_date'] === $scheduledDate) {
+                return;
+            }
+
+            $update = $pdo->prepare('UPDATE workout_plans SET scheduled_date=?,version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?');
+            $update->execute([$scheduledDate, $planId, $userId]);
+            $this->audit($pdo, $userId, 'workout_plan', (string) $planId, 'reschedule', [
+                'scheduled_date' => $before['scheduled_date'],
+                'version' => (int) $before['version'],
+            ], [
+                'scheduled_date' => $scheduledDate,
+                'version' => (int) $before['version'] + 1,
+            ]);
+        });
+    }
+
+    public function softDeletePlan(int $planId, int $userId, int $version, bool $confirmed): void
+    {
+        if (!$confirmed) {
+            throw new InvalidArgumentException('Подтвердите мягкое удаление плана.');
+        }
+
+        $this->transaction(function (PDO $pdo) use ($planId, $userId, $version): void {
+            $query = $pdo->prepare("SELECT * FROM workout_plans WHERE id=? AND user_id=? AND status='planned' AND deleted_at IS NULL" . $this->lock());
+            $query->execute([$planId, $userId]);
+            $before = $query->fetch();
+            if (!$before) {
+                throw new InvalidArgumentException('Удалить можно только свой ещё не начатый план.');
+            }
+            if ($version !== (int) $before['version']) {
+                throw new VersionConflictException('План уже изменён в другой вкладке. Обновите страницу.');
+            }
+
+            $sessions = $pdo->prepare("SELECT COUNT(*) FROM workout_sessions WHERE workout_plan_id=? AND user_id=? AND status IN ('in_progress','completed') AND deleted_at IS NULL");
+            $sessions->execute([$planId, $userId]);
+            if ((int) $sessions->fetchColumn() > 0) {
+                throw new InvalidArgumentException('У плана уже есть начатая или завершённая тренировка; удалить его нельзя.');
+            }
+
+            $update = $pdo->prepare("UPDATE workout_plans SET status='cancelled',deleted_at=UTC_TIMESTAMP(),version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?");
+            $update->execute([$planId, $userId]);
+            $this->audit($pdo, $userId, 'workout_plan', (string) $planId, 'soft_delete', [
+                'status' => $before['status'],
+                'scheduled_date' => $before['scheduled_date'],
+                'version' => (int) $before['version'],
+            ], [
+                'status' => 'cancelled',
+                'deleted_at' => gmdate('Y-m-d H:i:s'),
+                'version' => (int) $before['version'] + 1,
+            ]);
+        });
+    }
+
     public function startSession(int $planId, int $userId, array $readiness): int
     {
         return $this->transaction(function (PDO $pdo) use ($planId, $userId, $readiness): int {
