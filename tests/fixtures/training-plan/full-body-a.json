@@ -1,0 +1,67 @@
+{
+  "schema": "training-plan",
+  "schema_version": "1.0",
+  "plan_id": "full-body-a-2026-08-25",
+  "program": {
+    "program_id": "full-body-base",
+    "name": "Full Body — базовый цикл",
+    "version": 1,
+    "change_reason": "Первая утверждённая версия программы",
+    "description": "Три полнотелые тренировки в неделю"
+  },
+  "workout": {
+    "template_id": "full-body-a",
+    "name": "Full Body A",
+    "type": "strength",
+    "scheduled_date": "2026-08-25",
+    "goal": "Техника и устойчивый объём без отказа",
+    "estimated_duration_min": 70
+  },
+  "trainer_notes": "Остановить подход при потере техники.",
+  "pre_workout": {
+    "instructions": "5–7 минут лёгкой разминки",
+    "equipment": "Штанга и верхний блок"
+  },
+  "exercises": [
+    {
+      "exercise_id": "bench_press_001",
+      "name": "Жим лёжа",
+      "order": 1,
+      "sets": 3,
+      "rep_range": {"min": 6, "max": 8},
+      "target_rir": {"min": 2, "max": 3},
+      "rest_seconds": 150,
+      "weight": 60,
+      "warmup_sets": true,
+      "progression_increment": 2.5,
+      "progression_mode": "absolute",
+      "set_type": "normal",
+      "instructions": "Лопатки сведены, стопы устойчивы"
+    },
+    {
+      "exercise_id": "leg_press_001",
+      "name": "Жим ногами",
+      "order": 2,
+      "sets": 3,
+      "rep_range": {"min": 8, "max": 12},
+      "target_rir": {"min": 2, "max": 3},
+      "rest_seconds": 120,
+      "weight": 100,
+      "warmup_sets": true,
+      "progression_increment": 5,
+      "progression_mode": "absolute"
+    },
+    {
+      "exercise_id": "lat_pulldown_001",
+      "name": "Тяга верхнего блока",
+      "order": 3,
+      "sets": 3,
+      "rep_range": {"min": 8, "max": 12},
+      "target_rir": {"min": 2, "max": 3},
+      "rest_seconds": 90,
+      "weight": 45,
+      "progression_increment": 2.5,
+      "progression_mode": "absolute"
+    }
+  ]
+}

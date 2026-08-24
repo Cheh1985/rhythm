@@ -1,0 +1,75 @@
+<?php
+
+declare(strict_types=1);
+
+require dirname(__DIR__) . '/bootstrap.php';
+
+use App\Controller\AuthController;
+use App\Controller\ApiController;
+use App\Controller\WebController;
+use App\Core\Router;
+
+$router = new Router();
+$auth = new AuthController();
+$web = new WebController();
+$api = new ApiController();
+
+$router->add('GET', '/', [$web, 'dashboard']);
+$router->add('GET', '/login', [$auth, 'loginForm']);
+$router->add('POST', '/login', [$auth, 'login']);
+$router->add('GET', '/register', [$auth, 'registerForm']);
+$router->add('POST', '/register', [$auth, 'register']);
+$router->add('POST', '/logout', [$auth, 'logout']);
+$router->add('GET', '/plans/import', [$web, 'importForm']);
+$router->add('POST', '/plans/import/preview', [$web, 'importPreview']);
+$router->add('POST', '/plans/import/confirm', [$web, 'importConfirm']);
+$router->add('POST', '/plans/import/cancel', [$web, 'importCancel']);
+$router->add('GET', '/plans/{id}', [$web, 'plan']);
+$router->add('GET', '/sessions/{id}', [$web, 'session']);
+$router->add('POST', '/sessions/{id}/edit', [$web, 'editCompletedSession']);
+$router->add('POST', '/sessions/{id}/cancel', [$web, 'cancelSession']);
+$router->add('POST', '/sets/{id}/edit', [$web, 'editCompletedSet']);
+$router->add('POST', '/sets/{id}/delete', [$web, 'deleteSet']);
+$router->add('POST', '/progression/{id}', [$web, 'resolveProgression']);
+$router->add('GET', '/export/session/{id}.{format}', [$web, 'export']);
+$router->add('POST', '/api/sessions', [$api, 'start']);
+$router->add('GET', '/api/sessions/{id}', [$api, 'session']);
+$router->add('POST', '/api/sessions/{id}/sets', [$api, 'addSet']);
+$router->add('PATCH', '/api/sets/{id}', [$api, 'updateSet']);
+$router->add('PATCH', '/api/sessions/{id}/exercise-status', [$api, 'exerciseStatus']);
+$router->add('PATCH', '/api/sessions/{id}/replace-exercise', [$api, 'replaceExercise']);
+$router->add('POST', '/api/sessions/{id}/discomfort', [$api, 'discomfort']);
+$router->add('POST', '/api/sessions/{id}/finish', [$api, 'finish']);
+$router->add('GET', '/programs', [$web, 'programs']);
+$router->add('GET', '/history', [$web, 'history']);
+$router->add('GET', '/analytics', [$web, 'analytics']);
+$router->add('GET', '/measurements', [$web, 'measurements']);
+$router->add('POST', '/measurements', [$web, 'addMeasurement']);
+$router->add('POST', '/measurements/{id}/delete', [$web, 'deleteMeasurement']);
+$router->add('GET', '/swimming', [$web, 'swimming']);
+$router->add('POST', '/swimming', [$web, 'addSwimming']);
+$router->add('GET', '/swimming/{id}', [$web, 'swimmingSession']);
+$router->add('POST', '/swimming/{id}/edit', [$web, 'editSwimming']);
+$router->add('POST', '/swimming/{id}/delete', [$web, 'deleteSwimming']);
+$router->add('GET', '/schedule', [$web, 'schedule']);
+$router->add('POST', '/schedule', [$web, 'saveSchedule']);
+$router->add('GET', '/export/swimming/{id}.{format}', [$web, 'exportSwimming']);
+$router->add('GET', '/backup', [$web, 'backup']);
+$router->add('GET', '/settings', [$web, 'settings']);
+$router->add('POST', '/settings/theme', [$web, 'saveTheme']);
+$router->add('POST', '/restore/preview', [$web, 'restorePreview']);
+$router->add('POST', '/restore/confirm', [$web, 'restoreConfirm']);
+$router->add('POST', '/restore/cancel', [$web, 'restoreCancel']);
+$router->add('GET', '/exercises', [$web, 'exercises']);
+$router->add('GET', '/exercises/{id}', [$web, 'exerciseAnalytics']);
+$router->add('POST', '/exercises', [$web, 'addExercise']);
+$router->add('POST', '/exercises/{id}', [$web, 'updateExercise']);
+$router->add('GET', '/api/analytics/weekly', [$api, 'weekly']);
+$router->add('POST', '/api/swimming', [$api, 'createSwimming']);
+$router->add('GET', '/api/swimming/{id}', [$api, 'swimming']);
+$router->add('PATCH', '/api/swimming/{id}', [$api, 'updateSwimming']);
+$router->add('GET', '/coming-soon', [$web, 'comingSoon']);
+
+$path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$router->dispatch($method === 'HEAD' ? 'GET' : $method, rtrim($path, '/') ?: '/');

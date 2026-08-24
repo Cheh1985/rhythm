@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ritm.local/schemas/swimming-report-v1.0.schema.json",
+  "title": "Ритм swimming-report v1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schema_version", "generated_at_utc", "session", "intervals", "training_sequence", "interpretation"],
+  "properties": {
+    "schema": {"const": "swimming-report"},
+    "schema_version": {"const": "1.0"},
+    "generated_at_utc": {"type": "string", "format": "date-time"},
+    "session": {"type": "object"},
+    "intervals": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+    "training_sequence": {"type": "array", "items": {"type": "object"}},
+    "interpretation": {"type": "null"}
+  }
+}

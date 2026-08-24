@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ritm.local/schemas/training-plan-v1.0.schema.json",
+  "title": "Ритм training-plan v1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schema_version", "plan_id", "program", "workout", "exercises"],
+  "properties": {
+    "schema": {"const": "training-plan"},
+    "schema_version": {"const": "1.0"},
+    "plan_id": {"$ref": "#/$defs/id190"},
+    "program": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["program_id", "name", "version", "change_reason"],
+      "properties": {
+        "program_id": {"$ref": "#/$defs/id190"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 190},
+        "version": {"type": "integer", "minimum": 1, "maximum": 100000},
+        "parent_version": {"type": "integer", "minimum": 1, "maximum": 99999},
+        "change_reason": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "description": {"type": ["string", "null"], "maxLength": 10000}
+      }
+    },
+    "workout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["template_id", "name", "type", "scheduled_date"],
+      "properties": {
+        "template_id": {"$ref": "#/$defs/id80"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 190},
+        "type": {"enum": ["strength", "swimming", "cardio", "mobility", "other"]},
+        "scheduled_date": {"type": "string", "format": "date"},
+        "goal": {"type": ["string", "null"], "maxLength": 5000},
+        "estimated_duration_min": {"type": "integer", "minimum": 1, "maximum": 1440}
+      }
+    },
+    "trainer_notes": {"type": ["string", "null"], "maxLength": 10000},
+    "pre_workout": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "instructions": {"type": ["string", "null"], "maxLength": 2000},
+        "nutrition": {"type": ["string", "null"], "maxLength": 2000},
+        "equipment": {"type": ["string", "null"], "maxLength": 2000}
+      }
+    },
+    "exercises": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {"$ref": "#/$defs/exercise"}
+    }
+  },
+  "$defs": {
+    "id80": {"type": "string", "minLength": 3, "maxLength": 80, "pattern": "^[a-z0-9][a-z0-9._-]+$"},
+    "id190": {"type": "string", "minLength": 3, "maxLength": 190, "pattern": "^[a-z0-9][a-z0-9._-]+$"},
+    "exercise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exercise_id", "name", "order", "sets", "rep_range", "target_rir", "rest_seconds"],
+      "properties": {
+        "exercise_id": {"$ref": "#/$defs/id80"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 190},
+        "order": {"type": "integer", "minimum": 1, "maximum": 100},
+        "sets": {"type": "integer", "minimum": 1, "maximum": 20},
+        "rep_range": {"$ref": "#/$defs/range1to1000"},
+        "target_rir": {"$ref": "#/$defs/range0to10"},
+        "rest_seconds": {"type": "integer", "minimum": 0, "maximum": 3600},
+        "category": {"type": ["string", "null"], "maxLength": 80},
+        "muscles": {"type": "array", "maxItems": 30, "items": {"type": "string", "minLength": 1, "maxLength": 80}},
+        "exercise_type": {"type": ["string", "null"], "maxLength": 40},
+        "equipment": {"type": ["string", "null"], "maxLength": 120},
+        "progression_increment": {"type": "number", "exclusiveMinimum": 0, "maximum": 1000},
+        "progression_mode": {"enum": ["absolute", "percent"]},
+        "weight": {"type": ["number", "null"], "minimum": 0, "maximum": 2000},
+        "warmup_sets": {"type": "boolean"},
+        "set_type": {"enum": ["normal", "superset", "dropset", "rest_pause", "cluster", "amrap"]},
+        "group_id": {"type": ["string", "null"], "maxLength": 64},
+        "instructions": {"type": ["string", "null"], "maxLength": 5000}
+      }
+    },
+    "range1to1000": {
+      "type": "object", "additionalProperties": false, "required": ["min", "max"],
+      "properties": {"min": {"type": "integer", "minimum": 1, "maximum": 1000}, "max": {"type": "integer", "minimum": 1, "maximum": 1000}}
+    },
+    "range0to10": {
+      "type": "object", "additionalProperties": false, "required": ["min", "max"],
+      "properties": {"min": {"type": "number", "minimum": 0, "maximum": 10}, "max": {"type": "number", "minimum": 0, "maximum": 10}}
+    }
+  }
+}

@@ -1,0 +1,17 @@
+<section class="page-head"><div><p class="eyebrow">Стабильные идентификаторы</p><h1>Упражнения</h1><p class="muted">Глобальный справочник доступен всем. Пользовательские записи принадлежат только вам.</p></div></section>
+<?php if ($error): ?><div class="alert alert-error" role="alert"><?= e($error) ?></div><?php endif; ?>
+<?php if ($success): ?><div class="alert alert-success" role="status"><?= e($success) ?></div><?php endif; ?>
+<details class="card exercise-create"><summary>Добавить своё упражнение</summary><form class="stack-form" method="post" action="<?= e(url('/exercises')) ?>">
+    <input type="hidden" name="_csrf" value="<?= e(\App\Core\Csrf::token()) ?>">
+    <label>Стабильный exercise_id<input name="exercise_id" pattern="[a-z0-9][a-z0-9._-]{2,79}" maxlength="80" placeholder="my_split_squat_001" required><small>После создания ID не меняется.</small></label>
+    <label>Название<input name="name" maxlength="190" required></label>
+    <div class="form-grid"><label>Категория<input name="category" maxlength="80"></label><label>Оборудование<input name="equipment" maxlength="120"></label></div>
+    <div class="form-grid"><label>Шаг прогрессии<input type="number" name="progression_increment" min="0.01" max="1000" step="0.01" value="2.5" required></label><label>Режим<select name="progression_mode"><option value="absolute">кг / единицы</option><option value="percent">проценты</option></select></label></div>
+    <button class="button button-primary">Добавить</button>
+</form></details>
+<div class="exercise-directory">
+<?php foreach ($exercises as $exercise): ?><article class="exercise-row <?= $exercise['status'] === 'inactive' ? 'is-inactive' : '' ?>">
+    <div><div class="exercise-tags"><span class="tag"><?= $exercise['owner_user_id'] === null ? 'Глобальное' : 'Моё' ?></span><span><?= e($exercise['status']) ?></span></div><h2><a href="<?= e(url('/exercises/'.$exercise['exercise_id'])) ?>"><?= e($exercise['name']) ?></a></h2><code><?= e($exercise['exercise_id']) ?></code><p><?= e($exercise['category'] ?: 'Без категории') ?><?= $exercise['equipment'] ? ' · ' . e($exercise['equipment']) : '' ?> · <a href="<?= e(url('/exercises/'.$exercise['exercise_id'])) ?>">динамика</a></p></div>
+    <?php if ($exercise['owner_user_id'] !== null): ?><form method="post" action="<?= e(url('/exercises/' . $exercise['exercise_id'])) ?>" class="exercise-settings"><input type="hidden" name="_csrf" value="<?= e(\App\Core\Csrf::token()) ?>"><label>Шаг<input type="number" name="progression_increment" min="0.01" max="1000" step="0.01" value="<?= e($exercise['progression_increment']) ?>" required></label><label>Режим<select name="progression_mode"><option value="absolute" <?= $exercise['progression_mode'] === 'absolute' ? 'selected' : '' ?>>единицы</option><option value="percent" <?= $exercise['progression_mode'] === 'percent' ? 'selected' : '' ?>>%</option></select></label><label>Статус<select name="status"><option value="active" <?= $exercise['status'] === 'active' ? 'selected' : '' ?>>активно</option><option value="inactive" <?= $exercise['status'] === 'inactive' ? 'selected' : '' ?>>неактивно</option></select></label><button class="button button-quiet">Сохранить</button></form><?php else: ?><div class="global-step"><small>Шаг прогрессии</small><strong><?= e($exercise['progression_increment']) ?><?= $exercise['progression_mode'] === 'percent' ? '%' : ' кг' ?></strong></div><?php endif; ?>
+</article><?php endforeach; ?>
+</div>

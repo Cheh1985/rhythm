@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Ритм</title>
+  <rect width="512" height="512" rx="112" fill="#193e2f"/>
+  <path fill="#f5f4ee" d="M145 128h130c73 0 116 37 116 98 0 42-22 73-62 88l76 70h-92l-62-60h-28v60h-78V128Zm78 64v72h46c29 0 44-12 44-36s-15-36-44-36h-46Z"/>
+  <circle cx="378" cy="134" r="30" fill="#ef795d"/>
+</svg>

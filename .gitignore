@@ -1,0 +1,8 @@
+.env
+/storage/logs/*.log
+/storage/cache/*
+/storage/*.sqlite
+/storage/smoke-*
+!/storage/logs/.gitkeep
+!/storage/cache/.gitkeep
+/.phpunit.cache

@@ -1,0 +1,11 @@
+{
+  "schema": "training-plan",
+  "schema_version": "1.0",
+  "plan_id": "duplicate-exercise-001",
+  "program": {"program_id": "demo-program", "name": "Demo", "version": 1, "change_reason": "Demo"},
+  "workout": {"template_id": "demo-template", "name": "Demo", "type": "strength", "scheduled_date": "2026-08-25"},
+  "exercises": [
+    {"exercise_id": "bench_press_001", "name": "Жим лёжа", "order": 1, "sets": 3, "rep_range": {"min": 6, "max": 8}, "target_rir": {"min": 2, "max": 3}, "rest_seconds": 120},
+    {"exercise_id": "bench_press_001", "name": "Жим лёжа", "order": 2, "sets": 3, "rep_range": {"min": 6, "max": 8}, "target_rir": {"min": 2, "max": 3}, "rest_seconds": 120}
+  ]
+}

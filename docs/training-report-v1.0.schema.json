@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rhythm.local/schemas/training-report-v1.0.schema.json",
+  "title": "Rhythm training report v1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schema_version", "generated_at_utc", "plan", "session", "readiness", "exercises", "summary", "edits"],
+  "properties": {
+    "schema": {"const": "training-report"},
+    "schema_version": {"const": "1.0"},
+    "generated_at_utc": {"type": "string", "format": "date-time"},
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan_id", "name", "date", "type", "goal", "trainer_notes"],
+      "properties": {
+        "plan_id": {"type": "string"}, "name": {"type": "string"}, "date": {"type": "string", "format": "date"},
+        "type": {"enum": ["strength", "swimming", "cardio", "mobility", "other"]},
+        "goal": {"type": ["string", "null"]}, "trainer_notes": {"type": ["string", "null"]}
+      }
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id", "status", "started_at_utc", "finished_at_utc", "duration_minutes", "session_rpe", "wellbeing", "comment", "edited_after_completion", "edited_at_utc"],
+      "properties": {
+        "session_id": {"type": "string"}, "status": {"const": "completed"},
+        "started_at_utc": {"type": "string", "format": "date-time"}, "finished_at_utc": {"type": "string", "format": "date-time"},
+        "duration_minutes": {"type": "integer", "minimum": 1}, "session_rpe": {"type": "integer", "minimum": 1, "maximum": 10},
+        "wellbeing": {"type": "integer", "minimum": 1, "maximum": 5}, "comment": {"type": ["string", "null"]},
+        "edited_after_completion": {"type": "boolean"}, "edited_at_utc": {"type": ["string", "null"], "format": "date-time"}
+      }
+    },
+    "readiness": {"type": "object"},
+    "exercises": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["exercise_id", "name", "planned", "fact", "suggestion"],
+        "properties": {
+          "exercise_id": {"type": "string"}, "name": {"type": "string"},
+          "planned": {
+            "type": "object",
+            "required": ["exercise_id", "name", "sets", "rep_range", "target_rir", "rest_seconds", "weight_kg", "method", "instructions"]
+          },
+          "fact": {
+            "type": "object",
+            "required": ["exercise_id", "name", "status", "skip", "substitution", "sets", "working_sets", "tonnage_kg", "average_rir", "best_e1rm", "exercise_rating", "comment", "discomfort", "personal_records"]
+          },
+          "suggestion": {
+            "oneOf": [
+              {"type": "null"},
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "current_weight_kg", "suggested_weight_kg", "accepted_weight_kg", "status", "reason", "created_at_utc", "resolved_at_utc", "program_changed"],
+                "properties": {
+                  "id": {"type": "integer"}, "current_weight_kg": {"type": "number"}, "suggested_weight_kg": {"type": "number"},
+                  "accepted_weight_kg": {"type": ["number", "null"]}, "status": {"enum": ["pending", "accepted", "rejected", "exported"]},
+                  "reason": {"type": "string"}, "created_at_utc": {"type": "string", "format": "date-time"},
+                  "resolved_at_utc": {"type": ["string", "null"], "format": "date-time"}, "program_changed": {"const": false}
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["completed_exercises", "skipped_exercises", "total_exercises", "working_sets", "tonnage_kg", "average_rir", "personal_records", "comparison_with_previous"],
+      "properties": {
+        "completed_exercises": {"type": "integer"}, "skipped_exercises": {"type": "integer"}, "total_exercises": {"type": "integer"},
+        "working_sets": {"type": "integer"}, "tonnage_kg": {"type": "number"}, "average_rir": {"type": ["number", "null"]},
+        "personal_records": {"type": "array"}, "comparison_with_previous": {"type": ["object", "null"]}
+      }
+    },
+    "edits": {"type": "array", "items": {"type": "object"}}
+  }
+}
