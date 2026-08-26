@@ -151,6 +151,32 @@ final class Analytics
         return $signals;
     }
 
+    public static function weeklyTrend(array $weeks): array
+    {
+        $nonEmpty = array_values(array_filter($weeks, static fn (array $week): bool => (int) ($week['workouts'] ?? 0) > 0));
+        if (count($nonEmpty) < 2) {
+            return ['direction' => 'insufficient_data', 'comparison' => null];
+        }
+        $current = $nonEmpty[array_key_last($nonEmpty)];
+        $previous = $nonEmpty[array_key_last($nonEmpty) - 1];
+        $delta = static fn (string $key): float => round((float) ($current[$key] ?? 0) - (float) ($previous[$key] ?? 0), 2);
+        $tonnageDelta = $delta('tonnage');
+        return [
+            'direction' => $tonnageDelta > 0 ? 'up' : ($tonnageDelta < 0 ? 'down' : 'flat'),
+            'comparison' => [
+                'current_week_start' => $current['week_start'] ?? null,
+                'previous_week_start' => $previous['week_start'] ?? null,
+                'workouts_delta' => (int) $delta('workouts'),
+                'working_sets_delta' => (int) $delta('working_sets'),
+                'tonnage_kg_delta' => $tonnageDelta,
+                'duration_minutes_delta' => (int) $delta('duration_minutes'),
+                'average_rir_delta' => isset($current['average_rir'], $previous['average_rir'])
+                    ? round((float) $current['average_rir'] - (float) $previous['average_rir'], 1)
+                    : null,
+            ],
+        ];
+    }
+
     private static function timezone(string $timezone): DateTimeZone
     {
         try {

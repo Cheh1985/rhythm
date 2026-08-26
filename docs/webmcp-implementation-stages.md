@@ -153,6 +153,36 @@ WEBMCP_ACTIVATION_ENABLED=false
 
 Этапы 2–3, 4 и 8 могут выполняться параллельно после этапа 1 только в отдельных ветках. При объединении особенно внимательно проверяются `database/schema.sql`, `public/index.php`, controllers и shared services.
 
+## Текущий статус реализации
+
+Актуально на 26 августа 2026 года. Статус обновляется после завершения локальных проверок и фиксации соответствующего этапа в Git.
+
+| Этап | Статус | Commit | Примечание |
+|---|---|---|---|
+| 1 | Реализован и локально проверен | `2e87af5` | Foundation готов; MySQL/MariaDB migration dry run на staging ещё не выполнен |
+| 2 | Следующий, не начат | — | Можно начинать поверх результата этапа 1 |
+| 3 | Не начат | — | Зависит от этапа 2 |
+| 4 | Не начат | — | Зависит от этапа 1 |
+| 5 | Не начат | — | Зависит от этапов 3 и 4 |
+| 6 | Не начат | — | Зависит от этапа 4 |
+| 7 | Не начат | — | Зависит от этапа 6 |
+| 8 | Не начат | — | Зависит от этапа 1 |
+| 9 | Не начат | — | Зависит от этапов 5, 7 и 8 |
+| 10 | Не начат | — | Зависит от этапа 9 |
+
+### Результат этапа 1
+
+- commit: `2e87af54258ca29aaba582a7495f694ab0d4f802` — «Вынеси валидацию плана и добавь трассировку запросов»;
+- добавлены единый request/correlation ID, безопасный API error envelope и строгие helpers для ID, JSON body и ожидаемых типов;
+- все WebMCP feature flags добавлены в `.env.example` со значением `false`;
+- validation и canonical JSON вынесены в `TrainingPlanContractValidator`, а `PlanImportService` делегирует ему без изменения legacy `training-plan` v1.0;
+- добавлены compact `assistant_tool_calls`, redaction/allowlist метаданных и nullable `source`/`request_id` в domain audit;
+- `database/schema.sql` согласован с `database/migrations/009_webmcp_foundation.sql`;
+- `tests/stage10-webmcp-foundation.php`: 38 проверок пройдены;
+- полный PHP test suite и Node offline queue test: пройдены;
+- WebMCP routes, `/assistant`, read API и WebMCP JavaScript не добавлялись;
+- открытая проверка перед production rollout: применить migration `009_webmcp_foundation.sql` на MySQL 8/MariaDB staging, поскольку локально доступны только SQLite и статическая проверка SQL.
+
 ---
 
 # Этап 1 — общие контракты, request security и audit foundation
