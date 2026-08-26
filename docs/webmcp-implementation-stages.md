@@ -155,13 +155,13 @@ WEBMCP_ACTIVATION_ENABLED=false
 
 ## Текущий статус реализации
 
-Актуально на 26 августа 2026 года. Статус обновляется после завершения локальных проверок и фиксации соответствующего этапа в Git.
+Актуально на 26 августа 2026 года. Статус обновляется после завершения локальных проверок; commit указывается после фиксации соответствующего этапа в Git.
 
 | Этап | Статус | Commit | Примечание |
 |---|---|---|---|
 | 1 | Реализован и локально проверен | `2e87af5` | Foundation готов; MySQL/MariaDB migration dry run на staging ещё не выполнен |
-| 2 | Следующий, не начат | — | Можно начинать поверх результата этапа 1 |
-| 3 | Не начат | — | Зависит от этапа 2 |
+| 2 | Реализован и локально проверен | — | Изменения находятся в working tree; MySQL/MariaDB integration check ещё не выполнен |
+| 3 | Следующий, не начат | — | Можно начинать после фиксации результата этапа 2 |
 | 4 | Не начат | — | Зависит от этапа 1 |
 | 5 | Не начат | — | Зависит от этапов 3 и 4 |
 | 6 | Не начат | — | Зависит от этапа 4 |
@@ -182,6 +182,20 @@ WEBMCP_ACTIVATION_ENABLED=false
 - полный PHP test suite и Node offline queue test: пройдены;
 - WebMCP routes, `/assistant`, read API и WebMCP JavaScript не добавлялись;
 - открытая проверка перед production rollout: применить migration `009_webmcp_foundation.sql` на MySQL 8/MariaDB staging, поскольку локально доступны только SQLite и статическая проверка SQL.
+
+### Результат этапа 2
+
+- созданы tenant-scoped `TrainingQueryRepository` и `TrainingQueryService`; изменения пока не зафиксированы в Git;
+- добавлены минимизированные DTO для profile context, программ и версий, списка и деталей тренировок, истории упражнения, progress summary, тренировки по локальной дате, поиска упражнений и кандидатов на замену;
+- публичные DTO используют `external_plan_id`, `public_id` и `exercise_id`, не содержат внутренних numeric ID, login/email/password fields, raw source/snapshot JSON или audit rows;
+- реализованы строгие date ranges, hard limits и cursor pagination для списка тренировок, истории упражнения и поиска;
+- backend детерминированно считает working sets, tonnage, duration, average RIR, session RPE, Epley e1RM, target rep-range compliance, planned-vs-actual, substitutions/skipped/pending, weekly trends и per-exercise/per-muscle aggregates;
+- силовые и плавательные показатели разделены; muscle aggregates содержат double-count caveat, `pending` не считается `skipped`, а `past_due_planned` не называется доказанным пропуском;
+- добавлены явные `data_quality`, аналитические caveats и эвристические plateau signals без диагностических выводов;
+- `tests/stage11-training-query.php`: 40 проверок пройдены, включая timezone boundaries, cursors, IDOR, метрики, data quality, empty и oversized ranges;
+- полный PHP regression suite, smoke и Node offline queue test: пройдены;
+- HTTP routes, Site tool registration, WebMCP frontend, drafts, activation и схема БД не изменялись;
+- открытая проверка перед объединением: выполнить integration tests новых read queries на MySQL 8/MariaDB staging; локальные проверки выполнены на SQLite.
 
 ---
 
