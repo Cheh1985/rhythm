@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Core\Database;
+use App\Core\ApiError;
+use App\Core\RequestContext;
 
 define('APP_ROOT', __DIR__);
 
@@ -55,6 +57,8 @@ define('APP_DEBUG_ENABLED', $debug);
 ini_set('display_errors', $debug ? '1' : '0');
 ini_set('log_errors', '1');
 
+RequestContext::initialize($_SERVER['HTTP_X_REQUEST_ID'] ?? null);
+
 set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
     if (!(error_reporting() & $severity)) {
         return false;
@@ -92,13 +96,15 @@ if (PHP_SAPI !== 'cli' && session_status() !== PHP_SESSION_ACTIVE) {
     $upgradeDirective = APP_ENVIRONMENT === 'production' ? '; upgrade-insecure-requests' : '';
     header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; media-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'{$upgradeDirective}");
     if ($https && APP_ENVIRONMENT === 'production') header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
-    header('X-Request-ID: ' . bin2hex(random_bytes(8)));
+}
+
+if (PHP_SAPI !== 'cli') {
+    header('X-Request-ID: ' . RequestContext::requestId());
 }
 
 set_exception_handler(static function (Throwable $exception): void {
     $debug = APP_DEBUG_ENABLED;
-    $requestId = $_SERVER['HTTP_X_REQUEST_ID'] ?? bin2hex(random_bytes(8));
-    $message = sprintf("[%s] request=%s %s\n%s\n", gmdate('c'), preg_replace('/[^a-zA-Z0-9._-]/', '', (string) $requestId), $exception->getMessage(), $exception->getTraceAsString());
+    $message = RequestContext::exceptionLog($exception);
     $logDir = APP_ROOT . '/storage/logs';
     if (is_dir($logDir) && is_writable($logDir)) {
         error_log($message, 3, $logDir . '/app.log');
@@ -111,11 +117,13 @@ set_exception_handler(static function (Throwable $exception): void {
         return;
     }
 
-    http_response_code(500);
+    $apiError = $exception instanceof ApiError ? $exception : ApiError::internal();
+    http_response_code($apiError->status());
     $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
     if (str_contains($accept, 'application/json') || str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/api/')) {
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['error' => $debug ? $exception->getMessage() : 'Внутренняя ошибка сервера'], JSON_UNESCAPED_UNICODE);
+        header('Cache-Control: no-store');
+        echo json_encode($apiError->envelope(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         return;
     }
     echo $debug ? '<pre>' . e($message) . '</pre>' : '<h1>Что-то пошло не так</h1><p>Попробуйте ещё раз позже.</p>';
