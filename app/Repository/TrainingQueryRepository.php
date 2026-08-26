@@ -61,6 +61,23 @@ SQL);
         return $query->fetch() ?: null;
     }
 
+    public function programVersionRows(int $userId, string $programId): array
+    {
+        $query = $this->pdo()->prepare(<<<'SQL'
+SELECT p.external_program_id,p.name,p.status,pv.version_number,pv.source,pv.change_reason,pv.trainer_comment,pv.created_at,
+       parent.version_number parent_version,
+       (SELECT COUNT(*) FROM workout_templates wt WHERE wt.program_version_id=pv.id AND wt.user_id=p.user_id AND wt.deleted_at IS NULL) template_count,
+       (SELECT COUNT(*) FROM workout_plans wp WHERE wp.program_version_id=pv.id AND wp.user_id=p.user_id AND wp.deleted_at IS NULL) workout_count
+FROM training_programs p
+JOIN program_versions pv ON pv.program_id=p.id
+LEFT JOIN program_versions parent ON parent.id=pv.parent_version_id AND parent.program_id=p.id
+WHERE p.user_id=? AND p.external_program_id=? AND p.deleted_at IS NULL
+ORDER BY pv.version_number DESC,pv.id DESC
+SQL);
+        $query->execute([$userId, $programId]);
+        return $query->fetchAll();
+    }
+
     public function templateRows(int $userId, int $internalVersionId): array
     {
         $query = $this->pdo()->prepare(<<<'SQL'

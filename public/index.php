@@ -6,6 +6,7 @@ require dirname(__DIR__) . '/bootstrap.php';
 
 use App\Controller\AuthController;
 use App\Controller\ApiController;
+use App\Controller\SiteToolsApiController;
 use App\Controller\WebController;
 use App\Core\Router;
 
@@ -13,6 +14,7 @@ $router = new Router();
 $auth = new AuthController();
 $web = new WebController();
 $api = new ApiController();
+$siteTools = new SiteToolsApiController();
 
 $router->add('GET', '/', [$web, 'dashboard']);
 $router->add('GET', '/login', [$auth, 'loginForm']);
@@ -70,6 +72,19 @@ $router->add('GET', '/api/analytics/weekly', [$api, 'weekly']);
 $router->add('POST', '/api/swimming', [$api, 'createSwimming']);
 $router->add('GET', '/api/swimming/{id}', [$api, 'swimming']);
 $router->add('PATCH', '/api/swimming/{id}', [$api, 'updateSwimming']);
+$router->add('GET', '/api/assistant/profile', [$siteTools, 'profile']);
+$router->add('GET', '/api/assistant/plans', [$siteTools, 'plans']);
+$router->add('GET', '/api/assistant/plans/{programId}/versions', [$siteTools, 'planVersions']);
+$router->add('GET', '/api/assistant/plans/{programId}/versions/{version}', [$siteTools, 'planVersion']);
+$router->add('GET', '/api/assistant/plans/{programId}', [$siteTools, 'plan']);
+$router->add('GET', '/api/assistant/workouts', [$siteTools, 'workouts']);
+$router->add('GET', '/api/assistant/workouts/{workoutId}', [$siteTools, 'workout']);
+$router->add('GET', '/api/assistant/sessions/{sessionId}', [$siteTools, 'session']);
+$router->add('GET', '/api/assistant/exercises/search', [$siteTools, 'exerciseSearch']);
+$router->add('GET', '/api/assistant/exercises/{exerciseId}/history', [$siteTools, 'exerciseHistory']);
+$router->add('GET', '/api/assistant/exercises/{exerciseId}/alternatives', [$siteTools, 'exerciseAlternatives']);
+$router->add('GET', '/api/assistant/progress', [$siteTools, 'progress']);
+$router->add('GET', '/api/assistant/schedule/{date}', [$siteTools, 'scheduledWorkout']);
 $router->add('GET', '/coming-soon', [$web, 'comingSoon']);
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';

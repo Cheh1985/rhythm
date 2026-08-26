@@ -160,15 +160,17 @@ WEBMCP_ACTIVATION_ENABLED=false
 | Этап | Статус | Commit | Примечание |
 |---|---|---|---|
 | 1 | Реализован и локально проверен | `2e87af5` | Foundation готов; MySQL/MariaDB migration dry run на staging ещё не выполнен |
-| 2 | Реализован и локально проверен | — | Изменения находятся в working tree; MySQL/MariaDB integration check ещё не выполнен |
-| 3 | Следующий, не начат | — | Можно начинать после фиксации результата этапа 2 |
-| 4 | Не начат | — | Зависит от этапа 1 |
-| 5 | Не начат | — | Зависит от этапов 3 и 4 |
-| 6 | Не начат | — | Зависит от этапа 4 |
-| 7 | Не начат | — | Зависит от этапа 6 |
-| 8 | Не начат | — | Зависит от этапа 1 |
-| 9 | Не начат | — | Зависит от этапов 5, 7 и 8 |
-| 10 | Не начат | — | Зависит от этапа 9 |
+| 2 | Реализован и локально проверен | `453868d` | MySQL/MariaDB integration check ещё не выполнен |
+| 3 | Реализован и локально проверен | — | Готов в working tree, но ещё не зафиксирован в Git; MySQL/MariaDB integration check не выполнен |
+| 4 | Доступен следующим | — | Этап 1 завершён; можно начинать lifecycle active version и backup compatibility |
+| 5 | Ожидает этап 4 | — | Этап 3 завершён; остаётся зависимость от этапа 4 |
+| 6 | Ожидает этап 4 | — | Program draft schema начинается после этапа 4 |
+| 7 | Заблокирован зависимостью | — | Начинается после этапа 6 |
+| 8 | Доступен параллельно | — | Этап 1 завершён; можно выполнять отдельно от этапа 4 |
+| 9 | Заблокирован зависимостями | — | Требуются завершённые этапы 5, 7 и 8 |
+| 10 | Заблокирован зависимостью | — | Начинается после этапа 9 |
+
+Сводка: этапы 1–3 реализованы и локально проверены. Текущий working tree содержит незакоммиченный этап 3 и это обновление статуса. Следующий этап основной цепочки — этап 4; этап 8 может выполняться параллельно в отдельной ветке. Для этапов 1–3 остаются открытыми проверки на MySQL 8/MariaDB staging.
 
 ### Результат этапа 1
 
@@ -185,7 +187,7 @@ WEBMCP_ACTIVATION_ENABLED=false
 
 ### Результат этапа 2
 
-- созданы tenant-scoped `TrainingQueryRepository` и `TrainingQueryService`; изменения пока не зафиксированы в Git;
+- созданы tenant-scoped `TrainingQueryRepository` и `TrainingQueryService`;
 - добавлены минимизированные DTO для profile context, программ и версий, списка и деталей тренировок, истории упражнения, progress summary, тренировки по локальной дате, поиска упражнений и кандидатов на замену;
 - публичные DTO используют `external_plan_id`, `public_id` и `exercise_id`, не содержат внутренних numeric ID, login/email/password fields, raw source/snapshot JSON или audit rows;
 - реализованы строгие date ranges, hard limits и cursor pagination для списка тренировок, истории упражнения и поиска;
@@ -196,6 +198,18 @@ WEBMCP_ACTIVATION_ENABLED=false
 - полный PHP regression suite, smoke и Node offline queue test: пройдены;
 - HTTP routes, Site tool registration, WebMCP frontend, drafts, activation и схема БД не изменялись;
 - открытая проверка перед объединением: выполнить integration tests новых read queries на MySQL 8/MariaDB staging; локальные проверки выполнены на SQLite.
+
+### Результат этапа 3
+
+- добавлены authenticated read-only semantic endpoints под `/api/assistant/*` для profile, программ и версий, списка/деталей тренировок, истории упражнения, progress, расписания, поиска и альтернатив;
+- `SiteToolRequestGuard` централизует `Auth::requireUser(true)`, feature flag, строгий allowlist query-параметров, лимиты query/body, `no-store`, correlation ID, per-user/tool rate limit и error mapping;
+- все ответы используют стабильные success/error envelopes; отсутствующий или чужой entity одинаково возвращает 404, а `user_id` не входит ни в один входной контракт;
+- read calls пишут только компактный `assistant_tool_calls` audit без raw query/body/credentials; domain state GET-запросы не изменяют;
+- добавлена безопасная tenant-scoped проекция списка версий программы без immutable snapshot payload;
+- `tests/stage12-site-tools-api.php`: 33 HTTP-проверки пройдены, включая реальный CSRF login/session cookie flow, 401/404/422/429, IDOR, strict route/query/body, cursors, headers и audit;
+- полный PHP regression suite, smoke и Node offline queue test: пройдены;
+- `/assistant`, `document.modelContext`, frontend tool catalog, writes и activation не добавлялись; схема БД не изменялась;
+- открытая проверка перед production rollout: выполнить HTTP/query integration tests на MySQL 8/MariaDB staging.
 
 ---
 

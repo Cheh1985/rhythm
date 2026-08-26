@@ -42,7 +42,8 @@ final class Auth
             return $user;
         }
         if ($json) {
-            \json_response(['error' => 'Требуется вход.'], 401);
+            $error = new ApiError('authentication_required', 'Требуется вход.', 401);
+            \json_response($error->envelope(), $error->status());
         }
         \redirect('/login');
     }

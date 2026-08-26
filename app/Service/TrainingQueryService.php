@@ -107,6 +107,35 @@ final class TrainingQueryService
         ];
     }
 
+    public function programVersions(int $userId, string $programId): ?array
+    {
+        $programId = $this->identifier($programId, 'program_id');
+        $rows = $this->repository()->programVersionRows($userId, $programId);
+        if ($rows === []) {
+            return null;
+        }
+
+        $items = array_map(static fn (array $row): array => [
+            'version' => (int) $row['version_number'],
+            'parent_version' => $row['parent_version'] !== null ? (int) $row['parent_version'] : null,
+            'source' => (string) $row['source'],
+            'change_reason' => $row['change_reason'],
+            'trainer_comment' => $row['trainer_comment'],
+            'template_count' => (int) $row['template_count'],
+            'workout_count' => (int) $row['workout_count'],
+            'created_at_utc' => self::utc($row['created_at']),
+        ], $rows);
+
+        return [
+            'program_id' => (string) $rows[0]['external_program_id'],
+            'name' => (string) $rows[0]['name'],
+            'status' => (string) $rows[0]['status'],
+            'items' => $items,
+            'count' => count($items),
+            'data_quality' => $this->quality([], ['Version payloads are immutable and intentionally excluded from this list.']),
+        ];
+    }
+
     public function workouts(int $userId, array $filters = []): array
     {
         $timezone = $this->userTimezone($userId);

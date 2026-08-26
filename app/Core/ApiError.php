@@ -34,6 +34,11 @@ final class ApiError extends RuntimeException
         return $this->status;
     }
 
+    public function errorCode(): string
+    {
+        return $this->errorCode;
+    }
+
     /** @return array{error: array<string, mixed>} */
     public function envelope(): array
     {
