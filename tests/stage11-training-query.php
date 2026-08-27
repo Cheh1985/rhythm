@@ -35,11 +35,12 @@ CREATE TABLE exercises (
 );
 CREATE TABLE training_programs (
  id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL,external_program_id TEXT NOT NULL,name TEXT NOT NULL,description TEXT NULL,
- status TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,archived_at TEXT NULL,deleted_at TEXT NULL
+ status TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,archived_at TEXT NULL,deleted_at TEXT NULL,active_version_id INTEGER NULL
 );
 CREATE TABLE program_versions (
  id INTEGER PRIMARY KEY,program_id INTEGER NOT NULL,version_number INTEGER NOT NULL,source TEXT NOT NULL,change_reason TEXT NULL,
- trainer_comment TEXT NULL,snapshot_json TEXT NOT NULL,snapshot_hash TEXT NOT NULL,parent_version_id INTEGER NULL,created_at TEXT NOT NULL
+ trainer_comment TEXT NULL,snapshot_json TEXT NOT NULL,snapshot_hash TEXT NOT NULL,parent_version_id INTEGER NULL,created_at TEXT NOT NULL,
+ lifecycle_status TEXT NOT NULL,lock_version INTEGER NOT NULL,aggregate_hash TEXT NOT NULL,updated_at TEXT NOT NULL,activated_at TEXT NULL,archived_at TEXT NULL
 );
 CREATE TABLE workout_templates (
  id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL,program_version_id INTEGER NULL,code TEXT NOT NULL,name TEXT NOT NULL,
@@ -95,12 +96,12 @@ INSERT INTO exercises VALUES
  ('fly',NULL,'Сведение рук','chest','["chest"]','strength','cable',2.5,'absolute','active',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL),
  ('secret',2,'Чужое упражнение','back','["back"]','strength','machine',2.5,'absolute','active',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL);
 INSERT INTO training_programs VALUES
- (1,1,'base','Базовый цикл','Безопасное описание','active','2026-07-01 00:00:00','2026-08-01 00:00:00',NULL,NULL),
- (2,2,'private-program','Чужая программа','private','active','2026-07-01 00:00:00','2026-08-01 00:00:00',NULL,NULL);
+ (1,1,'base','Базовый цикл','Безопасное описание','active','2026-07-01 00:00:00','2026-08-01 00:00:00',NULL,NULL,2),
+ (2,2,'private-program','Чужая программа','private','active','2026-07-01 00:00:00','2026-08-01 00:00:00',NULL,NULL,3);
 INSERT INTO program_versions VALUES
- (1,1,1,'manual','Старт','Комментарий','{"private":"snapshot"}','hash-1',NULL,'2026-07-01 00:00:00'),
- (2,1,2,'manual','Прогрессия','Проверить технику','{"private":"snapshot-v2"}','hash-2',1,'2026-08-01 00:00:00'),
- (3,2,1,'manual','Private','Private','{"private":true}','hash-3',NULL,'2026-07-01 00:00:00');
+ (1,1,1,'manual','Старт','Комментарий','{"private":"snapshot"}','hash-1',NULL,'2026-07-01 00:00:00','published',1,'hash-1','2026-07-01 00:00:00',NULL,NULL),
+ (2,1,2,'manual','Прогрессия','Проверить технику','{"private":"snapshot-v2"}','hash-2',1,'2026-08-01 00:00:00','published',1,'hash-2','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL),
+ (3,2,1,'manual','Private','Private','{"private":true}','hash-3',NULL,'2026-07-01 00:00:00','published',1,'hash-3','2026-07-01 00:00:00','2026-07-01 00:00:00',NULL);
 INSERT INTO workout_templates VALUES
  (1,1,2,'strength-a','Силовая A','strength','{"private":"content"}','template-hash','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL),
  (2,2,3,'private','Чужой шаблон','strength','{}','private-hash','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL);
@@ -158,8 +159,20 @@ $programs = $service->programs(1);
 $version = $service->programVersion(1, 'base', 2);
 $versionJson = json_encode($version, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 $check(count($programs['items']) === 1 && $version['version'] === 2 && $version['parent_version'] === 1 && $version['templates'][0]['template_code'] === 'strength-a', 'current/specific program version возвращаются безопасными проекциями');
+$check($programs['items'][0]['active_version_state'] === 'resolved' && $programs['items'][0]['current_version'] === 2, 'current version определяется active pointer');
 $check(!str_contains($versionJson, 'snapshot') && !str_contains($versionJson, 'content'), 'program projection не содержит snapshot_json/content_json');
 $check($service->programVersion(1, 'private-program') === null, 'чужая программа не открывается по публичному ID');
+
+$pdo->exec(<<<'SQL'
+INSERT INTO training_programs VALUES
+ (3,1,'ambiguous-current','Требует выбора',NULL,'paused','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL,NULL,NULL);
+INSERT INTO program_versions VALUES
+ (4,3,1,'manual',NULL,NULL,'{}','hash-4',NULL,'2026-08-01 00:00:00','published',1,'hash-4','2026-08-01 00:00:00',NULL,NULL),
+ (5,3,2,'manual',NULL,NULL,'{}','hash-5',4,'2026-08-02 00:00:00','published',1,'hash-5','2026-08-02 00:00:00',NULL,NULL);
+SQL);
+$ambiguousPrograms = $service->programs(1);
+$ambiguous = array_values(array_filter($ambiguousPrograms['items'], static fn (array $item): bool => $item['program_id'] === 'ambiguous-current'))[0];
+$check($ambiguous['current_version'] === null && $ambiguous['active_version_state'] === 'ambiguous', 'multiple-version программа без pointer возвращает явный ambiguous state');
 
 $page1 = $service->workouts(1, ['from'=>'2026-08-24','to'=>'2026-08-26','limit'=>1]);
 $page2 = $service->workouts(1, ['from'=>'2026-08-24','to'=>'2026-08-26','limit'=>1,'cursor'=>$page1['next_cursor']]);

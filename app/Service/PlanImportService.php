@@ -143,9 +143,24 @@ final class PlanImportService
                         throw new InvalidArgumentException('Указанная родительская версия программы ещё не импортирована.');
                     }
                 }
-                $insertVersion = $pdo->prepare("INSERT INTO program_versions (program_id, version_number, source, change_reason, trainer_comment, snapshot_json, snapshot_hash, parent_version_id, created_at) VALUES (?, ?, 'json_import', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)");
-                $insertVersion->execute([$programId, $versionNumber, $program['change_reason'], null, $versionSnapshot, $snapshotHash, $parentId]);
+                $insertVersion = $pdo->prepare("INSERT INTO program_versions (program_id, version_number, source, change_reason, trainer_comment, snapshot_json, snapshot_hash, parent_version_id, created_at, lifecycle_status, lock_version, aggregate_hash, updated_at) VALUES (?, ?, 'json_import', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'published', 1, ?, CURRENT_TIMESTAMP)");
+                $insertVersion->execute([$programId, $versionNumber, $program['change_reason'], null, $versionSnapshot, $snapshotHash, $parentId, $snapshotHash]);
                 $versionId = (int) $pdo->lastInsertId();
+            }
+
+            // Legacy training-plan v1.0 may safely establish a pointer only while
+            // the program has exactly one version. Multiple versions require the
+            // explicit reconciliation/activation workflow and are never guessed.
+            $linkSingleVersion = $pdo->prepare(<<<'SQL'
+UPDATE training_programs
+SET active_version_id=?,updated_at=CURRENT_TIMESTAMP
+WHERE id=? AND user_id=? AND active_version_id IS NULL
+  AND (SELECT COUNT(*) FROM program_versions pv WHERE pv.program_id=training_programs.id)=1
+SQL);
+            $linkSingleVersion->execute([$versionId, $programId, $userId]);
+            if ($linkSingleVersion->rowCount() === 1) {
+                $markActive = $pdo->prepare('UPDATE program_versions SET activated_at=COALESCE(activated_at,created_at) WHERE id=? AND program_id=?');
+                $markActive->execute([$versionId, $programId]);
             }
 
             $workout = $data['workout'];

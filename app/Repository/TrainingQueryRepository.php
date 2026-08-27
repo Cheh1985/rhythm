@@ -35,10 +35,17 @@ final class TrainingQueryRepository
 SELECT p.external_program_id,p.name,p.description,p.status,p.created_at,p.updated_at,
        pv.version_number,pv.source,pv.change_reason,pv.trainer_comment,pv.created_at version_created_at,
        parent.version_number parent_version,
+       CASE
+           WHEN p.active_version_id IS NOT NULL AND pv.id IS NULL THEN 'invalid_pointer'
+           WHEN p.active_version_id IS NOT NULL THEN 'resolved'
+           WHEN (SELECT COUNT(*) FROM program_versions vc WHERE vc.program_id=p.id)=0 THEN 'no_versions'
+           WHEN (SELECT COUNT(*) FROM program_versions vc WHERE vc.program_id=p.id)=1 THEN 'reconcilable'
+           ELSE 'ambiguous'
+       END active_version_state,
        (SELECT COUNT(*) FROM workout_templates wt WHERE wt.program_version_id=pv.id AND wt.user_id=p.user_id AND wt.deleted_at IS NULL) template_count,
        (SELECT COUNT(*) FROM workout_plans wp WHERE wp.program_version_id=pv.id AND wp.user_id=p.user_id AND wp.deleted_at IS NULL) workout_count
 FROM training_programs p
-LEFT JOIN program_versions pv ON pv.id=(SELECT pv2.id FROM program_versions pv2 WHERE pv2.program_id=p.id ORDER BY pv2.version_number DESC,pv2.id DESC LIMIT 1)
+LEFT JOIN program_versions pv ON pv.id=p.active_version_id AND pv.program_id=p.id
 LEFT JOIN program_versions parent ON parent.id=pv.parent_version_id AND parent.program_id=p.id
 WHERE p.user_id=? AND p.deleted_at IS NULL
 ORDER BY CASE p.status WHEN 'active' THEN 0 WHEN 'draft' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END,p.updated_at DESC,p.external_program_id
@@ -54,6 +61,8 @@ SQL);
         if ($version !== null) {
             $sql .= ' AND pv.version_number=?';
             $params[] = $version;
+        } else {
+            $sql .= ' AND pv.id=p.active_version_id';
         }
         $sql .= ' ORDER BY pv.version_number DESC,pv.id DESC LIMIT 1';
         $query = $this->pdo()->prepare($sql);

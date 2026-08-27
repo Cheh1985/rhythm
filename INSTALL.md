@@ -26,7 +26,7 @@ GRANT ALL PRIVILEGES ON training_diary.* TO 'training_user'@'localhost';
 php bin/install.php
 ```
 
-Если база уже была создана на предыдущем этапе, не запускайте `schema.sql` повторно: после резервной копии примените по порядку недостающие миграции `database/migrations/002_*.sql` … `008_stage_8_backup_restore.sql` штатным MySQL/MariaDB-клиентом.
+Если база уже была создана на предыдущем этапе, не запускайте `schema.sql` повторно: после резервной копии примените по порядку недостающие миграции `database/migrations/002_*.sql` … `010_program_version_lifecycle.sql` штатным MySQL/MariaDB-клиентом. После `010` сначала выполните dry-run `php bin/reconcile-program-versions.php`; `--apply` связывает только однозначные single-version программы и не выбирает ambiguous cases.
 
 Для ручной установки последовательно импортируйте `database/schema.sql`, затем `database/seed.sql`.
 

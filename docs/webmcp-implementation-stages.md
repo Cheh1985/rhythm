@@ -155,22 +155,22 @@ WEBMCP_ACTIVATION_ENABLED=false
 
 ## Текущий статус реализации
 
-Актуально на 26 августа 2026 года. Статус обновляется после завершения локальных проверок; commit указывается после фиксации соответствующего этапа в Git.
+Актуально на 27 августа 2026 года. Статус обновляется после завершения локальных проверок; commit указывается после фиксации соответствующего этапа в Git.
 
 | Этап | Статус | Commit | Примечание |
 |---|---|---|---|
 | 1 | Реализован и локально проверен | `2e87af5` | Foundation готов; MySQL/MariaDB migration dry run на staging ещё не выполнен |
 | 2 | Реализован и локально проверен | `453868d` | MySQL/MariaDB integration check ещё не выполнен |
-| 3 | Реализован и локально проверен | — | Готов в working tree, но ещё не зафиксирован в Git; MySQL/MariaDB integration check не выполнен |
-| 4 | Доступен следующим | — | Этап 1 завершён; можно начинать lifecycle active version и backup compatibility |
-| 5 | Ожидает этап 4 | — | Этап 3 завершён; остаётся зависимость от этапа 4 |
-| 6 | Ожидает этап 4 | — | Program draft schema начинается после этапа 4 |
+| 3 | Реализован и локально проверен | `b5032be` | Read-only Assistant API зафиксирован; MySQL/MariaDB integration check ещё не выполнен |
+| 4 | Реализован и локально проверен | — | Завершён в working tree, но ещё не зафиксирован в Git; MySQL/MariaDB migration dry run ещё не выполнен |
+| 5 | Доступен следующим | — | Зависимости от этапов 3 и 4 выполнены |
+| 6 | Доступен следующим | — | Lifecycle foundation этапа 4 готов |
 | 7 | Заблокирован зависимостью | — | Начинается после этапа 6 |
 | 8 | Доступен параллельно | — | Этап 1 завершён; можно выполнять отдельно от этапа 4 |
 | 9 | Заблокирован зависимостями | — | Требуются завершённые этапы 5, 7 и 8 |
 | 10 | Заблокирован зависимостью | — | Начинается после этапа 9 |
 
-Сводка: этапы 1–3 реализованы и локально проверены. Текущий working tree содержит незакоммиченный этап 3 и это обновление статуса. Следующий этап основной цепочки — этап 4; этап 8 может выполняться параллельно в отдельной ветке. Для этапов 1–3 остаются открытыми проверки на MySQL 8/MariaDB staging.
+Сводка: этапы 1–3 реализованы, локально проверены и зафиксированы в Git. Этап 4 реализован и полностью проверен локально, но пока находится в working tree. Следующими по карте зависимостей доступны этапы 5 и 6, а этап 8 по-прежнему можно выполнять параллельно. Для этапов 1–4 остаются открытыми integration/migration проверки на MySQL 8 и MariaDB staging.
 
 ### Результат этапа 1
 
@@ -201,6 +201,7 @@ WEBMCP_ACTIVATION_ENABLED=false
 
 ### Результат этапа 3
 
+- commit: `b5032bec7a3dd758e2e072a8a9e9052231367bd5` — «Добавить защищённые read-only API для ассистента»;
 - добавлены authenticated read-only semantic endpoints под `/api/assistant/*` для profile, программ и версий, списка/деталей тренировок, истории упражнения, progress, расписания, поиска и альтернатив;
 - `SiteToolRequestGuard` централизует `Auth::requireUser(true)`, feature flag, строгий allowlist query-параметров, лимиты query/body, `no-store`, correlation ID, per-user/tool rate limit и error mapping;
 - все ответы используют стабильные success/error envelopes; отсутствующий или чужой entity одинаково возвращает 404, а `user_id` не входит ни в один входной контракт;
@@ -210,6 +211,19 @@ WEBMCP_ACTIVATION_ENABLED=false
 - полный PHP regression suite, smoke и Node offline queue test: пройдены;
 - `/assistant`, `document.modelContext`, frontend tool catalog, writes и activation не добавлялись; схема БД не изменялась;
 - открытая проверка перед production rollout: выполнить HTTP/query integration tests на MySQL 8/MariaDB staging.
+
+### Результат этапа 4
+
+- статус Git: завершён и локально проверен в working tree, отдельный commit пока отсутствует;
+- добавлена additive migration `010_program_version_lifecycle.sql` и согласованный fresh schema: lifecycle, `lock_version`, `aggregate_hash`, timestamps и защищённый `active_version_id`;
+- existing versions backfill-ятся как `published`; автоматически связываются только программы с одной версией, multiple-version cases остаются `ambiguous`;
+- `program_schedule_slots` хранит version → template → weekday, защищён unique weekday и составным FK от template другой версии;
+- effective current version во read layer определяется pointer, а `/programs` показывает resolved/reconcilable/ambiguous/invalid состояния;
+- добавлены dry-run/apply command `bin/reconcile-program-versions.php` и tenant-scoped reconciliation service; `--apply` не выбирает неоднозначные версии;
+- backup export обновлён до v1.1, restore читает v1.0/v1.1, remap-ит active pointer и slots, проверяет ownership и исключает `assistant_tool_calls`;
+- `tests/stage13-program-lifecycle.php`: 19 проверок пройдены; полный PHP regression suite и Node offline queue test пройдены;
+- drafts, activation transaction, WebMCP page/tools и автоматическое удаление версий не добавлялись;
+- открытая проверка: применить migration/fresh schema на MySQL 8 и MariaDB staging; локально доступны только PDO SQLite, без mysql/mariadb/Docker/Podman.
 
 ---
 

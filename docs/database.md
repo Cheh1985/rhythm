@@ -10,13 +10,15 @@
 
 - доступ: `users`, `login_attempts`;
 - справочник: `exercises`, где системные записи имеют `owner_user_id = NULL`, пользовательские — владельца; `exercise_id` является глобально уникальным и неизменяемым, а `status` и `progression_increment`/`progression_mode` задают доступность и шаг прогрессии;
-- план: `training_programs`, `program_versions`, `workout_templates`, `workout_plans`, `workout_exercises`;
+- план: `training_programs`, `program_versions`, `workout_templates`, `program_schedule_slots`, `workout_plans`, `workout_exercises`;
 - факт: `workout_sessions`, `readiness_logs`, `session_exercises`, `exercise_sets`;
 - обратная связь: `discomfort_logs`, `progression_suggestions`, `personal_records`;
 - дополнительные данные: `body_measurements`, `swimming_sessions`, `schedules`, `audit_logs`, `backup_restores`;
 - доставка offline-команд: `offline_action_receipts`.
 
-Плановые и фактические данные разделены. `training_programs.external_program_id` стабильно идентифицирует программу в пределах пользователя. `program_versions` хранит номер, читаемую причину, `parent_version_id`, канонический `snapshot_json` и `snapshot_hash`; импорт не обновляет существующую версию. `workout_templates` неизменяемы внутри версии по паре `(program_version_id, code)` и защищены `content_hash`. Конкретный `workout_plan` ссылается и на версию, и на шаблон, но отдельно хранит дату и исходный JSON. Исторически важные сущности имеют `deleted_at`; конкурентное редактирование защищено `version` у `workout_sessions`, `session_exercises` и `exercise_sets`.
+Плановые и фактические данные разделены. `training_programs.external_program_id` стабильно идентифицирует программу в пределах пользователя, а nullable `active_version_id` является единственным источником истины для текущей версии. Составной FK `(active_version_id, id) → program_versions(id, program_id)` запрещает ссылку на версию другой программы. `NULL` при нескольких версиях означает не «последнюю по номеру», а явную необходимость reconciliation.
+
+`program_versions` хранит номер, читаемую причину, `parent_version_id`, канонический `snapshot_json`/`snapshot_hash`, lifecycle `draft/published/archived`, optimistic `lock_version`, `aggregate_hash` и lifecycle timestamps. Исторические версии после миграции считаются `published`; импорт не обновляет существующую версию. `workout_templates` неизменяемы внутри версии по паре `(program_version_id, code)` и защищены `content_hash`. `program_schedule_slots` фиксирует историческое недельное расписание версии: один template на weekday, максимум один slot на `(program_version_id, weekday)`. Составной FK не позволяет связать slot с template другой версии. Конкретный `workout_plan` ссылается и на версию, и на шаблон, но отдельно хранит дату и исходный JSON. Исторически важные сущности имеют `deleted_at`; конкурентное редактирование защищено `version` у `workout_sessions`, `session_exercises` и `exercise_sets`.
 
 ## Online-поток тренировки
 
@@ -48,7 +50,7 @@
 
 ## Миграции
 
-`database/migrations/001_initial.sql` документирует начальную версию и не переписывается. Для существующей БД миграции применяются по порядку. `006_stage_6_analytics.sql` добавляет индексы истории и агрегатов. `007_stage_7_swimming_schedule.sql` версионирует расписание и плавание, добавляет стабильный public ID, источник, UTC-точку даты, optimistic locking и нормализованные интервалы. Для новой установки источником истины остаётся актуальный `database/schema.sql`.
+`database/migrations/001_initial.sql` документирует начальную версию и не переписывается. Для существующей БД миграции применяются по порядку. `006_stage_6_analytics.sql` добавляет индексы истории и агрегатов. `007_stage_7_swimming_schedule.sql` версионирует расписание и плавание. `009_webmcp_foundation.sql` добавляет минимизированный technical audit. `010_program_version_lifecycle.sql` добавляет lifecycle, active pointer и versioned schedule slots; автоматически связывает только программы с одной версией. После dry-run `php bin/reconcile-program-versions.php` безопасные single-version cases можно применить через `--apply`; ambiguous cases команда только показывает. Для новой установки источником истины остаётся актуальный `database/schema.sql`.
 
 ## Плавание и расписание
 
@@ -60,11 +62,11 @@
 
 Общая хронология строится `UNION ALL` двух ограниченных по `user_id` источников: завершённых `workout_sessions` и `swimming_sessions`. На уровне выдачи унифицируются только дата, тип, ссылка и подпись; силовые sets/tonnage/RIR не синтезируются для плавания.
 
-## Backup и restore v1.0
+## Backup и restore v1.0/v1.1
 
-Backup выгружает только строки текущего пользователя и принадлежащие им дочерние строки. Пароль, PHP-сессия и `login_attempts` в файл не входят. Данные отсортированы детерминированно; SHA-256 считается по каноническому объекту `data` и проверяется до preview.
+Новый export использует формат v1.1 и добавляет `program_schedule_slots`, lifecycle-поля версий и `active_version_id`. Restore продолжает строго принимать legacy v1.0; единственная восстановленная legacy-версия безопасно связывается как active, а несколько версий остаются неоднозначными. Technical-таблица `assistant_tool_calls`, пароль, PHP-сессия и `login_attempts` в backup не входят. Backup выгружает только строки текущего пользователя и принадлежащие им дочерние строки. Данные отсортированы детерминированно; SHA-256 считается по каноническому объекту `data` и проверяется до preview.
 
-Restore всегда работает в одной транзакции и только в режиме безопасного merge. Корневые записи ищутся по стабильным ключам (`external_program_id`, `external_plan_id`, `public_id`, weekday), существующие строки пропускаются и никогда не обновляются/удаляются. Числовые ID из backup считаются только локальными ссылками файла: для каждой таблицы строится old→new map. Любой `user_id`/`owner_user_id` из файла игнорируется и заменяется ID текущей сессии; недоступная ссылка на упражнение или разорванная связь откатывает всю операцию.
+Restore всегда работает в одной транзакции и только в режиме безопасного merge. Корневые записи ищутся по стабильным ключам (`external_program_id`, `external_plan_id`, `public_id`, weekday), существующие строки пропускаются и никогда не обновляются/удаляются. Числовые ID из backup считаются только локальными ссылками файла: для каждой таблицы строится old→new map, включая active pointer и slots. Любой `user_id`/`owner_user_id` из файла игнорируется и заменяется ID текущей сессии; parent/active/template связи дополнительно проверяются на принадлежность одной программе и версии. Недоступная или cross-tenant связь откатывает всю операцию.
 
 `backup_restores` имеет уникальность `(user_id, checksum_sha256)`. Поэтому повторная доставка того же файла возвращает сохранённый summary и не дублирует данные/audit, а одинаковый checksum у другого пользователя остаётся отдельным tenant. Restore добавляет `audit_logs.action=restore_merge` после успешного merge.
 

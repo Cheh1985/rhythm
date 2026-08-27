@@ -37,11 +37,12 @@ CREATE TABLE exercises (
 );
 CREATE TABLE training_programs (
  id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL,external_program_id TEXT NOT NULL,name TEXT NOT NULL,description TEXT NULL,
- status TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,archived_at TEXT NULL,deleted_at TEXT NULL
+ status TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,archived_at TEXT NULL,deleted_at TEXT NULL,active_version_id INTEGER NULL
 );
 CREATE TABLE program_versions (
  id INTEGER PRIMARY KEY,program_id INTEGER NOT NULL,version_number INTEGER NOT NULL,source TEXT NOT NULL,change_reason TEXT NULL,
- trainer_comment TEXT NULL,snapshot_json TEXT NOT NULL,snapshot_hash TEXT NOT NULL,parent_version_id INTEGER NULL,created_at TEXT NOT NULL
+ trainer_comment TEXT NULL,snapshot_json TEXT NOT NULL,snapshot_hash TEXT NOT NULL,parent_version_id INTEGER NULL,created_at TEXT NOT NULL,
+ lifecycle_status TEXT NOT NULL,lock_version INTEGER NOT NULL,aggregate_hash TEXT NOT NULL,updated_at TEXT NOT NULL,activated_at TEXT NULL,archived_at TEXT NULL
 );
 CREATE TABLE workout_templates (
  id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL,program_version_id INTEGER NULL,code TEXT NOT NULL,name TEXT NOT NULL,
@@ -103,12 +104,12 @@ INSERT INTO exercises VALUES
  ('fly',NULL,'Сведение рук','chest','["chest"]','strength','cable',2.5,'absolute','active',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL),
  ('secret',2,'Чужое упражнение','back','["back"]','strength','machine',2.5,'absolute','active',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL);
 INSERT INTO training_programs VALUES
- (1,1,'base','Базовый цикл','Безопасное описание','active','2026-07-01 00:00:00','2026-08-01 00:00:00',NULL,NULL),
- (2,2,'private-program','Чужая программа','private','active','2026-07-01 00:00:00','2026-08-01 00:00:00',NULL,NULL);
+ (1,1,'base','Базовый цикл','Безопасное описание','active','2026-07-01 00:00:00','2026-08-01 00:00:00',NULL,NULL,2),
+ (2,2,'private-program','Чужая программа','private','active','2026-07-01 00:00:00','2026-08-01 00:00:00',NULL,NULL,3);
 INSERT INTO program_versions VALUES
- (1,1,1,'manual','Старт','Комментарий','{}','hash-1',NULL,'2026-07-01 00:00:00'),
- (2,1,2,'manual','Прогрессия','Проверить технику','{}','hash-2',1,'2026-08-01 00:00:00'),
- (3,2,1,'manual','Private','Private','{}','hash-3',NULL,'2026-07-01 00:00:00');
+ (1,1,1,'manual','Старт','Комментарий','{}','hash-1',NULL,'2026-07-01 00:00:00','published',1,'hash-1','2026-07-01 00:00:00',NULL,NULL),
+ (2,1,2,'manual','Прогрессия','Проверить технику','{}','hash-2',1,'2026-08-01 00:00:00','published',1,'hash-2','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL),
+ (3,2,1,'manual','Private','Private','{}','hash-3',NULL,'2026-07-01 00:00:00','published',1,'hash-3','2026-07-01 00:00:00','2026-07-01 00:00:00',NULL);
 INSERT INTO workout_templates VALUES
  (1,1,2,'strength-a','Силовая A','strength','{}','template-hash','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL),
  (2,2,3,'private','Чужой шаблон','strength','{}','private-hash','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL);

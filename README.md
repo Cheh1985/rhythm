@@ -36,7 +36,7 @@
 - отдельная модель плавания с блоками/интервалами, дистанцией, fatigue, самочувствием и безопасным редактированием;
 - недельное расписание с defaults «Пн/Ср зал, Чт бассейн» и создание плавания из него;
 - local-first autosave/outbox плавания, общая последовательность и `swimming-report` JSON/Markdown.
-- полная пользовательская backup-копия JSON/ZIP с версией, checksum и строгим preview;
+- полная пользовательская backup-копия v1.1 JSON/ZIP с versioned program schedule slots, checksum и строгим preview; restore совместим с v1.0;
 - транзакционный restore в безопасном merge-режиме: без перезаписи/удаления, с remap внутренних ID, tenant isolation и идемпотентным receipt;
 - подтверждаемая отмена незавершённой тренировки и soft delete подходов, измерений и плавания с audit trail;
 - темы light/dark/system, safe-area, focus-visible, reduced motion и production security headers;

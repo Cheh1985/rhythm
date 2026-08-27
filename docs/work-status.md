@@ -64,7 +64,7 @@
 - `swimming-report` v1.0 выгружается как JSON/Markdown; backup включает сессии, интервалы, расписание и training sequence;
 - форма плавания сохраняет IndexedDB-черновик и кладёт create/update в идемпотентный outbox до Fetch; приватные страницы плавания доступны после посещения offline и очищаются при logout;
 - 21 проверка этапа 7 покрывает дистанции/интервалы, timezone, расписание, tenant isolation, offline replay, optimistic locking, audit, общую хронологию и report shape.
-- backup v1.0 выгружает полную пользовательскую историю в JSON/ZIP, имеет `backup_id`, UTC-время и SHA-256 checksum;
+- backup v1.1 выгружает полную пользовательскую историю и versioned program slots в JSON/ZIP, имеет `backup_id`, UTC-время и SHA-256 checksum; restore читает v1.0;
 - restore использует строгую validation и preview, безопасный транзакционный merge без overwrite/delete, old→new ID remap и принудительный текущий tenant;
 - `(user_id, checksum_sha256)` делает повтор restore идемпотентным; итог и событие `restore_merge` сохраняются в БД;
 - audit дополнен созданием program version, restore, отменой и soft delete; подходы, измерения и плавание удаляются только мягко после подтверждения;
@@ -74,7 +74,9 @@
 - `bin/cleanup.php`, новые индексы и миграция 008 закрывают cleanup/production обслуживание;
 - 24 проверки этапа 8 покрывают checksum, preview, idempotency, tenant isolation, rollback, cancel/soft delete, маршруты и security/static контракты.
 
-Ограничение проверки окружения: локальный PHP 8.3 доступен с `pdo_sqlite`, но без `pdo_mysql`; MySQL/MariaDB client/server не найден. Потоки этапов 1–8 прогнаны на SQLite, а MySQL `schema.sql`, seed и миграции проверены статически. Миграции `003`–`008`, импорт schema/seed и полный smoke всё ещё нужно выполнить в целевом MySQL/MariaDB окружении. Фактическая установка через Add to Home Screen и visual/safe-area проверка на физическом iPhone в этом окружении недоступны. JS assertions очереди прошли с Node-флагами `--preserve-symlinks --preserve-symlinks-main`, обходящими sandbox `EPERM` на родительском каталоге.
+WebMCP этап 4 добавил явный lifecycle `program_versions`, защищённый `active_version_id`, versioned `program_schedule_slots`, conservative reconciliation и backup v1.1 с чтением v1.0. SQLite-набор `tests/stage13-program-lifecycle.php` покрывает single/multiple reconciliation, tenant isolation, cross-program pointer, duplicate/cross-version slots и backup v1.0/v1.1 round-trip.
+
+Ограничение проверки окружения: локальный PHP 8.3 доступен с `pdo_sqlite`, но без `pdo_mysql`; MySQL/MariaDB client/server, Docker и Podman не найдены. Потоки этапов 1–8 и lifecycle этапа 4 прогнаны на SQLite, а MySQL `schema.sql`, seed и миграции проверены статически. Миграции `003`–`010`, импорт schema/seed и полный smoke всё ещё нужно выполнить в целевом MySQL/MariaDB окружении. Фактическая установка через Add to Home Screen и visual/safe-area проверка на физическом iPhone в этом окружении недоступны. JS assertions очереди прошли с Node-флагами `--preserve-symlinks --preserve-symlinks-main`, обходящими sandbox `EPERM` на родительском каталоге.
 
 Ограничения iOS: WebKit может приостанавливать JavaScript в фоне, запрещать vibration и блокировать audio без предшествующего пользовательского жеста или в беззвучном режиме. Таймер считает остаток от абсолютного timestamp и корректируется после возврата, но не обещает системное фоновое уведомление на заблокированном iPhone.
 

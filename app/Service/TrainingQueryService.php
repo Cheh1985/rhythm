@@ -45,6 +45,7 @@ final class TrainingQueryService
                 'program_id' => $row['program_id'],
                 'name' => $row['name'],
                 'current_version' => $row['current_version'],
+                'active_version_state' => $row['active_version_state'],
             ], $active),
             'data_quality' => $this->quality([], [
                 'Profile context is intentionally minimized and excludes account credentials and contact fields.',
@@ -60,6 +61,7 @@ final class TrainingQueryService
             'description' => $row['description'],
             'status' => (string) $row['status'],
             'current_version' => $row['version_number'] !== null ? (int) $row['version_number'] : null,
+            'active_version_state' => (string) $row['active_version_state'],
             'version_source' => $row['source'],
             'parent_version' => $row['parent_version'] !== null ? (int) $row['parent_version'] : null,
             'change_reason' => $row['change_reason'],

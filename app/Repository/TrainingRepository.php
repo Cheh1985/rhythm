@@ -764,7 +764,27 @@ final class TrainingRepository
 
     public function programs(int $userId): array
     {
-        $query = \db()->pdo()->prepare('SELECT p.id,p.external_program_id,p.name,p.description,p.status,p.created_at,pv.version_number,pv.created_at version_created,pv.change_reason,pv.trainer_comment,parent.version_number parent_version,(SELECT COUNT(*) FROM workout_templates wt WHERE wt.program_version_id=pv.id AND wt.deleted_at IS NULL) template_count,(SELECT COUNT(*) FROM workout_plans wp WHERE wp.program_version_id=pv.id AND wp.user_id=p.user_id AND wp.deleted_at IS NULL) plan_count FROM training_programs p LEFT JOIN program_versions pv ON pv.program_id=p.id LEFT JOIN program_versions parent ON parent.id=pv.parent_version_id WHERE p.user_id=? AND p.deleted_at IS NULL ORDER BY p.id,pv.version_number DESC');
+        $query = \db()->pdo()->prepare(<<<'SQL'
+SELECT p.id,p.external_program_id,p.name,p.description,p.status,p.created_at,p.active_version_id,
+       pv.version_number,pv.lifecycle_status,pv.created_at version_created,pv.change_reason,pv.trainer_comment,
+       parent.version_number parent_version,active.version_number active_version_number,
+       CASE
+           WHEN p.active_version_id IS NOT NULL AND active.id IS NULL THEN 'invalid_pointer'
+           WHEN p.active_version_id IS NOT NULL THEN 'resolved'
+           WHEN (SELECT COUNT(*) FROM program_versions vc WHERE vc.program_id=p.id)=0 THEN 'no_versions'
+           WHEN (SELECT COUNT(*) FROM program_versions vc WHERE vc.program_id=p.id)=1 THEN 'reconcilable'
+           ELSE 'ambiguous'
+       END reconciliation_state,
+       CASE WHEN pv.id=p.active_version_id THEN 1 ELSE 0 END is_active_version,
+       (SELECT COUNT(*) FROM workout_templates wt WHERE wt.program_version_id=pv.id AND wt.user_id=p.user_id AND wt.deleted_at IS NULL) template_count,
+       (SELECT COUNT(*) FROM workout_plans wp WHERE wp.program_version_id=pv.id AND wp.user_id=p.user_id AND wp.deleted_at IS NULL) plan_count
+FROM training_programs p
+LEFT JOIN program_versions pv ON pv.program_id=p.id
+LEFT JOIN program_versions parent ON parent.id=pv.parent_version_id AND parent.program_id=p.id
+LEFT JOIN program_versions active ON active.id=p.active_version_id AND active.program_id=p.id
+WHERE p.user_id=? AND p.deleted_at IS NULL
+ORDER BY p.id,pv.version_number DESC
+SQL);
         $query->execute([$userId]);
         return $query->fetchAll();
     }

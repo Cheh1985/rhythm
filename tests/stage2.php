@@ -48,13 +48,14 @@ CREATE TABLE exercises (
 );
 CREATE TABLE training_programs (
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, external_program_id TEXT NOT NULL, name TEXT NOT NULL,
-    description TEXT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT NULL, deleted_at TEXT NULL,
+    description TEXT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT NULL, deleted_at TEXT NULL, active_version_id INTEGER NULL,
     UNIQUE(user_id, external_program_id)
 );
 CREATE TABLE program_versions (
     id INTEGER PRIMARY KEY AUTOINCREMENT, program_id INTEGER NOT NULL, version_number INTEGER NOT NULL, source TEXT NOT NULL,
     change_reason TEXT NULL, trainer_comment TEXT NULL, snapshot_json TEXT NOT NULL, snapshot_hash TEXT NOT NULL,
-    parent_version_id INTEGER NULL, created_at TEXT NOT NULL, UNIQUE(program_id, version_number)
+    parent_version_id INTEGER NULL, created_at TEXT NOT NULL, lifecycle_status TEXT NOT NULL DEFAULT 'published', lock_version INTEGER NOT NULL DEFAULT 1,
+    aggregate_hash TEXT NOT NULL, updated_at TEXT NOT NULL, activated_at TEXT NULL, archived_at TEXT NULL, UNIQUE(program_id, version_number)
 );
 CREATE TABLE workout_templates (
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, program_version_id INTEGER NULL, code TEXT NOT NULL,

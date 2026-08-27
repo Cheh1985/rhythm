@@ -56,9 +56,11 @@ CREATE TABLE training_programs (
     updated_at DATETIME NOT NULL,
     archived_at DATETIME NULL,
     deleted_at DATETIME NULL,
+    active_version_id BIGINT UNSIGNED NULL,
     CONSTRAINT fk_programs_user FOREIGN KEY (user_id) REFERENCES users(id),
     UNIQUE KEY uq_user_external_program (user_id, external_program_id),
-    INDEX idx_programs_user_status (user_id, status)
+    INDEX idx_programs_user_status (user_id, status),
+    INDEX idx_programs_active_version (active_version_id, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE program_versions (
@@ -72,10 +74,20 @@ CREATE TABLE program_versions (
     snapshot_hash CHAR(64) NOT NULL,
     parent_version_id BIGINT UNSIGNED NULL,
     created_at DATETIME NOT NULL,
+    lifecycle_status ENUM('draft','published','archived') NOT NULL DEFAULT 'published',
+    lock_version INT UNSIGNED NOT NULL DEFAULT 1,
+    aggregate_hash CHAR(64) NOT NULL,
+    updated_at DATETIME NOT NULL,
+    activated_at DATETIME NULL,
+    archived_at DATETIME NULL,
     CONSTRAINT fk_versions_program FOREIGN KEY (program_id) REFERENCES training_programs(id),
     CONSTRAINT fk_versions_parent FOREIGN KEY (parent_version_id) REFERENCES program_versions(id),
+    CONSTRAINT fk_versions_parent_program FOREIGN KEY (parent_version_id, program_id) REFERENCES program_versions(id, program_id),
     UNIQUE KEY uq_program_version (program_id, version_number),
-    INDEX idx_versions_program_created (program_id, created_at)
+    UNIQUE KEY uq_versions_id_program (id, program_id),
+    INDEX idx_versions_program_created (program_id, created_at),
+    INDEX idx_versions_parent_program (parent_version_id, program_id),
+    INDEX idx_versions_lifecycle (program_id, lifecycle_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE workout_templates (
@@ -93,8 +105,25 @@ CREATE TABLE workout_templates (
     CONSTRAINT fk_templates_user FOREIGN KEY (user_id) REFERENCES users(id),
     CONSTRAINT fk_templates_version FOREIGN KEY (program_version_id) REFERENCES program_versions(id),
     UNIQUE KEY uq_version_template_code (program_version_id, code),
+    INDEX idx_templates_id_version (id, program_version_id),
     INDEX idx_templates_user (user_id, deleted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE program_schedule_slots (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    program_version_id BIGINT UNSIGNED NOT NULL,
+    workout_template_id BIGINT UNSIGNED NOT NULL,
+    weekday TINYINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL,
+    CONSTRAINT chk_program_slots_weekday CHECK (weekday BETWEEN 1 AND 7),
+    CONSTRAINT fk_program_slots_version FOREIGN KEY (program_version_id) REFERENCES program_versions(id),
+    CONSTRAINT fk_program_slots_template_version FOREIGN KEY (workout_template_id, program_version_id) REFERENCES workout_templates(id, program_version_id),
+    UNIQUE KEY uq_program_slots_version_weekday (program_version_id, weekday),
+    INDEX idx_program_slots_template_version (workout_template_id, program_version_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE training_programs
+    ADD CONSTRAINT fk_programs_active_version FOREIGN KEY (active_version_id, id) REFERENCES program_versions(id, program_id);
 
 CREATE TABLE workout_plans (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
