@@ -168,9 +168,9 @@ WEBMCP_ACTIVATION_ENABLED=false
 | 7 | Реализован, локально проверен и зафиксирован | `9639092` | Draft API и app-confirmed activation зафиксированы; MySQL/MariaDB integration check ещё не выполнен |
 | 8 | Реализован, локально проверен и зафиксирован | `e428aae` | Instance-only reschedule/replacement зафиксированы; MySQL/MariaDB migration check ещё не выполнен |
 | 9 | Реализован, локально проверен и зафиксирован | `cc60bab` | Пять WebMCP write tools и обязательный app-confirmed activation зафиксированы; внешний browser smoke ещё не выполнен |
-| 10 | Доступен | — | Этап 9 завершён; можно выполнять security hardening, E2E, rollout и финальную документацию |
+| 10 | Реализован, проверен и зафиксирован | `ac9b910` | Security/E2E hardening, MySQL 8.0.12 и built-in browser acceptance пройдены; физический iPhone/Safari остаётся ручным rollout gate |
 
-Сводка: этапы 1–9 реализованы, локально проверены и зафиксированы в Git; этапы 5–6 объединены в commit `a0a64ea`, этап 7 зафиксирован в commit `9639092`, этап 8 — в commit `e428aae`, этап 9 — в commit `cc60bab`. Следующим доступен этап 10: security hardening, E2E, rollout и финальная документация. Для этапов 1–4 и 6–8 остаются открытыми integration/migration проверки на MySQL 8 и MariaDB staging; для этапов 5 и 9 — ручные smoke/E2E во встроенном браузере ChatGPT, Chrome с WebMCP flag/origin trial и Safari/PWA; для activation и instance writes также остаётся HTTPS/MySQL staging-проверка реальных session, locking и rollback scenarios.
+Сводка: этапы 1–10 реализованы, проверены и зафиксированы в Git; этапы 5–6 объединены в commit `a0a64ea`, этап 7 зафиксирован в commit `9639092`, этап 8 — в commit `e428aae`, этап 9 — в commit `cc60bab`, этап 10 — в commit `ac9b910`. Полный A–J/IDOR/security regression suite пройден, fresh schema, миграции 009–012 и backup v1.0/v1.1 проверены на MySQL 8.0.12, а встроенный браузер подтвердил регистрацию 16 tools, успешный read-вызов и отсутствие capability на обычной странице и при выключенном master flag. Репозиторная часть готова к controlled production rollout; до включения production flags обязательны deployment checklist, HTTPS/staging-проверка целевого хоста и ручная проверка normal Safari/standalone PWA на физическом iPhone.
 
 ### Результат этапа 1
 
@@ -308,6 +308,19 @@ WEBMCP_ACTIVATION_ENABLED=false
 - полный regression suite: 19 PHP-наборов и 3 Node-набора пройдены; legacy training-plan v1.0, reports, backup/restore и обычная PWA не сломаны;
 - добавлен ручной checklist `docs/webmcp-stage9-smoke.md` для ChatGPT built-in browser, Chrome origin trial/Inspector, cancel/Escape/navigation/offline, audit, rollback и Safari/PWA regression;
 - открытые внешние проверки: выполнить manual/E2E на HTTPS staging во встроенном браузере ChatGPT и Chrome, проверить Safari/установленную PWA без WebMCP и прогнать write/activation locking на MySQL 8/MariaDB; локально проверены fake modelContext, SQLite workflows и deterministic regressions.
+
+### Результат этапа 10
+
+- commit: `ac9b910796f7ab4fbd9d14885d1d9030cdd95782` — «Завершить этап 10 WebMCP»;
+- read/write boundaries используют общий per-user/tool rate limiter; writes дополнительно проверяют Fetch Metadata с совместимым Safari fallback, exact same-origin, CSRF, content type и ограниченный размер JSON body;
+- добавлены prompt-injection fixtures для comments, notes, instructions и custom names; пользовательский DB-текст остаётся только untrusted data, а все 16 tools публикуют `untrustedContentHint: true`;
+- `tests/webmcp-e2e.php` объединяет 13 PHP/Node suites и покрывает сценарии A–J, полный cross-user/IDOR matrix, capability-disabled/PWA regressions и реальный HTTP-прогон CSRF, Origin, Fetch Metadata, rate, size и content type;
+- добавлены retention service и безопасная dry-run по умолчанию команда `bin/prune-assistant-audit.php`; `--apply` удаляет только технический `assistant_tool_calls` старше заданного срока и не затрагивает domain audit;
+- fresh `schema.sql`/seed, миграции 009–012, composite foreign keys и backup restore v1.0/v1.1 фактически прошли на disposable MySQL 8.0.12; миграция 010 разделена на совместимые `ALTER TABLE` для self-referencing composite FK;
+- ChatGPT built-in browser acceptance подтвердил 16 зарегистрированных tools на authenticated `/assistant`, успешный вызов `training.get_profile`, отсутствие tools на обычном Dashboard и нулевой catalog при выключенном `WEBMCP_ENABLED`; console errors не обнаружены;
+- созданы `docs/webmcp.md` и `docs/webmcp-rollout.md`, обновлены README, INSTALL, `.env.example` и `docs/work-status.md`; документация покрывает purpose, catalog, auth/security, schemas, fallback, debugging, testing, добавление tool, ограничения и послойный rollback;
+- production flags оставлены `false`; legacy training-plan v1.0, reports, JSON/ZIP backup/restore и обычная PWA прошли regression suite;
+- репозиторная реализация этапа завершена; физическая normal Safari/standalone PWA проверка на iPhone и deployment-specific HTTPS/MariaDB checks остаются обязательными ручными пунктами controlled rollout, поскольку это окружение не предоставляет соответствующее устройство и отдельный MariaDB staging host.
 
 ---
 
