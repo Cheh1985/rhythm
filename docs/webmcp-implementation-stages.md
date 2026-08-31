@@ -159,18 +159,18 @@ WEBMCP_ACTIVATION_ENABLED=false
 
 | Этап | Статус | Commit | Примечание |
 |---|---|---|---|
-| 1 | Реализован и локально проверен | `2e87af5` | Foundation готов; MySQL/MariaDB migration dry run на staging ещё не выполнен |
-| 2 | Реализован и локально проверен | `453868d` | MySQL/MariaDB integration check ещё не выполнен |
-| 3 | Реализован и локально проверен | `b5032be` | Read-only Assistant API зафиксирован; MySQL/MariaDB integration check ещё не выполнен |
-| 4 | Реализован и локально проверен | — | Завершён в working tree, но ещё не зафиксирован в Git; MySQL/MariaDB migration dry run ещё не выполнен |
-| 5 | Реализован и локально проверен | — | `/assistant` и 11 read-only Site tools завершены в working tree; внешний browser smoke ещё не выполнен |
-| 6 | Реализован и локально проверен | — | Draft schema/application service завершены в working tree; MySQL/MariaDB integration check ещё не выполнен |
+| 1 | Реализован, локально проверен и зафиксирован | `2e87af5` | Foundation готов; MySQL/MariaDB migration dry run на staging ещё не выполнен |
+| 2 | Реализован, локально проверен и зафиксирован | `453868d` | MySQL/MariaDB integration check ещё не выполнен |
+| 3 | Реализован, локально проверен и зафиксирован | `b5032be` | Read-only Assistant API зафиксирован; MySQL/MariaDB integration check ещё не выполнен |
+| 4 | Реализован, локально проверен и зафиксирован | `aab598c` | Lifecycle migration и backup compatibility зафиксированы; MySQL/MariaDB migration dry run ещё не выполнен |
+| 5 | Реализован, локально проверен и зафиксирован | `a0a64ea` | `/assistant` и 11 read-only Site tools зафиксированы; внешний browser smoke ещё не выполнен |
+| 6 | Реализован, локально проверен и зафиксирован | `a0a64ea` | Draft schema/application service зафиксированы; MySQL/MariaDB integration check ещё не выполнен |
 | 7 | Доступен следующим | — | Draft domain workflow этапа 6 готов |
 | 8 | Доступен параллельно | — | Этап 1 завершён; можно выполнять отдельно от этапа 4 |
 | 9 | Заблокирован зависимостями | — | Этап 5 завершён; требуются завершённые этапы 7 и 8 |
 | 10 | Заблокирован зависимостью | — | Начинается после этапа 9 |
 
-Сводка: этапы 1–3 реализованы, локально проверены и зафиксированы в Git. Этапы 4–6 реализованы и полностью проверены локально, но пока находятся в working tree без отдельных commit. Следующим по основной цепочке доступен этап 7, а этап 8 по-прежнему можно выполнять параллельно. Для этапов 1–4 и 6 остаются открытыми integration/migration проверки на MySQL 8 и MariaDB staging; для этапа 5 — ручные smoke-проверки во встроенном браузере ChatGPT, Chrome с WebMCP flag/origin trial и Safari/PWA.
+Сводка: этапы 1–6 реализованы, локально проверены и зафиксированы в Git; этапы 5–6 объединены в commit `a0a64ea`. До этой актуализации рабочее дерево было чистым; текущая незакоммиченная разница — только данный статусный документ. Следующим по основной цепочке доступен этап 7, а этап 8 по-прежнему можно выполнять параллельно. Этап 9 остаётся заблокирован до завершения этапов 7 и 8, этап 10 — до этапа 9. Для этапов 1–4 и 6 остаются открытыми integration/migration проверки на MySQL 8 и MariaDB staging; для этапа 5 — ручные smoke-проверки во встроенном браузере ChatGPT, Chrome с WebMCP flag/origin trial и Safari/PWA.
 
 ### Результат этапа 1
 
@@ -214,7 +214,7 @@ WEBMCP_ACTIVATION_ENABLED=false
 
 ### Результат этапа 4
 
-- статус Git: завершён и локально проверен в working tree, отдельный commit пока отсутствует;
+- commit: `aab598c29911d3cd34b05f7538f4a13ccafc04c5` — «Обнови поддержку жизненного цикла версий программ»;
 - добавлена additive migration `010_program_version_lifecycle.sql` и согласованный fresh schema: lifecycle, `lock_version`, `aggregate_hash`, timestamps и защищённый `active_version_id`;
 - existing versions backfill-ятся как `published`; автоматически связываются только программы с одной версией, multiple-version cases остаются `ambiguous`;
 - `program_schedule_slots` хранит version → template → weekday, защищён unique weekday и составным FK от template другой версии;
@@ -227,7 +227,7 @@ WEBMCP_ACTIVATION_ENABLED=false
 
 ### Результат этапа 5
 
-- статус Git: завершён и локально проверен в working tree, отдельный commit пока отсутствует;
+- commit: `a0a64eabfeb02fe0cf5186b9a93d0dee409477b1` — «Добавить WebMCP-инструменты и черновики программ»; этапы 5–6 зафиксированы вместе;
 - добавлена authenticated page `/assistant`; без сессии она перенаправляет на login, а при выключенных feature flags показывает статус и не подключает adapter;
 - создан серверный `App\WebMcp\ToolCatalog` с 11 стабильными read-only tools, их titles, descriptions, закрытыми input schemas и без `user_id` или write operations;
 - все tools имеют `readOnlyHint: true` и `untrustedContentHint: true`, поскольку безопасные DTO могут содержать пользовательский текст из БД;
@@ -247,7 +247,7 @@ WEBMCP_ACTIVATION_ENABLED=false
 
 ### Результат этапа 6
 
-- статус Git: завершён и локально проверен в working tree, отдельный commit пока отсутствует;
+- commit: `a0a64eabfeb02fe0cf5186b9a93d0dee409477b1` — «Добавить WebMCP-инструменты и черновики программ»; этапы 5–6 зафиксированы вместе;
 - добавлен отдельный закрытый контракт `training-program-draft` v1.0 с `templates[]`, `schedule_slots[]`, обязательной причиной и явной parent provenance; legacy `training-plan` v1.0 root не изменён;
 - exercise/range validation вынесена в переиспользуемый публичный метод legacy validator без ослабления его корневых правил;
 - `ProgramVersionService` создаёт новую draft-программу, клонирует active или выбранную immutable old version и всегда назначает следующий version number на сервере;
