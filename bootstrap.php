@@ -89,7 +89,8 @@ if (PHP_SAPI !== 'cli' && session_status() !== PHP_SESSION_ACTIVE) {
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: DENY');
     header('Referrer-Policy: strict-origin-when-cross-origin');
-    header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+    header('Permissions-Policy: tools=(self), camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+    header('Origin-Agent-Cluster: ?1');
     header('Cross-Origin-Opener-Policy: same-origin');
     header('Cross-Origin-Resource-Policy: same-origin');
     header('X-Permitted-Cross-Domain-Policies: none');

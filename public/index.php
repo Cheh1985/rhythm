@@ -6,6 +6,7 @@ require dirname(__DIR__) . '/bootstrap.php';
 
 use App\Controller\AuthController;
 use App\Controller\ApiController;
+use App\Controller\AssistantController;
 use App\Controller\SiteToolsApiController;
 use App\Controller\WebController;
 use App\Core\Router;
@@ -14,6 +15,7 @@ $router = new Router();
 $auth = new AuthController();
 $web = new WebController();
 $api = new ApiController();
+$assistant = new AssistantController();
 $siteTools = new SiteToolsApiController();
 
 $router->add('GET', '/', [$web, 'dashboard']);
@@ -60,6 +62,7 @@ $router->add('POST', '/schedule', [$web, 'saveSchedule']);
 $router->add('GET', '/export/swimming/{id}.{format}', [$web, 'exportSwimming']);
 $router->add('GET', '/backup', [$web, 'backup']);
 $router->add('GET', '/settings', [$web, 'settings']);
+$router->add('GET', '/assistant', [$assistant, 'index']);
 $router->add('POST', '/settings/theme', [$web, 'saveTheme']);
 $router->add('POST', '/restore/preview', [$web, 'restorePreview']);
 $router->add('POST', '/restore/confirm', [$web, 'restoreConfirm']);

@@ -82,13 +82,22 @@ final class TrainingPlanContractValidator
             }
         }
 
-        if (!is_array($data['exercises']) || !array_is_list($data['exercises']) || count($data['exercises']) < 1 || count($data['exercises']) > 100) {
-            throw new InvalidArgumentException('exercises должен быть массивом от 1 до 100 упражнений.');
+        $this->validateExercises($data['exercises']);
+    }
+
+    /**
+     * Shared training-plan v1.0 exercise/range rules. Program drafts reuse this
+     * method without pretending that their aggregate is a training-plan root.
+     */
+    public function validateExercises(mixed $exercises, string $rootPath = 'exercises'): void
+    {
+        if (!is_array($exercises) || !array_is_list($exercises) || count($exercises) < 1 || count($exercises) > 100) {
+            throw new InvalidArgumentException($rootPath . ' должен быть массивом от 1 до 100 упражнений.');
         }
         $ids = [];
         $orders = [];
-        foreach ($data['exercises'] as $index => $value) {
-            $path = 'exercises[' . $index . ']';
+        foreach ($exercises as $index => $value) {
+            $path = $rootPath . '[' . $index . ']';
             $exercise = $this->objectValue($value, $path);
             $this->object($exercise, $path, ['exercise_id', 'name', 'order', 'sets', 'rep_range', 'target_rir', 'rest_seconds'], [
                 'category', 'muscles', 'exercise_type', 'equipment', 'progression_increment', 'progression_mode',

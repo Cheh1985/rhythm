@@ -1,5 +1,5 @@
 'use strict';
-const SHELL_VERSION = 'rhythm-shell-v7.0';
+const SHELL_VERSION = 'rhythm-shell-v8.0';
 const USER_PAGES = 'rhythm-user-pages-v1';
 const scope = self.registration.scope;
 const asset = (path) => new URL(path, scope).toString();
@@ -36,7 +36,7 @@ self.addEventListener('fetch', (event) => {
     const request = event.request;
     if (request.method !== 'GET') return;
     const url = new URL(request.url);
-    if (url.origin !== location.origin || url.pathname.includes('/api/')) return;
+    if (url.origin !== location.origin || url.pathname.includes('/api/') || /^\/assistant\/?$/.test(url.pathname)) return;
     if (request.mode === 'navigate') {
         event.respondWith(networkFirstNavigation(request));
         return;

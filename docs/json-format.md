@@ -93,6 +93,26 @@ Stable ID имеет длину 3–190 символов (`exercise_id` и `temp
 
 Они находятся рядом с валидным примером в `tests/fixtures/training-plan/` и запускаются командой `php tests/stage2.php`.
 
+# JSON-формат черновика программы
+
+## Контракт training-program-draft v1.0
+
+Mutable workflow программы использует отдельный корень:
+
+```json
+{"schema":"training-program-draft","schema_version":"1.0"}
+```
+
+Он не заменяет и не расширяет корень legacy `training-plan` v1.0. Машиночитаемый контракт находится в `docs/training-program-draft-v1.0.schema.json`, а серверным источником истины остаётся `ProgramDraftValidator`.
+
+Корень содержит `source`, `program`, `templates[]` и `schedule_slots[]`. `source` принимает `manual` или `webmcp`, но application service не зависит от WebMCP. В `program` сервер назначает `version`; клиент задаёт обязательную `change_reason`, но не номер версии. Для клона обязательная provenance-пара `parent_version` + `parent_aggregate_hash` указывает точную исходную immutable version; у первой версии новой программы оба поля равны `null`.
+
+Каждый template имеет стабильный `template_id`, имя, тип и непустой `exercises[]`; дополнительные `goal`, duration, trainer notes и pre-workout context остаются внутри шаблона. Упражнения проходят те же server-side exercise/range rules, что и `training-plan` v1.0, включая уникальные `exercise_id`/`order`, границы sets/reps/RIR/rest и методы подходов. Сервис дополнительно разрешает только global или принадлежащие текущему пользователю active exercise IDs.
+
+`schedule_slots[]` содержит пары `weekday` 1–7 → `template_id`: weekday уникален, а template обязан существовать в том же агрегате. Семантические массивы канонически сортируются по template ID, exercise order и weekday; SHA-256 всего канонического агрегата хранится как `aggregate_hash`.
+
+Черновик меняется только typed operations: `set_program_metadata`, `upsert_template`, `remove_template`, `upsert_exercise`, `remove_exercise`, `set_schedule_slot`, `remove_schedule_slot`. После каждой операции полный aggregate заново валидируется и сохраняется в одной транзакции при совпадающем `lock_version`. Published, active и archived versions не редактируются. HTTP endpoints, activation и материализация будущих тренировок в этот workflow не входят.
+
 # JSON-формат отчёта тренировки
 
 ## Контракт training-report v1.0

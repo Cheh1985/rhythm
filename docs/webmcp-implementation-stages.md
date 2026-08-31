@@ -155,7 +155,7 @@ WEBMCP_ACTIVATION_ENABLED=false
 
 ## Текущий статус реализации
 
-Актуально на 27 августа 2026 года. Статус обновляется после завершения локальных проверок; commit указывается после фиксации соответствующего этапа в Git.
+Актуально на 31 августа 2026 года. Статус обновляется после завершения локальных проверок; commit указывается после фиксации соответствующего этапа в Git.
 
 | Этап | Статус | Commit | Примечание |
 |---|---|---|---|
@@ -163,14 +163,14 @@ WEBMCP_ACTIVATION_ENABLED=false
 | 2 | Реализован и локально проверен | `453868d` | MySQL/MariaDB integration check ещё не выполнен |
 | 3 | Реализован и локально проверен | `b5032be` | Read-only Assistant API зафиксирован; MySQL/MariaDB integration check ещё не выполнен |
 | 4 | Реализован и локально проверен | — | Завершён в working tree, но ещё не зафиксирован в Git; MySQL/MariaDB migration dry run ещё не выполнен |
-| 5 | Доступен следующим | — | Зависимости от этапов 3 и 4 выполнены |
-| 6 | Доступен следующим | — | Lifecycle foundation этапа 4 готов |
-| 7 | Заблокирован зависимостью | — | Начинается после этапа 6 |
+| 5 | Реализован и локально проверен | — | `/assistant` и 11 read-only Site tools завершены в working tree; внешний browser smoke ещё не выполнен |
+| 6 | Реализован и локально проверен | — | Draft schema/application service завершены в working tree; MySQL/MariaDB integration check ещё не выполнен |
+| 7 | Доступен следующим | — | Draft domain workflow этапа 6 готов |
 | 8 | Доступен параллельно | — | Этап 1 завершён; можно выполнять отдельно от этапа 4 |
-| 9 | Заблокирован зависимостями | — | Требуются завершённые этапы 5, 7 и 8 |
+| 9 | Заблокирован зависимостями | — | Этап 5 завершён; требуются завершённые этапы 7 и 8 |
 | 10 | Заблокирован зависимостью | — | Начинается после этапа 9 |
 
-Сводка: этапы 1–3 реализованы, локально проверены и зафиксированы в Git. Этап 4 реализован и полностью проверен локально, но пока находится в working tree. Следующими по карте зависимостей доступны этапы 5 и 6, а этап 8 по-прежнему можно выполнять параллельно. Для этапов 1–4 остаются открытыми integration/migration проверки на MySQL 8 и MariaDB staging.
+Сводка: этапы 1–3 реализованы, локально проверены и зафиксированы в Git. Этапы 4–6 реализованы и полностью проверены локально, но пока находятся в working tree без отдельных commit. Следующим по основной цепочке доступен этап 7, а этап 8 по-прежнему можно выполнять параллельно. Для этапов 1–4 и 6 остаются открытыми integration/migration проверки на MySQL 8 и MariaDB staging; для этапа 5 — ручные smoke-проверки во встроенном браузере ChatGPT, Chrome с WebMCP flag/origin trial и Safari/PWA.
 
 ### Результат этапа 1
 
@@ -194,7 +194,7 @@ WEBMCP_ACTIVATION_ENABLED=false
 - backend детерминированно считает working sets, tonnage, duration, average RIR, session RPE, Epley e1RM, target rep-range compliance, planned-vs-actual, substitutions/skipped/pending, weekly trends и per-exercise/per-muscle aggregates;
 - силовые и плавательные показатели разделены; muscle aggregates содержат double-count caveat, `pending` не считается `skipped`, а `past_due_planned` не называется доказанным пропуском;
 - добавлены явные `data_quality`, аналитические caveats и эвристические plateau signals без диагностических выводов;
-- `tests/stage11-training-query.php`: 40 проверок пройдены, включая timezone boundaries, cursors, IDOR, метрики, data quality, empty и oversized ranges;
+- `tests/stage11-training-query.php`: 42 проверки пройдены, включая timezone boundaries, cursors, IDOR, метрики, data quality, empty и oversized ranges;
 - полный PHP regression suite, smoke и Node offline queue test: пройдены;
 - HTTP routes, Site tool registration, WebMCP frontend, drafts, activation и схема БД не изменялись;
 - открытая проверка перед объединением: выполнить integration tests новых read queries на MySQL 8/MariaDB staging; локальные проверки выполнены на SQLite.
@@ -207,7 +207,7 @@ WEBMCP_ACTIVATION_ENABLED=false
 - все ответы используют стабильные success/error envelopes; отсутствующий или чужой entity одинаково возвращает 404, а `user_id` не входит ни в один входной контракт;
 - read calls пишут только компактный `assistant_tool_calls` audit без raw query/body/credentials; domain state GET-запросы не изменяют;
 - добавлена безопасная tenant-scoped проекция списка версий программы без immutable snapshot payload;
-- `tests/stage12-site-tools-api.php`: 33 HTTP-проверки пройдены, включая реальный CSRF login/session cookie flow, 401/404/422/429, IDOR, strict route/query/body, cursors, headers и audit;
+- на момент завершения этапа 3 `tests/stage12-site-tools-api.php` содержал 33 HTTP-проверки реального CSRF login/session cookie flow, 401/404/422/429, IDOR, strict route/query/body, cursors, headers и audit; после этапа 5 набор расширен до 40 проверок, см. результат этапа 5;
 - полный PHP regression suite, smoke и Node offline queue test: пройдены;
 - `/assistant`, `document.modelContext`, frontend tool catalog, writes и activation не добавлялись; схема БД не изменялась;
 - открытая проверка перед production rollout: выполнить HTTP/query integration tests на MySQL 8/MariaDB staging.
@@ -224,6 +224,40 @@ WEBMCP_ACTIVATION_ENABLED=false
 - `tests/stage13-program-lifecycle.php`: 19 проверок пройдены; полный PHP regression suite и Node offline queue test пройдены;
 - drafts, activation transaction, WebMCP page/tools и автоматическое удаление версий не добавлялись;
 - открытая проверка: применить migration/fresh schema на MySQL 8 и MariaDB staging; локально доступны только PDO SQLite, без mysql/mariadb/Docker/Podman.
+
+### Результат этапа 5
+
+- статус Git: завершён и локально проверен в working tree, отдельный commit пока отсутствует;
+- добавлена authenticated page `/assistant`; без сессии она перенаправляет на login, а при выключенных feature flags показывает статус и не подключает adapter;
+- создан серверный `App\WebMcp\ToolCatalog` с 11 стабильными read-only tools, их titles, descriptions, закрытыми input schemas и без `user_id` или write operations;
+- все tools имеют `readOnlyHint: true` и `untrustedContentHint: true`, поскольку безопасные DTO могут содержать пользовательский текст из БД;
+- thin adapter использует только актуальный `document.modelContext.registerTool`; deprecated `navigator.modelContext` отсутствует;
+- registration page-scoped: один `AbortController` снимает весь каталог при `pagehide`/`beforeunload`, а partial registration failure закрывает уже зарегистрированные tools; cancellation отдельного execute передаётся в `fetch`;
+- tool execution использует только семантические `/api/assistant/*` endpoints, `GET`, `credentials: same-origin`, `cache: no-store` и явную проверку origin до `fetch`;
+- success, HTTP/API, validation и network results возвращаются структурированно; `training.get_current_plan` не угадывает ambiguous active program, а `training.get_workout` явно принимает `workout_id`, `session_id` или оба ID;
+- adapter подключается условно только в layout `/assistant`; login, Dashboard и остальные страницы не публикуют catalog и не загружают `webmcp.js`;
+- добавлены `Permissions-Policy: tools=(self)` и `Origin-Agent-Cluster: ?1`; `/assistant` и `/api/assistant/*` имеют `no-store` и исключены из Service Worker/offline cache;
+- `tests/stage14-webmcp-page.php`: 42 проверки server catalog, schemas, annotations, security headers, conditional registration и offline boundaries пройдены;
+- `tests/webmcp-registration.js`: 15 Node-проверок fake `document.modelContext`, metadata, no-capability, lifecycle abort, structured API/network errors, origin rejection, cancellation и all-or-nothing registration пройдены;
+- `tests/stage12-site-tools-api.php`: 40 HTTP-проверок пройдены, включая unauthenticated redirect, authenticated catalog, headers и отсутствие tools на обычной странице;
+- полный PHP regression suite этапов 2–13, smoke и Node offline queue test пройдены; PHP/JS syntax и `git diff --check` пройдены;
+- добавлен ручной staging checklist `docs/webmcp-stage5-smoke.md` для ChatGPT built-in browser, Chrome flag/origin trial, offline и Safari/PWA regression;
+- write tool registration, drafts, activation UI, archive/delete/history edits и global registration не добавлялись;
+- открытые внешние проверки: HTTPS staging во встроенном браузере ChatGPT, Chrome с WebMCP testing flag/origin trial и Safari/установленная PWA; локальное окружение не позволяет подтвердить эти browser/account/device scenarios.
+
+### Результат этапа 6
+
+- статус Git: завершён и локально проверен в working tree, отдельный commit пока отсутствует;
+- добавлен отдельный закрытый контракт `training-program-draft` v1.0 с `templates[]`, `schedule_slots[]`, обязательной причиной и явной parent provenance; legacy `training-plan` v1.0 root не изменён;
+- exercise/range validation вынесена в переиспользуемый публичный метод legacy validator без ослабления его корневых правил;
+- `ProgramVersionService` создаёт новую draft-программу, клонирует active или выбранную immutable old version и всегда назначает следующий version number на сервере;
+- реализованы семь typed operations, полная повторная aggregate validation, tenant-scoped active exercise references и schedule → template integrity;
+- semantic arrays канонизируются по template ID, exercise order и weekday; `snapshot_json`, `snapshot_hash` и `aggregate_hash` обновляются согласованно;
+- optimistic update требует точный `lock_version`; stale write выбрасывает `VersionConflictException`, а invalid aggregate/SQL откатывает transaction;
+- published, active и archived versions не редактируются; source `webmcp` поддержан как данные, но service не зависит от WebMCP;
+- `tests/stage14-program-drafts.php`: 25 проверок create/current clone/old clone, всех operations, hash stability, conflicts, invalid references/ranges/schedules, tenant isolation и rollback пройдены;
+- HTTP endpoints, Site tool writes, activation и materialization future workout plans не добавлялись;
+- открытая внешняя проверка: прогнать workflow на MySQL 8/MariaDB staging; локально доступен PDO SQLite, без MySQL/MariaDB runtime.
 
 ---
 

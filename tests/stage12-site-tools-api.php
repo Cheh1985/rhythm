@@ -238,6 +238,9 @@ try {
     $unauthorized = $request('GET', '/api/assistant/plans', null, ['X-Request-ID: stage12-unauth-0001']);
     $check($unauthorized['status'] === 401 && ($unauthorized['json']['error']['code'] ?? null) === 'authentication_required', 'без сессии возвращается структурированный 401');
     $check(($unauthorized['json']['error']['request_id'] ?? null) === 'stage12-unauth-0001', '401 содержит correlation ID');
+    $unauthorizedPage = $request('GET', '/assistant');
+    $check($unauthorizedPage['status'] === 303 && ($unauthorizedPage['headers']['location'] ?? null) === $baseUrl . '/login', '/assistant без сессии перенаправляет на login');
+    $check(!str_contains($unauthorizedPage['body'], 'webmcp-tool-catalog'), 'unauthenticated response не раскрывает tool catalog');
 
     $loginPage = $request('GET', '/login');
     preg_match('/name="_csrf" value="([^"]+)"/', $loginPage['body'], $csrfMatch);
@@ -245,6 +248,14 @@ try {
     $loginBody = http_build_query(['_csrf' => $csrfMatch[1] ?? '', 'login' => 'athlete', 'password' => 'stage12-password']);
     $login = $request('POST', '/login', $loginBody, ['Content-Type: application/x-www-form-urlencoded']);
     $check($login['status'] === 303 && ($login['headers']['location'] ?? null) === $baseUrl . '/', 'HTTP login создаёт аутентифицированную сессию');
+
+    $assistantPage = $request('GET', '/assistant');
+    $check($assistantPage['status'] === 200 && str_contains($assistantPage['body'], 'id="webmcp-tool-catalog"'), '/assistant доступен только после входа и содержит server catalog');
+    $check(str_contains($assistantPage['body'], '/assets/webmcp.js') && str_contains($assistantPage['body'], 'training.get_profile'), '/assistant условно подключает adapter и read tools');
+    $check(str_contains(strtolower($assistantPage['headers']['cache-control'] ?? ''), 'no-store'), '/assistant возвращает no-store');
+    $check(str_contains($assistantPage['headers']['permissions-policy'] ?? '', 'tools=(self)') && ($assistantPage['headers']['origin-agent-cluster'] ?? null) === '?1', '/assistant получает WebMCP permissions и origin-isolation headers');
+    $ordinaryPage = $request('GET', '/');
+    $check(!str_contains($ordinaryPage['body'], '/assets/webmcp.js') && !str_contains($ordinaryPage['body'], 'webmcp-tool-catalog'), 'обычные authenticated pages не публикуют tools');
 
     $profile = $request('GET', '/api/assistant/profile', null, ['X-Request-ID: stage12-profile-0001']);
     $check($profile['status'] === 200 && ($profile['json']['data']['timezone'] ?? null) === 'Europe/Moscow', 'profile context доступен владельцу');
