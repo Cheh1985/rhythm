@@ -8,6 +8,7 @@ use App\Controller\AuthController;
 use App\Controller\ApiController;
 use App\Controller\AssistantController;
 use App\Controller\SiteToolsApiController;
+use App\Controller\ProgramDraftController;
 use App\Controller\WebController;
 use App\Core\Router;
 
@@ -17,6 +18,7 @@ $web = new WebController();
 $api = new ApiController();
 $assistant = new AssistantController();
 $siteTools = new SiteToolsApiController();
+$programDrafts = new ProgramDraftController();
 
 $router->add('GET', '/', [$web, 'dashboard']);
 $router->add('GET', '/login', [$auth, 'loginForm']);
@@ -63,6 +65,8 @@ $router->add('GET', '/export/swimming/{id}.{format}', [$web, 'exportSwimming']);
 $router->add('GET', '/backup', [$web, 'backup']);
 $router->add('GET', '/settings', [$web, 'settings']);
 $router->add('GET', '/assistant', [$assistant, 'index']);
+$router->add('POST', '/assistant/activation/confirm', [$assistant, 'confirmActivation']);
+$router->add('POST', '/assistant/activation/cancel', [$assistant, 'cancelActivation']);
 $router->add('POST', '/settings/theme', [$web, 'saveTheme']);
 $router->add('POST', '/restore/preview', [$web, 'restorePreview']);
 $router->add('POST', '/restore/confirm', [$web, 'restoreConfirm']);
@@ -88,6 +92,9 @@ $router->add('GET', '/api/assistant/exercises/{exerciseId}/history', [$siteTools
 $router->add('GET', '/api/assistant/exercises/{exerciseId}/alternatives', [$siteTools, 'exerciseAlternatives']);
 $router->add('GET', '/api/assistant/progress', [$siteTools, 'progress']);
 $router->add('GET', '/api/assistant/schedule/{date}', [$siteTools, 'scheduledWorkout']);
+$router->add('POST', '/api/assistant/program-drafts', [$programDrafts, 'create']);
+$router->add('PATCH', '/api/assistant/program-drafts/{draftId}', [$programDrafts, 'update']);
+$router->add('POST', '/api/assistant/program-drafts/{draftId}/activation/prepare', [$programDrafts, 'prepareActivation']);
 $router->add('GET', '/coming-soon', [$web, 'comingSoon']);
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';

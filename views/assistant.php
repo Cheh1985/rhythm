@@ -10,7 +10,7 @@ $catalogJson = json_encode(
     <div>
         <p class="eyebrow">ChatGPT Site tools</p>
         <h1>Ассистент</h1>
-        <p class="muted">Безопасный read-only доступ к вашим тренировочным данным в этой вкладке.</p>
+        <p class="muted">Безопасный доступ к тренировочным данным и ручное подтверждение подготовленной activation.</p>
     </div>
 </header>
 
@@ -29,9 +29,56 @@ $catalogJson = json_encode(
     <dl class="assistant-facts">
         <div><dt>Master flag</dt><dd><?= $webMcpMasterEnabled ? 'включён' : 'выключен' ?></dd></div>
         <div><dt>Read flag</dt><dd><?= $webMcpReadEnabled ? 'включён' : 'выключен' ?></dd></div>
-        <div><dt>Режим</dt><dd>только чтение</dd></div>
+        <div><dt>Activation flag</dt><dd><?= $webMcpActivationEnabled ? 'включён' : 'выключен' ?></dd></div>
+        <div><dt>Режим</dt><dd>reads + подтверждение в приложении</dd></div>
         <div><dt>Область</dt><dd>эта страница</dd></div>
     </dl>
+</section>
+
+<section class="card" id="activation-confirmation" aria-labelledby="activation-title">
+    <p class="eyebrow">Human-in-the-loop</p>
+    <h2 id="activation-title">Подтверждение activation</h2>
+    <?php if ($activationError): ?><p class="alert alert-error"><?= e($activationError) ?></p><?php endif; ?>
+    <?php if ($activationSuccess): ?><p class="alert alert-success"><?= e($activationSuccess) ?></p><?php endif; ?>
+    <?php if (!$webMcpActivationEnabled): ?>
+        <p class="muted">Activation workflow выключен feature flag.</p>
+    <?php elseif (!$activationConfirmation): ?>
+        <p class="muted">Нет подготовленной activation. Prepare endpoint не меняет active state и только создаёт краткоживущее preview.</p>
+    <?php else: $impact = $activationConfirmation['preview']; ?>
+        <p><strong><?= e($impact['draft']['program_name']) ?></strong>, версия <?= (int) $impact['draft']['version'] ?></p>
+        <dl class="assistant-facts">
+            <div><dt>Период</dt><dd><?= e($impact['window']['effective_from']) ?> — <?= e($impact['window']['effective_to']) ?></dd></div>
+            <div><dt>Политика</dt><dd><?= e($impact['window']['future_plan_policy']) ?></dd></div>
+            <div><dt>Будет создано</dt><dd><?= count($impact['future_plans']['created']) ?></dd></div>
+            <div><dt>Будет отменено</dt><dd><?= count($impact['future_plans']['superseded']) ?></dd></div>
+            <div><dt>Сохранено</dt><dd><?= count($impact['future_plans']['kept']) ?></dd></div>
+            <div><dt>Защищено</dt><dd><?= count($impact['future_plans']['protected']) ?></dd></div>
+            <div><dt>Других программ paused</dt><dd><?= (int) $impact['programs']['will_pause_count'] ?></dd></div>
+            <div><dt>Истекает UTC</dt><dd><?= e($activationConfirmation['expires_at_utc']) ?></dd></div>
+        </dl>
+        <?php foreach (['created' => 'Новые планы', 'superseded' => 'Отменяемые планы', 'kept' => 'Сохраняемые планы', 'protected' => 'Completed / in-progress — без изменений', 'blocked_materialization' => 'Заблокированные даты'] as $key => $label): ?>
+            <?php if ($impact['future_plans'][$key] !== []): ?>
+                <details class="chart-data"><summary><?= e($label) ?> (<?= count($impact['future_plans'][$key]) ?>)</summary>
+                    <div class="table-scroll"><table><thead><tr><th>Дата</th><th>Тренировка</th><th>Статус</th></tr></thead><tbody>
+                    <?php foreach ($impact['future_plans'][$key] as $plan): ?><tr><td><?= e($plan['date']) ?></td><td><?= e($plan['name']) ?></td><td><?= e($plan['status'] ?? $key) ?></td></tr><?php endforeach; ?>
+                    </tbody></table></div>
+                </details>
+            <?php endif; ?>
+        <?php endforeach; ?>
+        <p class="alert">Подтвердить можно только здесь. Токен одноразовый; stale draft или изменившийся impact будут отклонены.</p>
+        <div class="form-actions">
+            <form method="post" action="<?= e(url('/assistant/activation/confirm')) ?>">
+                <input type="hidden" name="_csrf" value="<?= e(\App\Core\Csrf::token()) ?>">
+                <input type="hidden" name="confirmation_token" value="<?= e($activationConfirmation['confirmation_token']) ?>">
+                <button class="button button-primary" type="submit">Активировать программу</button>
+            </form>
+            <form method="post" action="<?= e(url('/assistant/activation/cancel')) ?>">
+                <input type="hidden" name="_csrf" value="<?= e(\App\Core\Csrf::token()) ?>">
+                <input type="hidden" name="confirmation_token" value="<?= e($activationConfirmation['confirmation_token']) ?>">
+                <button class="button button-secondary" type="submit">Отменить</button>
+            </form>
+        </div>
+    <?php endif; ?>
 </section>
 
 <section class="section-block" aria-labelledby="assistant-tools-title">
