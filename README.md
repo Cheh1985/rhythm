@@ -68,13 +68,15 @@ php tests/stage8.php
 node --preserve-symlinks --preserve-symlinks-main tests/stage4-queue.js
 php tests/stage14-webmcp-page.php
 node --preserve-symlinks --preserve-symlinks-main tests/webmcp-registration.js
+php tests/stage17-webmcp-writes.php
+node --preserve-symlinks --preserve-symlinks-main tests/webmcp-writes.js
 php -l public/index.php
 php bin/cleanup.php
 ```
 
 После входа импортируйте план через `/plans/import` или создайте плавание через `/swimming`; недельный ритм меняется на `/schedule`. Backup, restore и тема находятся на `/settings`. Для offline smoke используйте сценарии из [docs/offline-first.md](docs/offline-first.md). Форматы импорта/экспорта описаны в [docs/json-format.md](docs/json-format.md).
 
-Read-only ChatGPT Site tools включаются парой `WEBMCP_ENABLED=true` и `WEBMCP_READ_ENABLED=true` и доступны только на authenticated `/assistant`. Ручной staging-сценарий описан в [docs/webmcp-stage5-smoke.md](docs/webmcp-stage5-smoke.md).
+ChatGPT Site tools доступны только на authenticated `/assistant`. Master/read/draft/instance/activation классы управляются отдельными `WEBMCP_*` flags; activation всегда ждёт ручного подтверждения в приложении. Ручные staging-сценарии описаны в [docs/webmcp-stage5-smoke.md](docs/webmcp-stage5-smoke.md) и [docs/webmcp-stage9-smoke.md](docs/webmcp-stage9-smoke.md).
 
 ## Цикл с ChatGPT
 

@@ -34,13 +34,18 @@ final class AssistantController
 
         $masterEnabled = FeatureFlags::enabled(FeatureFlags::WEBMCP_ENABLED);
         $readEnabled = FeatureFlags::enabled(FeatureFlags::WEBMCP_READ_ENABLED);
+        $draftWriteEnabled = FeatureFlags::enabled(FeatureFlags::WEBMCP_DRAFT_WRITE_ENABLED);
+        $instanceWriteEnabled = FeatureFlags::enabled(FeatureFlags::WEBMCP_INSTANCE_WRITE_ENABLED);
         $activationEnabled = FeatureFlags::enabled(FeatureFlags::WEBMCP_ACTIVATION_ENABLED);
+        $toolCatalog = ToolCatalog::enabled($readEnabled, $draftWriteEnabled, $instanceWriteEnabled, $activationEnabled);
 
         \render('assistant', [
-            'toolCatalog' => $readEnabled ? ToolCatalog::readOnly() : [],
-            'webMcpAdapter' => $readEnabled,
+            'toolCatalog' => $toolCatalog,
+            'webMcpAdapter' => $toolCatalog !== [],
             'webMcpMasterEnabled' => $masterEnabled,
             'webMcpReadEnabled' => $readEnabled,
+            'webMcpDraftWriteEnabled' => $draftWriteEnabled,
+            'webMcpInstanceWriteEnabled' => $instanceWriteEnabled,
             'webMcpActivationEnabled' => $activationEnabled,
             'activationConfirmation' => $activationEnabled ? $this->confirmations->peek((int) $user['id']) : null,
             'activationError' => $_SESSION['activation_error'] ?? null,

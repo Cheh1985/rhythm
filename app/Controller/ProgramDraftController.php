@@ -82,6 +82,41 @@ final class ProgramDraftController
         }, 202, false, 'program_version');
     }
 
+    public function confirmActivation(string $draftId): never
+    {
+        $this->guard->run('program_activation.confirm', FeatureFlags::WEBMCP_ACTIVATION_ENABLED, function (int $userId, array $body) use ($draftId): array {
+            $id = ApiInput::positiveId($draftId, 'draft_id');
+            $this->shape($body, ['confirmation_token']);
+            $confirmation = $this->confirmations->consume($userId, $this->confirmationToken($body));
+            if ((int) ($confirmation['binding']['draft_id'] ?? 0) !== $id) {
+                throw new InvalidArgumentException('Подтверждение не относится к выбранному draft.');
+            }
+            return $this->activation->activate($confirmation);
+        }, 200, false, 'program_version', $draftId, false);
+    }
+
+    public function cancelActivation(string $draftId): never
+    {
+        $this->guard->run('program_activation.cancel', FeatureFlags::WEBMCP_ACTIVATION_ENABLED, function (int $userId, array $body) use ($draftId): array {
+            $id = ApiInput::positiveId($draftId, 'draft_id');
+            $this->shape($body, ['confirmation_token']);
+            $confirmation = $this->confirmations->consume($userId, $this->confirmationToken($body));
+            if ((int) ($confirmation['binding']['draft_id'] ?? 0) !== $id) {
+                throw new InvalidArgumentException('Подтверждение не относится к выбранному draft.');
+            }
+            return ['code' => 'USER_CANCELLED', 'cancelled' => true, 'mutated' => false, 'confirmation_required' => true];
+        }, 200, false, 'program_version', $draftId);
+    }
+
+    private function confirmationToken(array $body): string
+    {
+        $token = ApiInput::string($body, 'confirmation_token', 64);
+        if (preg_match('/^[a-f0-9]{64}$/D', $token) !== 1) {
+            throw new InvalidArgumentException('Некорректный одноразовый токен подтверждения.');
+        }
+        return $token;
+    }
+
     private function shape(array $body, array $required, array $optional = []): void
     {
         $unknown = array_diff(array_keys($body), [...$required, ...$optional]);

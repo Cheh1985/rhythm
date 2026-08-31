@@ -21,19 +21,48 @@ $catalogJson = json_encode(
     </div>
     <?php if (!$webMcpMasterEnabled): ?>
         <p class="alert" id="webmcp-capability" data-state="disabled">Site tools выключены администратором.</p>
-    <?php elseif (!$webMcpReadEnabled): ?>
-        <p class="alert" id="webmcp-capability" data-state="disabled">Read-only Site tools пока выключены.</p>
+    <?php elseif ($toolCatalog === []): ?>
+        <p class="alert" id="webmcp-capability" data-state="disabled">Все классы Site tools выключены.</p>
     <?php else: ?>
         <p class="alert" id="webmcp-capability" data-state="checking" aria-live="polite">Проверяем поддержку Site tools браузером…</p>
     <?php endif; ?>
+    <p class="alert" id="webmcp-operation-status" role="status" aria-live="polite" hidden></p>
     <dl class="assistant-facts">
         <div><dt>Master flag</dt><dd><?= $webMcpMasterEnabled ? 'включён' : 'выключен' ?></dd></div>
         <div><dt>Read flag</dt><dd><?= $webMcpReadEnabled ? 'включён' : 'выключен' ?></dd></div>
+        <div><dt>Draft writes</dt><dd><?= $webMcpDraftWriteEnabled ? 'включены' : 'выключены' ?></dd></div>
+        <div><dt>Instance writes</dt><dd><?= $webMcpInstanceWriteEnabled ? 'включены' : 'выключены' ?></dd></div>
         <div><dt>Activation flag</dt><dd><?= $webMcpActivationEnabled ? 'включён' : 'выключен' ?></dd></div>
-        <div><dt>Режим</dt><dd>reads + подтверждение в приложении</dd></div>
         <div><dt>Область</dt><dd>эта страница</dd></div>
     </dl>
 </section>
+
+<?php if ($webMcpActivationEnabled): ?>
+<dialog id="webmcp-activation-dialog" aria-labelledby="webmcp-activation-title">
+    <form class="dialog-card activation-dialog-card" data-activation-form>
+        <button class="dialog-close" type="button" data-activation-cancel aria-label="Отменить activation">×</button>
+        <p class="eyebrow">Обязательное подтверждение</p>
+        <h2 id="webmcp-activation-title">Активировать программу?</h2>
+        <p><strong data-activation-program>—</strong>, версия <span data-activation-version>—</span></p>
+        <dl class="assistant-facts activation-impact">
+            <div><dt>Период</dt><dd data-activation-window>—</dd></div>
+            <div><dt>Политика</dt><dd data-activation-policy>—</dd></div>
+            <div><dt>Будет создано</dt><dd data-activation-created>0</dd></div>
+            <div><dt>Будет отменено</dt><dd data-activation-superseded>0</dd></div>
+            <div><dt>Будет сохранено</dt><dd data-activation-kept>0</dd></div>
+            <div><dt>Защищено</dt><dd data-activation-protected>0</dd></div>
+            <div><dt>Заблокировано дат</dt><dd data-activation-blocked>0</dd></div>
+            <div><dt>Других программ paused</dt><dd data-activation-paused>0</dd></div>
+            <div><dt>Истекает UTC</dt><dd data-activation-expiry>—</dd></div>
+        </dl>
+        <p class="alert">Activation изменит active version и будущие планы только после нажатия кнопки ниже. Preview и версии повторно проверяются сервером.</p>
+        <div class="dialog-actions">
+            <button class="button button-secondary" type="button" data-activation-cancel>Отменить</button>
+            <button class="button button-primary" type="submit">Активировать</button>
+        </div>
+    </form>
+</dialog>
+<?php endif; ?>
 
 <section class="card" id="activation-confirmation" aria-labelledby="activation-title">
     <p class="eyebrow">Human-in-the-loop</p>
@@ -101,6 +130,6 @@ $catalogJson = json_encode(
     <?php endif; ?>
 </section>
 
-<p class="muted assistant-note">Tools используют вашу текущую серверную сессию, не принимают <code>user_id</code> и исчезают при уходе с этой страницы. Текст из базы помечен как недоверенный контент.</p>
+<p class="muted assistant-note">Tools используют вашу текущую серверную сессию, не принимают <code>user_id</code> и исчезают при уходе с этой страницы. Writes не попадают в offline outbox, а activation требует ручного подтверждения в приложении.</p>
 
 <script type="application/json" id="webmcp-tool-catalog"><?= $catalogJson ?></script>

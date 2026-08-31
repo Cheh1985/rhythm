@@ -161,6 +161,11 @@ input:focus, textarea:focus, select:focus { outline: 3px solid rgba(25,62,47,.15
 .assistant-tool-list code { overflow-wrap: anywhere; color: var(--green); }
 .assistant-tool-list small { color: var(--muted); line-height: 1.45; }
 .assistant-note { margin: 1.25rem .2rem 0; font-size: .8rem; line-height: 1.5; }
+.activation-dialog-card { max-height: min(88vh,46rem); overflow-y: auto; }
+.activation-dialog-card .eyebrow { margin: 0; }
+.activation-dialog-card > p { margin: 0; }
+.activation-impact { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.activation-impact div:last-child { grid-column: 1 / -1; }
 
 html[data-theme="dark"] body, html[data-theme="dark"] .app-shell,
 html[data-theme="system"] body, html[data-theme="system"] .app-shell { background-color: var(--paper); }

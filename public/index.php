@@ -97,6 +97,8 @@ $router->add('GET', '/api/assistant/schedule/{date}', [$siteTools, 'scheduledWor
 $router->add('POST', '/api/assistant/program-drafts', [$programDrafts, 'create']);
 $router->add('PATCH', '/api/assistant/program-drafts/{draftId}', [$programDrafts, 'update']);
 $router->add('POST', '/api/assistant/program-drafts/{draftId}/activation/prepare', [$programDrafts, 'prepareActivation']);
+$router->add('POST', '/api/assistant/program-drafts/{draftId}/activation/confirm', [$programDrafts, 'confirmActivation']);
+$router->add('POST', '/api/assistant/program-drafts/{draftId}/activation/cancel', [$programDrafts, 'cancelActivation']);
 $router->add('PATCH', '/api/assistant/workout-instances/{instanceId}/reschedule', [$workoutInstances, 'reschedule']);
 $router->add('PATCH', '/api/assistant/workout-instances/{instanceId}/replace-exercise', [$workoutInstances, 'replaceExercise']);
 $router->add('GET', '/coming-soon', [$web, 'comingSoon']);

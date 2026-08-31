@@ -27,6 +27,7 @@ final class SemanticWriteRequestGuard
         bool $requireIdempotencyKey = true,
         ?string $entityType = null,
         ?string $entityId = null,
+        bool $recordSuccess = true,
     ): never {
         header('Cache-Control: no-store');
         header('Pragma: no-cache');
@@ -59,15 +60,17 @@ final class SemanticWriteRequestGuard
             if (!is_array($data)) {
                 throw new \RuntimeException('Semantic write handler должен вернуть объект.');
             }
-            $this->record($userId, $operation, 'success', [
-                'entity_type' => $entityType,
-                'entity_id' => $entityId ?? (isset($data['draft_id']) ? (string) $data['draft_id'] : null),
-                'duration_ms' => $this->durationMs($startedAt),
-                'idempotent' => (bool) ($data['idempotent'] ?? false),
-                'confirmation_required' => (bool) ($data['confirmation_required'] ?? false),
-                'status' => $successStatus,
-                'version' => isset($data['lock_version']) ? (int) $data['lock_version'] : (isset($data['instance_version']) ? (int) $data['instance_version'] : null),
-            ]);
+            if ($recordSuccess) {
+                $this->record($userId, $operation, 'success', [
+                    'entity_type' => $entityType,
+                    'entity_id' => $entityId ?? (isset($data['draft_id']) ? (string) $data['draft_id'] : null),
+                    'duration_ms' => $this->durationMs($startedAt),
+                    'idempotent' => (bool) ($data['idempotent'] ?? false),
+                    'confirmation_required' => (bool) ($data['confirmation_required'] ?? false),
+                    'status' => $successStatus,
+                    'version' => isset($data['lock_version']) ? (int) $data['lock_version'] : (isset($data['instance_version']) ? (int) $data['instance_version'] : null),
+                ]);
+            }
             \json_response(['data' => $data, 'meta' => ['request_id' => RequestContext::requestId()]], $successStatus);
         } catch (VersionConflictException $exception) {
             $this->fail($userId, $operation, new ApiError('version_conflict', $exception->getMessage(), 409), $startedAt, $entityType, $entityId);
