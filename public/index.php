@@ -9,6 +9,7 @@ use App\Controller\ApiController;
 use App\Controller\AssistantController;
 use App\Controller\SiteToolsApiController;
 use App\Controller\ProgramDraftController;
+use App\Controller\WorkoutInstanceController;
 use App\Controller\WebController;
 use App\Core\Router;
 
@@ -19,6 +20,7 @@ $api = new ApiController();
 $assistant = new AssistantController();
 $siteTools = new SiteToolsApiController();
 $programDrafts = new ProgramDraftController();
+$workoutInstances = new WorkoutInstanceController();
 
 $router->add('GET', '/', [$web, 'dashboard']);
 $router->add('GET', '/login', [$auth, 'loginForm']);
@@ -95,6 +97,8 @@ $router->add('GET', '/api/assistant/schedule/{date}', [$siteTools, 'scheduledWor
 $router->add('POST', '/api/assistant/program-drafts', [$programDrafts, 'create']);
 $router->add('PATCH', '/api/assistant/program-drafts/{draftId}', [$programDrafts, 'update']);
 $router->add('POST', '/api/assistant/program-drafts/{draftId}/activation/prepare', [$programDrafts, 'prepareActivation']);
+$router->add('PATCH', '/api/assistant/workout-instances/{instanceId}/reschedule', [$workoutInstances, 'reschedule']);
+$router->add('PATCH', '/api/assistant/workout-instances/{instanceId}/replace-exercise', [$workoutInstances, 'replaceExercise']);
 $router->add('GET', '/coming-soon', [$web, 'comingSoon']);
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';

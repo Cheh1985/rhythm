@@ -65,7 +65,7 @@ $createBackupSupport = static function (PDO $connection): void {
     $connection->exec(<<<'SQL'
 CREATE TABLE exercises(exercise_id TEXT PRIMARY KEY,owner_user_id INTEGER NULL,name TEXT NULL);
 CREATE TABLE workout_plans(id INTEGER PRIMARY KEY,user_id INTEGER,external_plan_id TEXT,workout_plan_id INTEGER,program_version_id INTEGER,workout_template_id INTEGER,name TEXT,status TEXT,deleted_at TEXT);
-CREATE TABLE workout_exercises(id INTEGER PRIMARY KEY,workout_plan_id INTEGER,exercise_id TEXT,sequence_no INTEGER);
+CREATE TABLE workout_exercises(id INTEGER PRIMARY KEY,workout_plan_id INTEGER,exercise_id TEXT,original_exercise_id TEXT NULL,sequence_no INTEGER,substitution_reason TEXT NULL,substituted_at TEXT NULL,version INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE workout_sessions(id INTEGER PRIMARY KEY,user_id INTEGER,public_id TEXT,workout_plan_id INTEGER,status TEXT,deleted_at TEXT,started_at TEXT,workout_type TEXT);
 CREATE TABLE readiness_logs(id INTEGER PRIMARY KEY,user_id INTEGER,workout_session_id INTEGER);
 CREATE TABLE session_exercises(id INTEGER PRIMARY KEY,workout_session_id INTEGER,workout_exercise_id INTEGER,original_exercise_id TEXT,actual_exercise_id TEXT);
@@ -112,13 +112,19 @@ $source->exec("INSERT INTO program_versions(id,program_id,version_number,snapsho
 $source->exec('UPDATE training_programs SET active_version_id=20 WHERE id=10');
 $source->exec("INSERT INTO workout_templates(id,user_id,program_version_id,code,name,content_json,content_hash,created_at,updated_at) VALUES (30,1,20,'strength-a','A','{}','{$hash}','2026-01-01','2026-01-01')");
 $source->exec("INSERT INTO program_schedule_slots(id,program_version_id,workout_template_id,weekday,created_at) VALUES (40,20,30,1,'2026-01-01')");
+$source->exec("INSERT INTO exercises(exercise_id,owner_user_id,name) VALUES ('custom-original',1,'Original'),('custom-actual',1,'Actual')");
+$source->exec("INSERT INTO workout_plans(id,user_id,external_plan_id,program_version_id,workout_template_id,name,status) VALUES (50,1,'instance-roundtrip',20,30,'Instance','planned')");
+$source->exec("INSERT INTO workout_exercises(id,workout_plan_id,exercise_id,original_exercise_id,sequence_no,substitution_reason,substituted_at,version) VALUES (60,50,'custom-actual','custom-original',1,'Оборудование занято','2026-08-27 09:00:00',2)");
 $export = (new BackupService($source))->export(1);
 $check($export['schema_version'] === '1.1' && count($export['data']['program_schedule_slots']) === 1 && !array_key_exists('assistant_tool_calls',$export['data']), 'export v1.1 включает slots и исключает technical audit');
+$check(($export['data']['workout_exercises'][0]['original_exercise_id'] ?? null) === 'custom-original' && ($export['data']['workout_exercises'][0]['substitution_reason'] ?? null) === 'Оборудование занято', 'backup переносит provenance planned replacement');
 $validated = (new BackupService($source))->validate(json_encode($export, JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
 $target = $pdo();$createLifecycleSchema($target);$createBackupSupport($target);
 $restore = new BackupService($target);$restore->restore($validated,7);
 $restored = $target->query('SELECT p.user_id,pv.version_number,pss.weekday,wt.code FROM training_programs p JOIN program_versions pv ON pv.id=p.active_version_id AND pv.program_id=p.id JOIN program_schedule_slots pss ON pss.program_version_id=pv.id JOIN workout_templates wt ON wt.id=pss.workout_template_id')->fetch();
 $check((int)$restored['user_id'] === 7 && (int)$restored['version_number'] === 1 && (int)$restored['weekday'] === 1 && $restored['code'] === 'strength-a', 'v1.1 round-trip remap сохраняет pointer и slot');
+$restoredProvenance = $target->query('SELECT exercise_id,original_exercise_id,substitution_reason,substituted_at,version FROM workout_exercises')->fetch();
+$check($restoredProvenance['exercise_id'] === 'custom-actual' && $restoredProvenance['original_exercise_id'] === 'custom-original' && (int)$restoredProvenance['version'] === 2, 'backup round-trip сохраняет actual/original provenance и optimistic version');
 
 // A legacy v1.0 file remains readable and receives published lifecycle defaults.
 $tablesV10 = ['custom_exercises','training_programs','program_versions','workout_templates','workout_plans','workout_exercises','workout_sessions','readiness_logs','session_exercises','exercise_sets','discomfort_logs','progression_suggestions','personal_records','body_measurements','schedules','swimming_sessions','swimming_intervals','training_sequence','audit_logs'];

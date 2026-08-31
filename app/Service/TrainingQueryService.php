@@ -480,7 +480,7 @@ final class TrainingQueryService
     {
         $exerciseId = (string) ($sessionProjection ? $row['original_exercise_id'] : $row['exercise_id']);
         $name = (string) ($sessionProjection ? $row['original_name'] : $row['name']);
-        return [
+        $result = [
             'exercise_id' => $exerciseId, 'name' => $name,
             'sequence' => (int) $row['sequence_no'], 'sets' => (int) $row['planned_sets'],
             'rep_range' => ['min' => (int) $row['rep_min'], 'max' => (int) $row['rep_max']],
@@ -489,6 +489,17 @@ final class TrainingQueryService
             'rest_seconds' => (int) $row['rest_seconds'], 'method' => (string) $row['method_type'],
             'instructions' => $sessionProjection ? null : $row['instructions'],
         ];
+        if (!$sessionProjection) {
+            $originalId = (string) ($row['original_exercise_id'] ?? $row['exercise_id']);
+            $result['version'] = (int) ($row['version'] ?? 1);
+            $result['substitution'] = $originalId !== (string) $row['exercise_id'] ? [
+                'original_exercise_id' => $originalId,
+                'original_name' => (string) ($row['original_name'] ?? $row['name']),
+                'reason' => $row['substitution_reason'] ?? null,
+                'at_utc' => self::utc($row['substituted_at'] ?? null),
+            ] : null;
+        }
+        return $result;
     }
 
     private function setDto(array $row): array

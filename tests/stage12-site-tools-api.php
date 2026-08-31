@@ -55,9 +55,10 @@ CREATE TABLE workout_plans (
  version INTEGER NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,deleted_at TEXT NULL
 );
 CREATE TABLE workout_exercises (
- id INTEGER PRIMARY KEY,workout_plan_id INTEGER NOT NULL,exercise_id TEXT NOT NULL,sequence_no INTEGER NOT NULL,planned_sets INTEGER NOT NULL,
+ id INTEGER PRIMARY KEY,workout_plan_id INTEGER NOT NULL,exercise_id TEXT NOT NULL,original_exercise_id TEXT NULL,sequence_no INTEGER NOT NULL,planned_sets INTEGER NOT NULL,
  rep_min INTEGER NOT NULL,rep_max INTEGER NOT NULL,target_rir_min REAL NULL,target_rir_max REAL NULL,rest_seconds INTEGER NOT NULL,
- planned_weight_kg REAL NULL,warmup_sets INTEGER NOT NULL,method_type TEXT NOT NULL,group_id TEXT NULL,instructions TEXT NULL,created_at TEXT NOT NULL
+ planned_weight_kg REAL NULL,warmup_sets INTEGER NOT NULL,method_type TEXT NOT NULL,group_id TEXT NULL,instructions TEXT NULL,
+ substitution_reason TEXT NULL,substituted_at TEXT NULL,version INTEGER NOT NULL,created_at TEXT NOT NULL
 );
 CREATE TABLE workout_sessions (
  id INTEGER PRIMARY KEY,public_id TEXT NOT NULL,user_id INTEGER NOT NULL,workout_plan_id INTEGER NOT NULL,workout_type TEXT NOT NULL,
@@ -118,10 +119,10 @@ INSERT INTO workout_plans VALUES
  (2,1,'plan-today',2,1,'Сегодня','strength','2026-08-26','Лёгкая',40,NULL,NULL,'{}','1.0','planned',1,'2026-08-20 00:00:00','2026-08-20 00:00:00',NULL),
  (3,2,'plan-private',3,2,'Чужая тренировка','strength','2026-08-24','Private',50,'Private',NULL,'{}','1.0','completed',2,'2026-08-01 00:00:00','2026-08-24 10:00:00',NULL);
 INSERT INTO workout_exercises VALUES
- (1,1,'bench',1,2,8,10,1,3,120,60,1,'normal',NULL,'Контроль','2026-08-01 00:00:00'),
- (2,1,'row',2,1,8,12,1,3,90,50,0,'normal',NULL,NULL,'2026-08-01 00:00:00'),
- (3,2,'bench',1,2,8,10,2,3,120,55,1,'normal',NULL,NULL,'2026-08-20 00:00:00'),
- (4,3,'secret',1,1,5,8,1,2,120,100,0,'normal',NULL,NULL,'2026-08-01 00:00:00');
+ (1,1,'bench','bench',1,2,8,10,1,3,120,60,1,'normal',NULL,'Контроль',NULL,NULL,1,'2026-08-01 00:00:00'),
+ (2,1,'row','row',2,1,8,12,1,3,90,50,0,'normal',NULL,NULL,NULL,NULL,1,'2026-08-01 00:00:00'),
+ (3,2,'bench','bench',1,2,8,10,2,3,120,55,1,'normal',NULL,NULL,NULL,NULL,1,'2026-08-20 00:00:00'),
+ (4,3,'secret','secret',1,1,5,8,1,2,120,100,0,'normal',NULL,NULL,NULL,NULL,1,'2026-08-01 00:00:00');
 INSERT INTO workout_sessions VALUES
  (1,'session-public',1,1,'strength','completed','2026-08-23 21:30:00','2026-08-23 22:30:00',8,4,NULL,5,0,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL),
  (2,'session-private',2,3,'strength','completed','2026-08-24 09:00:00','2026-08-24 10:00:00',9,3,'private',2,0,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL);

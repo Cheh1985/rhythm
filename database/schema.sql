@@ -158,6 +158,7 @@ CREATE TABLE workout_exercises (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     workout_plan_id BIGINT UNSIGNED NOT NULL,
     exercise_id VARCHAR(80) NOT NULL,
+    original_exercise_id VARCHAR(80) NULL,
     sequence_no SMALLINT UNSIGNED NOT NULL,
     planned_sets SMALLINT UNSIGNED NOT NULL,
     rep_min SMALLINT UNSIGNED NOT NULL,
@@ -170,11 +171,16 @@ CREATE TABLE workout_exercises (
     method_type ENUM('normal','superset','dropset','rest_pause','cluster','amrap') NOT NULL DEFAULT 'normal',
     group_id VARCHAR(64) NULL,
     instructions TEXT NULL,
+    substitution_reason TEXT NULL,
+    substituted_at DATETIME NULL,
+    version INT UNSIGNED NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL,
     CONSTRAINT fk_workout_exercises_plan FOREIGN KEY (workout_plan_id) REFERENCES workout_plans(id),
     CONSTRAINT fk_workout_exercises_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(exercise_id),
+    CONSTRAINT fk_workout_exercises_original FOREIGN KEY (original_exercise_id) REFERENCES exercises(exercise_id),
     UNIQUE KEY uq_plan_sequence (workout_plan_id, sequence_no),
-    INDEX idx_workout_exercises_exercise (exercise_id)
+    INDEX idx_workout_exercises_exercise (exercise_id),
+    INDEX idx_workout_exercises_original (original_exercise_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE workout_sessions (

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Domain\Analytics;
+use App\Core\RequestContext;
 use App\Core\VersionConflictException;
 use App\Domain\Swimming;
 use App\Domain\TrainingMetrics;
@@ -24,17 +25,20 @@ final class TrainingRepository
 
     private function transaction(callable $callback): mixed
     {
-        if ($this->connection === null) {
-            return \db()->transaction($callback);
+        $pdo = $this->pdo();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) {
+            $pdo->beginTransaction();
         }
-        $this->connection->beginTransaction();
         try {
-            $result = $callback($this->connection);
-            $this->connection->commit();
+            $result = $callback($pdo);
+            if ($ownsTransaction) {
+                $pdo->commit();
+            }
             return $result;
         } catch (\Throwable $exception) {
-            if ($this->connection->inTransaction()) {
-                $this->connection->rollBack();
+            if ($ownsTransaction && $pdo->inTransaction()) {
+                $pdo->rollBack();
             }
             throw $exception;
         }
@@ -86,14 +90,36 @@ final class TrainingRepository
         return $plan;
     }
 
-    public function reschedulePlan(int $planId, int $userId, string $scheduledDate, int $version): void
+    public function workoutInstanceByExternalId(int $userId, string $externalId, bool $forUpdate = false): ?array
+    {
+        $query = $this->pdo()->prepare('SELECT id,external_plan_id,status,scheduled_date,version,program_version_id,workout_template_id FROM workout_plans WHERE user_id=? AND external_plan_id=? AND deleted_at IS NULL' . ($forUpdate ? $this->lock() : ''));
+        $query->execute([$userId, $externalId]);
+        return $query->fetch() ?: null;
+    }
+
+    public function activeSessionExerciseByPublicId(int $userId, string $publicId, int $sequence, bool $forUpdate = false): ?array
+    {
+        $query = $this->pdo()->prepare(<<<SQL
+SELECT s.id session_id,s.public_id,s.status,s.version session_version,p.external_plan_id,
+       se.id session_exercise_id,se.original_exercise_id,se.actual_exercise_id,se.version exercise_version,we.sequence_no
+FROM workout_sessions s
+JOIN workout_plans p ON p.id=s.workout_plan_id AND p.user_id=s.user_id
+JOIN session_exercises se ON se.workout_session_id=s.id
+JOIN workout_exercises we ON we.id=se.workout_exercise_id AND we.workout_plan_id=p.id
+WHERE s.user_id=? AND s.public_id=? AND we.sequence_no=? AND s.deleted_at IS NULL AND p.deleted_at IS NULL
+SQL . ($forUpdate ? $this->lock() : ''));
+        $query->execute([$userId, $publicId, $sequence]);
+        return $query->fetch() ?: null;
+    }
+
+    public function reschedulePlan(int $planId, int $userId, string $scheduledDate, int $version, ?string $auditSource = null): void
     {
         $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $scheduledDate);
         if (!$date || $date->format('Y-m-d') !== $scheduledDate) {
             throw new InvalidArgumentException('Укажите корректную дату тренировки.');
         }
 
-        $this->transaction(function (PDO $pdo) use ($planId, $userId, $scheduledDate, $version): void {
+        $this->transaction(function (PDO $pdo) use ($planId, $userId, $scheduledDate, $version, $auditSource): void {
             $query = $pdo->prepare("SELECT * FROM workout_plans WHERE id=? AND user_id=? AND status='planned' AND deleted_at IS NULL" . $this->lock());
             $query->execute([$planId, $userId]);
             $before = $query->fetch();
@@ -115,7 +141,86 @@ final class TrainingRepository
             ], [
                 'scheduled_date' => $scheduledDate,
                 'version' => (int) $before['version'] + 1,
-            ]);
+            ], $auditSource, $auditSource === null ? null : RequestContext::requestId());
+        });
+    }
+
+    public function replacePlannedExercise(int $planId, int $userId, array $data): array
+    {
+        return $this->transaction(function (PDO $pdo) use ($planId, $userId, $data): array {
+            $planQuery = $pdo->prepare('SELECT id,external_plan_id,status,version FROM workout_plans WHERE id=? AND user_id=? AND deleted_at IS NULL' . $this->lock());
+            $planQuery->execute([$planId, $userId]);
+            $plan = $planQuery->fetch();
+            if (!$plan) {
+                throw new InvalidArgumentException('Workout instance не найден.');
+            }
+            if ($plan['status'] !== 'planned') {
+                throw new InvalidArgumentException('Заменять упражнение можно только в ещё не начатой тренировке.');
+            }
+            if (!is_int($data['instance_version'] ?? null) || $data['instance_version'] !== (int) $plan['version']) {
+                throw new VersionConflictException('Workout instance изменён конкурентно; перечитайте актуальную версию.');
+            }
+
+            $sequence = $data['exercise_sequence'] ?? null;
+            if (!is_int($sequence) || $sequence < 1 || $sequence > 1000) {
+                throw new InvalidArgumentException('exercise_sequence должен быть целым числом от 1 до 1000.');
+            }
+            $exerciseQuery = $pdo->prepare('SELECT * FROM workout_exercises WHERE workout_plan_id=? AND sequence_no=?' . $this->lock());
+            $exerciseQuery->execute([$planId, $sequence]);
+            $exercise = $exerciseQuery->fetch();
+            if (!$exercise) {
+                throw new InvalidArgumentException('Упражнение workout instance не найдено.');
+            }
+            if (!is_int($data['exercise_version'] ?? null) || $data['exercise_version'] !== (int) $exercise['version']) {
+                throw new VersionConflictException('Упражнение workout instance изменено конкурентно; перечитайте актуальную версию.');
+            }
+
+            $actualId = (string) ($data['actual_exercise_id'] ?? '');
+            $reason = $this->text($data['reason'] ?? null, 1000, 'Причина замены');
+            if ($actualId === '' || $reason === null) {
+                throw new InvalidArgumentException('Выберите замену и укажите причину.');
+            }
+            $available = $pdo->prepare("SELECT 1 FROM exercises WHERE exercise_id=? AND status='active' AND deleted_at IS NULL AND (owner_user_id IS NULL OR owner_user_id=?)");
+            $available->execute([$actualId, $userId]);
+            if (!$available->fetchColumn()) {
+                throw new InvalidArgumentException('Упражнение для замены недоступно.');
+            }
+
+            $originalId = (string) ($exercise['original_exercise_id'] ?: $exercise['exercise_id']);
+            $update = $pdo->prepare('UPDATE workout_exercises SET original_exercise_id=?,exercise_id=?,substitution_reason=?,substituted_at=UTC_TIMESTAMP(),version=version+1 WHERE id=? AND workout_plan_id=?');
+            $update->execute([$originalId, $actualId, $reason, $exercise['id'], $planId]);
+            $pdo->prepare('UPDATE workout_plans SET version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?')->execute([$planId, $userId]);
+
+            $afterQuery = $pdo->prepare('SELECT substituted_at FROM workout_exercises WHERE id=?');
+            $afterQuery->execute([$exercise['id']]);
+            $substitutedAt = (string) $afterQuery->fetchColumn();
+            $this->audit($pdo, $userId, 'workout_exercise', (string) $exercise['id'], 'replace_instance', [
+                'workout_id' => $plan['external_plan_id'],
+                'sequence' => $sequence,
+                'original_exercise_id' => $originalId,
+                'actual_exercise_id' => $exercise['exercise_id'],
+                'instance_version' => (int) $plan['version'],
+                'exercise_version' => (int) $exercise['version'],
+            ], [
+                'workout_id' => $plan['external_plan_id'],
+                'sequence' => $sequence,
+                'original_exercise_id' => $originalId,
+                'actual_exercise_id' => $actualId,
+                'reason' => $reason,
+                'instance_version' => (int) $plan['version'] + 1,
+                'exercise_version' => (int) $exercise['version'] + 1,
+            ], 'webmcp', RequestContext::requestId());
+
+            return [
+                'workout_id' => (string) $plan['external_plan_id'],
+                'exercise_sequence' => $sequence,
+                'original_exercise_id' => $originalId,
+                'actual_exercise_id' => $actualId,
+                'reason' => $reason,
+                'substituted_at' => $substitutedAt,
+                'instance_version' => (int) $plan['version'] + 1,
+                'exercise_version' => (int) $exercise['version'] + 1,
+            ];
         });
     }
 
@@ -190,7 +295,12 @@ final class TrainingRepository
             $insert = $pdo->prepare("INSERT INTO workout_sessions (public_id,user_id,workout_plan_id,workout_type,status,started_at,created_at,updated_at) VALUES (?,?,?,?,'in_progress',UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())");
             $insert->execute([$publicId, $userId, $planId, $plan['workout_type']]);
             $sessionId = (int) $pdo->lastInsertId();
-            $pdo->prepare("INSERT INTO session_exercises (workout_session_id,workout_exercise_id,original_exercise_id,actual_exercise_id,status,version,created_at,updated_at) SELECT ?,id,exercise_id,exercise_id,'pending',1,UTC_TIMESTAMP(),UTC_TIMESTAMP() FROM workout_exercises WHERE workout_plan_id=? ORDER BY sequence_no")->execute([$sessionId, $planId]);
+            if ($this->hasColumn($pdo, 'workout_exercises', 'original_exercise_id')) {
+                $snapshot = "INSERT INTO session_exercises (workout_session_id,workout_exercise_id,original_exercise_id,actual_exercise_id,status,substitution_reason,substituted_at,version,created_at,updated_at) SELECT ?,id,COALESCE(original_exercise_id,exercise_id),exercise_id,'pending',substitution_reason,substituted_at,1,UTC_TIMESTAMP(),UTC_TIMESTAMP() FROM workout_exercises WHERE workout_plan_id=? ORDER BY sequence_no";
+            } else {
+                $snapshot = "INSERT INTO session_exercises (workout_session_id,workout_exercise_id,original_exercise_id,actual_exercise_id,status,version,created_at,updated_at) SELECT ?,id,exercise_id,exercise_id,'pending',1,UTC_TIMESTAMP(),UTC_TIMESTAMP() FROM workout_exercises WHERE workout_plan_id=? ORDER BY sequence_no";
+            }
+            $pdo->prepare($snapshot)->execute([$sessionId, $planId]);
             $ready = $pdo->prepare('INSERT INTO readiness_logs (user_id,workout_session_id,body_weight_kg,sleep_score,energy_score,readiness_score,comment,logged_at) VALUES (?,?,?,?,?,?,?,UTC_TIMESTAMP())');
             $ready->execute([$userId, $sessionId, $bodyWeight, $sleep, $energy, $readyScore, $comment]);
             $pdo->prepare("UPDATE workout_plans SET status='in_progress',version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?")->execute([$planId, $userId]);
@@ -415,9 +525,9 @@ final class TrainingRepository
         });
     }
 
-    public function replaceExercise(int $sessionId, int $userId, array $data): array
+    public function replaceExercise(int $sessionId, int $userId, array $data, ?string $auditSource = null): array
     {
-        return $this->transaction(function (PDO $pdo) use ($sessionId, $userId, $data): array {
+        return $this->transaction(function (PDO $pdo) use ($sessionId, $userId, $data, $auditSource): array {
             $receipt = $this->beginAction($pdo, $userId, $data, 'exercise.replace');
             if ($receipt !== null) {
                 return $receipt;
@@ -435,7 +545,7 @@ final class TrainingRepository
             }
             $pdo->prepare("UPDATE session_exercises SET actual_exercise_id=?,substitution_reason=?,substituted_at=UTC_TIMESTAMP(),status=CASE WHEN status='pending' THEN 'active' ELSE status END,version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=?")->execute([$actualId, $reason, $exercise['id']]);
             $pdo->prepare('UPDATE workout_sessions SET version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?')->execute([$sessionId, $userId]);
-            $this->audit($pdo, $userId, 'session_exercise', (string) $exercise['id'], 'replace', $exercise, ['original_exercise_id' => $exercise['original_exercise_id'], 'actual_exercise_id' => $actualId, 'reason' => $reason]);
+            $this->audit($pdo, $userId, 'session_exercise', (string) $exercise['id'], 'replace', $exercise, ['original_exercise_id' => $exercise['original_exercise_id'], 'actual_exercise_id' => $actualId, 'reason' => $reason], $auditSource, $auditSource === null ? null : RequestContext::requestId());
             $result = ['session_version' => (int) $session['version'] + 1, 'exercise_version' => (int) $exercise['version'] + 1, 'actual_exercise_id' => $actualId];
             $this->completeAction($pdo, $userId, $data, 'exercise.replace', $result);
             return $result;
@@ -1294,9 +1404,30 @@ SQL);
         ];
     }
 
-    private function audit(PDO $pdo, int $userId, string $entityType, string $entityId, string $action, ?array $before, ?array $after): void
+    private function hasColumn(PDO $pdo, string $table, string $column): bool
     {
-        $query = $pdo->prepare('INSERT INTO audit_logs (user_id,entity_type,entity_id,action,before_json,after_json,ip_address,created_at) VALUES (?,?,?,?,?,?,?,UTC_TIMESTAMP())');
-        $query->execute([$userId,$entityType,$entityId,$action,$before ? json_encode($before,JSON_UNESCAPED_UNICODE) : null,$after ? json_encode($after,JSON_UNESCAPED_UNICODE) : null,substr($_SERVER['REMOTE_ADDR'] ?? '',0,45)]);
+        if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
+            $columns = $pdo->query('PRAGMA table_info(' . $table . ')')->fetchAll();
+            foreach ($columns as $definition) {
+                if (($definition['name'] ?? null) === $column) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        $query = $pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?');
+        $query->execute([$table, $column]);
+        return (int) $query->fetchColumn() > 0;
+    }
+
+    private function audit(PDO $pdo, int $userId, string $entityType, string $entityId, string $action, ?array $before, ?array $after, ?string $source = null, ?string $requestId = null): void
+    {
+        if ($source === null && $requestId === null) {
+            $query = $pdo->prepare('INSERT INTO audit_logs (user_id,entity_type,entity_id,action,before_json,after_json,ip_address,created_at) VALUES (?,?,?,?,?,?,?,UTC_TIMESTAMP())');
+            $query->execute([$userId,$entityType,$entityId,$action,$before ? json_encode($before,JSON_UNESCAPED_UNICODE) : null,$after ? json_encode($after,JSON_UNESCAPED_UNICODE) : null,substr($_SERVER['REMOTE_ADDR'] ?? '',0,45)]);
+            return;
+        }
+        $query = $pdo->prepare('INSERT INTO audit_logs (user_id,entity_type,entity_id,action,source,request_id,before_json,after_json,ip_address,created_at) VALUES (?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP())');
+        $query->execute([$userId,$entityType,$entityId,$action,$source,$requestId,$before ? json_encode($before,JSON_UNESCAPED_UNICODE) : null,$after ? json_encode($after,JSON_UNESCAPED_UNICODE) : null,substr($_SERVER['REMOTE_ADDR'] ?? '',0,45)]);
     }
 }

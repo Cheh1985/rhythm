@@ -66,7 +66,7 @@ final class SemanticWriteRequestGuard
                 'idempotent' => (bool) ($data['idempotent'] ?? false),
                 'confirmation_required' => (bool) ($data['confirmation_required'] ?? false),
                 'status' => $successStatus,
-                'version' => isset($data['lock_version']) ? (int) $data['lock_version'] : null,
+                'version' => isset($data['lock_version']) ? (int) $data['lock_version'] : (isset($data['instance_version']) ? (int) $data['instance_version'] : null),
             ]);
             \json_response(['data' => $data, 'meta' => ['request_id' => RequestContext::requestId()]], $successStatus);
         } catch (VersionConflictException $exception) {

@@ -187,12 +187,14 @@ SQL);
     public function planExerciseRows(int $userId, int $internalPlanId): array
     {
         $query = $this->pdo()->prepare(<<<'SQL'
-SELECT we.exercise_id,e.name,e.exercise_type,e.category,e.muscle_groups,e.equipment,we.sequence_no,we.planned_sets,
+SELECT we.exercise_id,COALESCE(we.original_exercise_id,we.exercise_id) original_exercise_id,
+       e.name,original.name original_name,e.exercise_type,e.category,e.muscle_groups,e.equipment,we.sequence_no,we.planned_sets,
        we.rep_min,we.rep_max,we.target_rir_min,we.target_rir_max,we.rest_seconds,we.planned_weight_kg,we.warmup_sets,
-       we.method_type,we.instructions
+       we.method_type,we.instructions,we.substitution_reason,we.substituted_at,we.version
 FROM workout_exercises we
 JOIN workout_plans p ON p.id=we.workout_plan_id
 JOIN exercises e ON e.exercise_id=we.exercise_id AND (e.owner_user_id IS NULL OR e.owner_user_id=p.user_id)
+JOIN exercises original ON original.exercise_id=COALESCE(we.original_exercise_id,we.exercise_id) AND (original.owner_user_id IS NULL OR original.owner_user_id=p.user_id)
 WHERE p.id=? AND p.user_id=? AND p.deleted_at IS NULL AND e.deleted_at IS NULL
 ORDER BY we.sequence_no
 SQL);
