@@ -165,12 +165,12 @@ WEBMCP_ACTIVATION_ENABLED=false
 | 4 | Реализован, локально проверен и зафиксирован | `aab598c` | Lifecycle migration и backup compatibility зафиксированы; MySQL/MariaDB migration dry run ещё не выполнен |
 | 5 | Реализован, локально проверен и зафиксирован | `a0a64ea` | `/assistant` и 11 read-only Site tools зафиксированы; внешний browser smoke ещё не выполнен |
 | 6 | Реализован, локально проверен и зафиксирован | `a0a64ea` | Draft schema/application service зафиксированы; MySQL/MariaDB integration check ещё не выполнен |
-| 7 | Доступен следующим | — | Draft domain workflow этапа 6 готов |
+| 7 | Реализован, локально проверен и зафиксирован | `9639092` | Draft API и app-confirmed activation зафиксированы; MySQL/MariaDB integration check ещё не выполнен |
 | 8 | Доступен параллельно | — | Этап 1 завершён; можно выполнять отдельно от этапа 4 |
-| 9 | Заблокирован зависимостями | — | Этап 5 завершён; требуются завершённые этапы 7 и 8 |
+| 9 | Заблокирован зависимостью | — | Этапы 5 и 7 завершены; требуется завершённый этап 8 |
 | 10 | Заблокирован зависимостью | — | Начинается после этапа 9 |
 
-Сводка: этапы 1–6 реализованы, локально проверены и зафиксированы в Git; этапы 5–6 объединены в commit `a0a64ea`. До этой актуализации рабочее дерево было чистым; текущая незакоммиченная разница — только данный статусный документ. Следующим по основной цепочке доступен этап 7, а этап 8 по-прежнему можно выполнять параллельно. Этап 9 остаётся заблокирован до завершения этапов 7 и 8, этап 10 — до этапа 9. Для этапов 1–4 и 6 остаются открытыми integration/migration проверки на MySQL 8 и MariaDB staging; для этапа 5 — ручные smoke-проверки во встроенном браузере ChatGPT, Chrome с WebMCP flag/origin trial и Safari/PWA.
+Сводка: этапы 1–7 реализованы, локально проверены и зафиксированы в Git; этапы 5–6 объединены в commit `a0a64ea`, этап 7 зафиксирован в commit `9639092`. Следующим доступен независимый этап 8. Этап 9 теперь заблокирован только до завершения этапа 8, этап 10 — до этапа 9. Для этапов 1–4, 6 и 7 остаются открытыми integration/migration проверки на MySQL 8 и MariaDB staging; для этапа 5 — ручные smoke-проверки во встроенном браузере ChatGPT, Chrome с WebMCP flag/origin trial и Safari/PWA; для этапа 7 — end-to-end проверка prepare → app confirm/cancel на HTTPS staging.
 
 ### Результат этапа 1
 
@@ -258,6 +258,22 @@ WEBMCP_ACTIVATION_ENABLED=false
 - `tests/stage14-program-drafts.php`: 25 проверок create/current clone/old clone, всех operations, hash stability, conflicts, invalid references/ranges/schedules, tenant isolation и rollback пройдены;
 - HTTP endpoints, Site tool writes, activation и materialization future workout plans не добавлялись;
 - открытая внешняя проверка: прогнать workflow на MySQL 8/MariaDB staging; локально доступен PDO SQLite, без MySQL/MariaDB runtime.
+
+### Результат этапа 7
+
+- commit: `963909285fd7ea1898829daa45acbae97f3739d0` — «Добавить безопасную активацию черновиков программ»;
+- добавлены semantic endpoints создания новой программы или клонирования active/выбранной published version, typed update draft и prepare activation; WebMCP write tools при этом не регистрируются;
+- write boundary централизует session authentication, exact same-origin, CSRF, strict JSON/shape/size validation, отсутствие model-supplied `user_id`, feature flags, безопасные API envelopes и минимизированный tool-call audit;
+- create/clone/update используют payload-bound `Idempotency-Key`: `assistant_write_receipts` связывает ключ с user, action и SHA-256 канонического request; technical receipts исключены из backup и очищаются через 90 дней;
+- migration `011_program_activation.sql` и fresh schema согласованы для `assistant_write_receipts`;
+- prepare activation не меняет active state и полностью показывает effective window 1–12 недель, `keep`/`supersede`, новые, сохраняемые, отменяемые, protected и blocked планы, а также программы, которые будут paused;
+- подтверждение хранится только в текущей PHP-сессии, живёт пять минут, одноразово потребляется даже при ошибке и связано с user, draft ID, `lock_version`, `aggregate_hash`, `effective_from`, horizon, policy и hash полного impact preview;
+- обычная страница `/assistant` показывает impact и даёт ручные CSRF/same-origin confirm/cancel; cancel не меняет БД, expiry/replay/stale confirmation отклоняются;
+- activation повторно строит impact под блокировками и выполняется одной transaction: draft становится immutable `published`, active pointer переключается, другие active programs становятся `paused`, старая версия сохраняется, mutable future plans мягко supersede-ятся только по выбранной policy, а новые workout plans/exercises материализуются из version schedule slots;
+- completed/in-progress workouts, их sessions и history не меняются; protected dates блокируют materialization; domain audit и `assistant_tool_calls` audit разделены и не содержат raw payload/token;
+- `tests/stage15-plan-activation.php`: 39 проверок prepare/confirm/cancel/expiry/replay, stale hash/lock/impact, ownership, multiple active programs, `keep`/`supersede`, idempotency, Origin/CSRF, dual audit и transaction rollback пройдены;
+- полный PHP regression suite и PHP lint пройдены; Node offline queue — 7 проверок, WebMCP registration — 15 проверок пройдены;
+- открытые внешние проверки: применить migration/fresh schema и прогнать transaction/locking на MySQL 8/MariaDB staging, затем проверить реальный HTTPS session flow prepare → preview → confirm/cancel в поддерживаемом браузере.
 
 ---
 
