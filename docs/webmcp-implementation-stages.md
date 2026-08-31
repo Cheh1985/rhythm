@@ -166,11 +166,11 @@ WEBMCP_ACTIVATION_ENABLED=false
 | 5 | Реализован, локально проверен и зафиксирован | `a0a64ea` | `/assistant` и 11 read-only Site tools зафиксированы; внешний browser smoke ещё не выполнен |
 | 6 | Реализован, локально проверен и зафиксирован | `a0a64ea` | Draft schema/application service зафиксированы; MySQL/MariaDB integration check ещё не выполнен |
 | 7 | Реализован, локально проверен и зафиксирован | `9639092` | Draft API и app-confirmed activation зафиксированы; MySQL/MariaDB integration check ещё не выполнен |
-| 8 | Доступен параллельно | — | Этап 1 завершён; можно выполнять отдельно от этапа 4 |
-| 9 | Заблокирован зависимостью | — | Этапы 5 и 7 завершены; требуется завершённый этап 8 |
+| 8 | Реализован, локально проверен и зафиксирован | `e428aae` | Instance-only reschedule/replacement зафиксированы; MySQL/MariaDB migration check ещё не выполнен |
+| 9 | Доступен | — | Этапы 5, 7 и 8 завершены; можно подключать WebMCP write tools поверх готовых backend workflows |
 | 10 | Заблокирован зависимостью | — | Начинается после этапа 9 |
 
-Сводка: этапы 1–7 реализованы, локально проверены и зафиксированы в Git; этапы 5–6 объединены в commit `a0a64ea`, этап 7 зафиксирован в commit `9639092`. Следующим доступен независимый этап 8. Этап 9 теперь заблокирован только до завершения этапа 8, этап 10 — до этапа 9. Для этапов 1–4, 6 и 7 остаются открытыми integration/migration проверки на MySQL 8 и MariaDB staging; для этапа 5 — ручные smoke-проверки во встроенном браузере ChatGPT, Chrome с WebMCP flag/origin trial и Safari/PWA; для этапа 7 — end-to-end проверка prepare → app confirm/cancel на HTTPS staging.
+Сводка: этапы 1–8 реализованы, локально проверены и зафиксированы в Git; этапы 5–6 объединены в commit `a0a64ea`, этап 7 зафиксирован в commit `9639092`, этап 8 — в commit `e428aae`. Следующим доступен этап 9: регистрация WebMCP write tools поверх уже готовых backend workflows этапов 5, 7 и 8. Этап 10 остаётся заблокирован до этапа 9. Для этапов 1–4 и 6–8 остаются открытыми integration/migration проверки на MySQL 8 и MariaDB staging; для этапа 5 — ручные smoke-проверки во встроенном браузере ChatGPT, Chrome с WebMCP flag/origin trial и Safari/PWA; для этапа 7 — end-to-end проверка prepare → app confirm/cancel на HTTPS staging.
 
 ### Результат этапа 1
 
@@ -274,6 +274,22 @@ WEBMCP_ACTIVATION_ENABLED=false
 - `tests/stage15-plan-activation.php`: 39 проверок prepare/confirm/cancel/expiry/replay, stale hash/lock/impact, ownership, multiple active programs, `keep`/`supersede`, idempotency, Origin/CSRF, dual audit и transaction rollback пройдены;
 - полный PHP regression suite и PHP lint пройдены; Node offline queue — 7 проверок, WebMCP registration — 15 проверок пройдены;
 - открытые внешние проверки: применить migration/fresh schema и прогнать transaction/locking на MySQL 8/MariaDB staging, затем проверить реальный HTTPS session flow prepare → preview → confirm/cancel в поддерживаемом браузере.
+
+### Результат этапа 8
+
+- commit: `e428aae55621dc65ea2dfeefa059fa6213671daa` — «Добавить безопасные изменения экземпляров тренировок»;
+- добавлен `WorkoutInstanceService` и два semantic endpoint: перенос конкретной planned-тренировки и замена упражнения в `scheduled_instance` или `active_session`; WebMCP write tools при этом не регистрируются;
+- target определяется только stable `workout_plans.external_plan_id` или `workout_sessions.public_id` текущего пользователя; упражнение выбирается по стабильному внутри instance `sequence_no`, внутренние DB ID и `user_id` API не принимает;
+- каждый запрос требует явный `scope`, optimistic `instance_version`/`exercise_version`, body `client_action_id` и совпадающий `Idempotency-Key`; payload-bound receipt предотвращает повторную mutation и отклоняет переиспользование ключа с другим запросом;
+- перенос использует существующую `reschedulePlan`, а active-session replacement — существующую `replaceExercise`, сохраняя прежние status/version rules обычной PWA;
+- planned replacement меняет только строку конкретного `workout_exercises`, увеличивает версии instance/exercise и не изменяет `training_programs`, `program_versions`, `workout_templates`, их hashes или active pointer;
+- additive migration `012_workout_instance_substitutions.sql` добавляет planned provenance `original_exercise_id`, `substitution_reason`, `substituted_at` и optimistic `version`; номер `011` не переиспользован, поскольку занят migration активации этапа 7;
+- `startSession()` переносит original/actual/reason/time в immutable session snapshot; read DTO planned workout публикует exercise version и provenance, а session/history projection сохраняет исходное упражнение после старта;
+- write boundary наследует exact same-origin, CSRF, strict JSON shape, feature flag и безопасные error envelopes; foreign target скрывается как 404, completed history не редактируется, domain audit связан с request ID без raw prompt/payload;
+- backup v1.1 round-trip переносит actual/original provenance, reason/time и version; restore повторно проверяет доступность как actual, так и original exercise текущему tenant, а старые backup остаются совместимыми;
+- `tests/stage16-workout-instance-writes.php`: 37 проверок ownership, scopes, planned/active/completed rules, conflicts, idempotency, provenance, snapshot/history, no program mutation, CSRF/Origin и route/registration boundaries пройдены;
+- полный PHP regression suite, 7 Node-проверок offline queue, 15 Node-проверок WebMCP registration, PHP lint и `git diff --check` пройдены;
+- открытые внешние проверки: применить migration `012` и fresh schema на MySQL 8/MariaDB staging, проверить row locking/rollback и выполнить HTTPS HTTP smoke двух semantic endpoints; этап 9 ещё не начат.
 
 ---
 
