@@ -167,10 +167,10 @@ WEBMCP_ACTIVATION_ENABLED=false
 | 6 | Реализован, локально проверен и зафиксирован | `a0a64ea` | Draft schema/application service зафиксированы; MySQL/MariaDB integration check ещё не выполнен |
 | 7 | Реализован, локально проверен и зафиксирован | `9639092` | Draft API и app-confirmed activation зафиксированы; MySQL/MariaDB integration check ещё не выполнен |
 | 8 | Реализован, локально проверен и зафиксирован | `e428aae` | Instance-only reschedule/replacement зафиксированы; MySQL/MariaDB migration check ещё не выполнен |
-| 9 | Доступен | — | Этапы 5, 7 и 8 завершены; можно подключать WebMCP write tools поверх готовых backend workflows |
-| 10 | Заблокирован зависимостью | — | Начинается после этапа 9 |
+| 9 | Реализован, локально проверен и зафиксирован | `cc60bab` | Пять WebMCP write tools и обязательный app-confirmed activation зафиксированы; внешний browser smoke ещё не выполнен |
+| 10 | Доступен | — | Этап 9 завершён; можно выполнять security hardening, E2E, rollout и финальную документацию |
 
-Сводка: этапы 1–8 реализованы, локально проверены и зафиксированы в Git; этапы 5–6 объединены в commit `a0a64ea`, этап 7 зафиксирован в commit `9639092`, этап 8 — в commit `e428aae`. Следующим доступен этап 9: регистрация WebMCP write tools поверх уже готовых backend workflows этапов 5, 7 и 8. Этап 10 остаётся заблокирован до этапа 9. Для этапов 1–4 и 6–8 остаются открытыми integration/migration проверки на MySQL 8 и MariaDB staging; для этапа 5 — ручные smoke-проверки во встроенном браузере ChatGPT, Chrome с WebMCP flag/origin trial и Safari/PWA; для этапа 7 — end-to-end проверка prepare → app confirm/cancel на HTTPS staging.
+Сводка: этапы 1–9 реализованы, локально проверены и зафиксированы в Git; этапы 5–6 объединены в commit `a0a64ea`, этап 7 зафиксирован в commit `9639092`, этап 8 — в commit `e428aae`, этап 9 — в commit `cc60bab`. Следующим доступен этап 10: security hardening, E2E, rollout и финальная документация. Для этапов 1–4 и 6–8 остаются открытыми integration/migration проверки на MySQL 8 и MariaDB staging; для этапов 5 и 9 — ручные smoke/E2E во встроенном браузере ChatGPT, Chrome с WebMCP flag/origin trial и Safari/PWA; для activation и instance writes также остаётся HTTPS/MySQL staging-проверка реальных session, locking и rollback scenarios.
 
 ### Результат этапа 1
 
@@ -289,7 +289,25 @@ WEBMCP_ACTIVATION_ENABLED=false
 - backup v1.1 round-trip переносит actual/original provenance, reason/time и version; restore повторно проверяет доступность как actual, так и original exercise текущему tenant, а старые backup остаются совместимыми;
 - `tests/stage16-workout-instance-writes.php`: 37 проверок ownership, scopes, planned/active/completed rules, conflicts, idempotency, provenance, snapshot/history, no program mutation, CSRF/Origin и route/registration boundaries пройдены;
 - полный PHP regression suite, 7 Node-проверок offline queue, 15 Node-проверок WebMCP registration, PHP lint и `git diff --check` пройдены;
-- открытые внешние проверки: применить migration `012` и fresh schema на MySQL 8/MariaDB staging, проверить row locking/rollback и выполнить HTTPS HTTP smoke двух semantic endpoints; этап 9 ещё не начат.
+- открытые внешние проверки: применить migration `012` и fresh schema на MySQL 8/MariaDB staging, проверить row locking/rollback и выполнить HTTPS HTTP smoke двух semantic endpoints; на момент фиксации этапа 8 WebMCP write registration ещё не было добавлено.
+
+### Результат этапа 9
+
+- commit: `cc60babbb397e5360575b95dac50adf8b14f43f9` — «Добавить WebMCP-инструменты записи»;
+- серверный `ToolCatalog` дополнен пятью стабильными write tools: `training.create_plan_draft`, `training.update_plan_draft`, `training.activate_plan`, `training.reschedule_workout` и `training.replace_exercise`;
+- read, draft writes, instance writes и activation собираются в page-scoped catalog независимо по существующим feature flags; при read-only конфигурации write tools отсутствуют, а master flag остаётся общим выключателем;
+- все write tools имеют `readOnlyHint: false`, закрытые top-level input schemas и не принимают `user_id`; archive/delete/history edit/backup/account/generic tools не добавлены;
+- thin frontend adapter валидирует tool input и обращается только к same-origin semantic `/api/assistant/*` endpoints с session credentials, `no-store`, CSRF и payload-bound `Idempotency-Key`; writes не используют offline outbox;
+- create/clone/update draft и instance mutations переиспользуют backend workflows этапов 7–8; повтор exact request с тем же `client_action_id` безопасно возвращает receipt, а reuse ключа для другого payload отклоняется сервером;
+- `training.activate_plan` сначала вызывает prepare без mutation, показывает in-page `<dialog>` с программой, версией, effective window, policy и counts created/superseded/kept/protected/blocked/paused, затем держит WebMCP execute pending до ручного confirm/cancel;
+- confirm/cancel добавлены как узкие JSON semantic endpoints поверх существующих session-bound confirmation store и activation service; confirm повторно проверяет token/draft/lock/hash/impact, cancel потребляет token и возвращает structured `USER_CANCELLED` с `mutated=false`;
+- deprecated `navigator.modelContext` и отсутствующий в актуальном IDL `requestUserInteraction` не используются; регистрация остаётся на `document.modelContext.registerTool`, execution cancellation передаётся через `AbortSignal`, а весь каталог снимается при уходе со страницы;
+- success, 401/404/409/419/422/429, validation, network/offline и stale confirmation ответы остаются структурированными; successful/error/cancel calls попадают в минимизированный tool-call audit без raw payload, CSRF или confirmation token;
+- `tests/stage17-webmcp-writes.php`: 50 проверок flags matrix, catalog composition, schemas, annotations, forbidden operations, routes, modal и offline boundaries пройдены;
+- `tests/webmcp-writes.js`: 23 Node-проверки create/update/reschedule/replace, CSRF/idempotency headers, duplicate calls, fake `document.modelContext`, modal pending confirm, cancel, stale confirmation, navigation abort, offline и HTTP error mapping пройдены;
+- полный regression suite: 19 PHP-наборов и 3 Node-набора пройдены; legacy training-plan v1.0, reports, backup/restore и обычная PWA не сломаны;
+- добавлен ручной checklist `docs/webmcp-stage9-smoke.md` для ChatGPT built-in browser, Chrome origin trial/Inspector, cancel/Escape/navigation/offline, audit, rollback и Safari/PWA regression;
+- открытые внешние проверки: выполнить manual/E2E на HTTPS staging во встроенном браузере ChatGPT и Chrome, проверить Safari/установленную PWA без WebMCP и прогнать write/activation locking на MySQL 8/MariaDB; локально проверены fake modelContext, SQLite workflows и deterministic regressions.
 
 ---
 
