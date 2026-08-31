@@ -20,7 +20,11 @@ ALTER TABLE program_versions
     MODIFY updated_at DATETIME NOT NULL,
     ADD UNIQUE KEY uq_versions_id_program (id, program_id),
     ADD INDEX idx_versions_parent_program (parent_version_id, program_id),
-    ADD INDEX idx_versions_lifecycle (program_id, lifecycle_status),
+    ADD INDEX idx_versions_lifecycle (program_id, lifecycle_status);
+
+-- MySQL 8.0.12 cannot resolve the self-referencing composite FK when its
+-- supporting unique index is created in the same ALTER TABLE statement.
+ALTER TABLE program_versions
     ADD CONSTRAINT fk_versions_parent_program
         FOREIGN KEY (parent_version_id, program_id) REFERENCES program_versions(id, program_id);
 

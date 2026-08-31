@@ -1,6 +1,6 @@
 # Состояние разработки
 
-## Статус на 24.08.2026
+## Статус на 31.08.2026
 
 **Этап 8 из 8 завершён. MVP проекта завершён.** Этапы 1–7 сохранены; добавлены backup/restore, полный audit/soft delete, security review и production/mobile polish.
 
@@ -80,7 +80,11 @@ WebMCP этап 5 добавил authenticated `/assistant`, серверный 
 
 WebMCP этап 6 добавил отдельный `training-program-draft` v1.0, полный canonical aggregate с templates/schedule slots, server-assigned version и parent provenance. `ProgramVersionService` создаёт/клонирует и меняет draft только typed operations с tenant-scoped exercise references, транзакциями, optimistic `lock_version` и стабильным `aggregate_hash`; published/active/archived content остаётся immutable. HTTP/WebMCP writes и activation не добавлялись. `tests/stage14-program-drafts.php` покрывает workflow, все операции, current/old clone, conflicts, rollback, invalid references/ranges/schedules и tenant isolation.
 
-Ограничение проверки окружения: локальный PHP 8.3 доступен с `pdo_sqlite`, но без `pdo_mysql`; MySQL/MariaDB client/server, Docker и Podman не найдены. Потоки этапов 1–8 и lifecycle этапа 4 прогнаны на SQLite, а MySQL `schema.sql`, seed и миграции проверены статически. Миграции `003`–`010`, импорт schema/seed и полный smoke всё ещё нужно выполнить в целевом MySQL/MariaDB окружении. Фактическая установка через Add to Home Screen и visual/safe-area проверка на физическом iPhone в этом окружении недоступны. JS assertions очереди прошли с Node-флагами `--preserve-symlinks --preserve-symlinks-main`, обходящими sandbox `EPERM` на родительском каталоге.
+WebMCP этап 7 добавил двухфазную activation draft-программы: server impact preview, краткоживущий одноразовый session token, обязательный app-level confirm/cancel, повторную проверку lock/hash/impact и транзакционное обновление active version и будущих планов. Этап 8 добавил только instance-scoped reschedule/replacement с idempotency, optimistic versions и сохранением original/actual provenance. Этап 9 зарегистрировал 5 write tools поверх этих API, сохранив activation human-in-the-loop и исключив writes из offline outbox.
+
+WebMCP этап 10 завершил security/rollout hardening: единый per-user/tool rate limit для reads/writes, Fetch Metadata policy с Safari fallback, bounded write-body read, prompt-injection fixtures, A–J/IDOR runner, audit retention/dry-run prune command, operator documentation и controlled rollout checklist. Все 16 tools помечают DB output как untrusted; production flags остаются выключенными. `tests/webmcp-e2e.php` объединяет 13 suites, включая настоящий HTTP-прогон CSRF/Origin/Fetch-Metadata/rate/size, а `tests/mysql-webmcp-stage10.php` проверяет fresh schema, миграции 009–012 и backup v1.0/v1.1 на disposable DB.
+
+Проверка MySQL выполнена фактически на одноразовом MySQL 8.0.12 с `pdo_mysql`: fresh `schema.sql`/seed, миграции 009–012, composite foreign keys и backup restore v1.0/v1.1 прошли. В ходе проверки миграция 010 разделена на два `ALTER TABLE` для совместимости self-referencing composite FK с MySQL 8.0.12. Фактическая установка через Add to Home Screen и visual/safe-area проверка на физическом iPhone в этом окружении недоступны; device acceptance остаётся обязательным rollout gate. JS assertions запускаются с Node-флагами `--preserve-symlinks --preserve-symlinks-main`, обходящими sandbox `EPERM` на родительском каталоге.
 
 Ограничения iOS: WebKit может приостанавливать JavaScript в фоне, запрещать vibration и блокировать audio без предшествующего пользовательского жеста или в беззвучном режиме. Таймер считает остаток от абсолютного timestamp и корректируется после возврата, но не обещает системное фоновое уведомление на заблокированном iPhone.
 
@@ -88,7 +92,7 @@ WebMCP этап 6 добавил отдельный `training-program-draft` v1.
 
 | № | Критерий | Статус | Проверка |
 |---:|---|---|---|
-| 1 | PHP 8.2+ / MySQL-MariaDB установка | Готово с ограничением среды | installer/schema статически; целевая MySQL нужна |
+| 1 | PHP 8.2+ / MySQL-MariaDB установка | Готово | fresh schema/seed + migrations 009–012 на MySQL 8.0.12 |
 | 2 | Многопользовательская авторизация | Готово | CSRF, sessions, throttling, user_id tests |
 | 3 | Справочник упражнений | Готово | stage2/stage3 |
 | 4 | Версионируемые программы и импорт | Готово | stage2 + audit version |

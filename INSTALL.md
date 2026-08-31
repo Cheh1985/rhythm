@@ -70,7 +70,10 @@ Service Worker работает только в secure context: production до�
 
 ```bash
 15 3 * * * cd /var/www/rhythm && /usr/bin/php bin/cleanup.php >> storage/logs/cleanup.log 2>&1
+30 3 * * * cd /var/www/rhythm && /usr/bin/php bin/prune-assistant-audit.php --apply >> storage/logs/assistant-audit-prune.log 2>&1
 ```
+
+`prune-assistant-audit.php` удаляет только технический `assistant_tool_calls` старше `WEBMCP_AUDIT_RETENTION_DAYS` (по умолчанию 90 дней) и не затрагивает domain `audit_logs`. Перед cron обязательно выполните dry-run без `--apply`.
 
 Первого пользователя создайте через HTTPS-страницу `/register`. После этого при необходимости ограничьте публичную регистрацию на уровне reverse proxy до появления отдельной admin-настройки.
 
@@ -87,6 +90,22 @@ php tests/stage6.php
 php tests/stage7.php
 php tests/stage8.php
 node --preserve-symlinks --preserve-symlinks-main tests/stage4-queue.js
+php tests/webmcp-e2e.php
 ```
 
 Если установщик сообщает об отсутствии `pdo_mysql`, включите расширение в активном `php.ini`. Ошибки приложения записываются в `storage/logs/app.log`; подробности не показываются пользователю при `APP_DEBUG=false`.
+
+## WebMCP / ChatGPT Site tools
+
+На production оставьте все пять `WEBMCP_*_ENABLED=false`, пока staging checklist не закрыт. Включайте слоями: master + reads, затем draft writes, instance writes и activation последней. Настройте read/write rate limits и retention из `.env.example`.
+
+Для disposable MySQL/MariaDB staging server выполните:
+
+```bash
+WEBMCP_TEST_MYSQL_DSN='mysql:host=127.0.0.1;port=3306;charset=utf8mb4' \
+WEBMCP_TEST_MYSQL_USER='staging_admin' \
+WEBMCP_TEST_MYSQL_PASSWORD='secret' \
+php tests/mysql-webmcp-stage10.php
+```
+
+Тест создаёт и удаляет две случайно названные временные базы, поэтому запускайте его только отдельной staging-учётной записью с правами `CREATE/DROP DATABASE`, никогда не production credentials. Полная настройка, диагностика и rollback: [docs/webmcp.md](docs/webmcp.md) и [docs/webmcp-rollout.md](docs/webmcp-rollout.md).

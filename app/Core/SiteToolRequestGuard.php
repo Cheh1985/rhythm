@@ -20,7 +20,8 @@ final class SiteToolRequestGuard
 
     public function __construct(
         private readonly ?PDO $connection = null,
-        private readonly ?AssistantAuditService $audit = null
+        private readonly ?AssistantAuditService $audit = null,
+        private readonly ?AssistantRateLimiter $rateLimiter = null,
     ) {}
 
     /**
@@ -47,6 +48,7 @@ final class SiteToolRequestGuard
 
             $user = Auth::requireUser(true);
             $userId = (int) $user['id'];
+            FetchMetadata::requireSameOriginIfPresent();
             $this->enforceRateLimit($userId, $toolName);
             $query = $this->query($allowedQuery);
             $this->requireEmptyBody();
@@ -163,32 +165,14 @@ final class SiteToolRequestGuard
 
     private function enforceRateLimit(int $userId, string $toolName): void
     {
-        $limit = $this->boundedEnv('WEBMCP_READ_RATE_LIMIT', self::DEFAULT_RATE_LIMIT, 1, 1000);
-        $window = $this->boundedEnv('WEBMCP_READ_RATE_WINDOW_SECONDS', self::DEFAULT_RATE_WINDOW_SECONDS, 1, 3600);
-        $pdo = $this->pdo();
-        $databaseNow = $pdo->query('SELECT CURRENT_TIMESTAMP')->fetchColumn();
-        if (!is_string($databaseNow) || preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $databaseNow) !== 1) {
-            throw new \RuntimeException('Не удалось определить время базы данных для rate limit.');
-        }
-        $threshold = (new \DateTimeImmutable($databaseNow))->modify('-' . $window . ' seconds')->format('Y-m-d H:i:s');
-        $statement = $pdo->prepare('SELECT COUNT(*) FROM assistant_tool_calls WHERE user_id=? AND tool_name=? AND created_at>=?');
-        $statement->execute([$userId, $toolName, $threshold]);
-        if ((int) $statement->fetchColumn() >= $limit) {
-            header('Retry-After: ' . $window);
-            throw new ApiError('rate_limit_exceeded', 'Слишком много запросов. Повторите позже.', 429, [
-                'retry_after_seconds' => $window,
-            ]);
-        }
-    }
-
-    private function boundedEnv(string $name, int $default, int $min, int $max): int
-    {
-        $value = \env($name);
-        if (!is_string($value) || preg_match('/^[1-9][0-9]*$/D', $value) !== 1) {
-            return $default;
-        }
-        $parsed = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => $min, 'max_range' => $max]]);
-        return is_int($parsed) ? $parsed : $default;
+        ($this->rateLimiter ?? new AssistantRateLimiter($this->connection))->enforce(
+            $userId,
+            $toolName,
+            'WEBMCP_READ_RATE_LIMIT',
+            'WEBMCP_READ_RATE_WINDOW_SECONDS',
+            self::DEFAULT_RATE_LIMIT,
+            self::DEFAULT_RATE_WINDOW_SECONDS,
+        );
     }
 
     private function fail(?int $userId, string $toolName, ApiError $error, int $startedAt, ?string $entityType, ?string $entityId): never
@@ -209,11 +193,6 @@ final class SiteToolRequestGuard
     private function record(int $userId, string $toolName, string $outcome, array $context): void
     {
         ($this->audit ?? new AssistantAuditService($this->connection))->record($userId, $toolName, $outcome, $context);
-    }
-
-    private function pdo(): PDO
-    {
-        return $this->connection ?? \db()->pdo();
     }
 
     private function durationMs(int $startedAt): int

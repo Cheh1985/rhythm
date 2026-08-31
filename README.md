@@ -1,6 +1,6 @@
 # Ритм
 
-«Ритм» — завершённый многопользовательский mobile-first PWA-дневник тренировок на PHP 8.2+ и MySQL 8/MariaDB. Все 8 этапов MVP реализованы: план, offline-выполнение, отчёт, аналитика, плавание, backup/restore и production polish.
+«Ритм» — завершённый многопользовательский mobile-first PWA-дневник тренировок на PHP 8.2+ и MySQL 8/MariaDB. Все 8 этапов MVP и 10 этапов WebMCP-интеграции реализованы: план, offline-выполнение, отчёт, аналитика, плавание, backup/restore, ChatGPT Site tools и controlled rollout hardening.
 
 ## Что уже работает
 
@@ -70,13 +70,16 @@ php tests/stage14-webmcp-page.php
 node --preserve-symlinks --preserve-symlinks-main tests/webmcp-registration.js
 php tests/stage17-webmcp-writes.php
 node --preserve-symlinks --preserve-symlinks-main tests/webmcp-writes.js
+php tests/stage18-webmcp-hardening.php
+php tests/webmcp-e2e.php
 php -l public/index.php
 php bin/cleanup.php
+php bin/prune-assistant-audit.php
 ```
 
 После входа импортируйте план через `/plans/import` или создайте плавание через `/swimming`; недельный ритм меняется на `/schedule`. Backup, restore и тема находятся на `/settings`. Для offline smoke используйте сценарии из [docs/offline-first.md](docs/offline-first.md). Форматы импорта/экспорта описаны в [docs/json-format.md](docs/json-format.md).
 
-ChatGPT Site tools доступны только на authenticated `/assistant`. Master/read/draft/instance/activation классы управляются отдельными `WEBMCP_*` flags; activation всегда ждёт ручного подтверждения в приложении. Ручные staging-сценарии описаны в [docs/webmcp-stage5-smoke.md](docs/webmcp-stage5-smoke.md) и [docs/webmcp-stage9-smoke.md](docs/webmcp-stage9-smoke.md).
+ChatGPT Site tools доступны только на authenticated `/assistant`. Master/read/draft/instance/activation классы управляются отдельными `WEBMCP_*` flags; activation всегда ждёт ручного подтверждения в приложении. Полный каталог, security model, testing и operator guidance описаны в [docs/webmcp.md](docs/webmcp.md), controlled rollout — в [docs/webmcp-rollout.md](docs/webmcp-rollout.md). Ручные ранние smoke-сценарии сохранены в [docs/webmcp-stage5-smoke.md](docs/webmcp-stage5-smoke.md) и [docs/webmcp-stage9-smoke.md](docs/webmcp-stage9-smoke.md).
 
 ## Цикл с ChatGPT
 
@@ -86,5 +89,3 @@ ChatGPT Site tools доступны только на authenticated `/assistant`
 4. На итоговом экране скачайте JSON или Markdown `training-report` (для плавания — `swimming-report`).
 5. Передайте отчёт ChatGPT и попросите анализировать только фактические данные, сохраняя `planned`, `fact` и `suggestion` раздельно.
 6. Новую программу импортируйте как новую неизменяемую версию с `parent_version` и `change_reason`; старую историю не редактируйте.
-
-Коммит в рамках этапа не создаётся.

@@ -141,6 +141,20 @@ SQL);
 
 $service = new TrainingQueryService(new TrainingQueryRepository($pdo));
 
+$promptFixture = json_decode(
+    (string) file_get_contents(__DIR__ . '/fixtures/webmcp/prompt-injection.json'),
+    true,
+    16,
+    JSON_THROW_ON_ERROR,
+);
+$insertPromptExercise = $pdo->prepare(
+    "INSERT INTO exercises VALUES ('prompt-custom',1,?,'other','[\"other\"]','strength','other',1,'absolute','active',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL)"
+);
+$insertPromptExercise->execute([$promptFixture['custom_name']]);
+$pdo->prepare('UPDATE workout_plans SET trainer_notes=? WHERE id=1')->execute([$promptFixture['trainer_notes']]);
+$pdo->prepare('UPDATE workout_exercises SET instructions=? WHERE id=1')->execute([$promptFixture['instructions']]);
+$pdo->prepare('UPDATE workout_sessions SET user_comment=? WHERE id=1')->execute([$promptFixture['comment']]);
+
 $bounds = Analytics::localDateBounds('2026-08-24', '2026-08-24', 'Europe/Moscow');
 $check($bounds['from_utc'] === '2026-08-23 21:00:00' && $bounds['to_utc'] === '2026-08-24 21:00:00', 'локальная дата корректно переводится в полуинтервал UTC');
 $check(TrainingMetrics::durationMinutes('2026-08-23 21:30:00', '2026-08-23 22:30:00') === 60, 'duration детерминированно считается на backend');
@@ -193,6 +207,13 @@ $check($fact['metrics']['working_sets'] === 2 && $fact['metrics']['tonnage_kg'] 
 $check($fact['metrics']['completed_exercises'] === 1 && $fact['metrics']['skipped_exercises'] === 1 && $fact['metrics']['pending_exercises'] === 1 && $fact['metrics']['substitutions'] === 1, 'substituted/skipped/pending считаются раздельно');
 $check($fact['data_quality']['complete'] === false && str_contains(implode(' ', $fact['data_quality']['issues']), 'RIR'), 'missing RIR явно отражён в data_quality');
 $check($service->plannedWorkout(2, 'plan-completed') === null && $service->workoutFact(2, 'session-public') === null, 'cross-user plan/session IDs не раскрываются');
+$promptPayload = json_encode([$plan, $fact, $service->searchExercises(1, 'IGNORE', ['limit' => 5])], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+$check(str_contains($promptPayload, $promptFixture['custom_name']), 'prompt-like custom name остаётся обычной DB-строкой в untrusted DTO');
+$check(str_contains($promptPayload, $promptFixture['instructions']), 'prompt-like exercise instructions остаются обычной DB-строкой в untrusted DTO');
+$check(!str_contains($promptPayload, $promptFixture['trainer_notes']), 'prompt-like trainer notes исключены из minimized DTO');
+$check(!str_contains($promptPayload, $promptFixture['comment']), 'prompt-like session comment исключён из minimized DTO');
+$check($pdo->query('SELECT trainer_notes FROM workout_plans WHERE id=1')->fetchColumn() === $promptFixture['trainer_notes'], 'prompt-like notes хранятся как данные и не исполняются');
+$check($pdo->query('SELECT user_comment FROM workout_sessions WHERE id=1')->fetchColumn() === $promptFixture['comment'], 'prompt-like comments хранятся как данные и не исполняются');
 
 $history = $service->exerciseHistory(1, 'row', ['from'=>'2026-08-24','to'=>'2026-08-24','limit'=>10]);
 $historySubstitution = array_values(array_filter($history['items'], static fn (array $item): bool => $item['substituted_into']));

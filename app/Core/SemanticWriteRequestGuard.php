@@ -13,10 +13,13 @@ use Throwable;
 final class SemanticWriteRequestGuard
 {
     private const MAX_BODY_BYTES = 1048576;
+    private const DEFAULT_RATE_LIMIT = 30;
+    private const DEFAULT_RATE_WINDOW_SECONDS = 60;
 
     public function __construct(
         private readonly ?PDO $connection = null,
         private readonly ?AssistantAuditService $audit = null,
+        private readonly ?AssistantRateLimiter $rateLimiter = null,
     ) {}
 
     public function run(
@@ -40,6 +43,15 @@ final class SemanticWriteRequestGuard
             }
             $user = Auth::requireUser(true);
             $userId = (int) $user['id'];
+            FetchMetadata::requireSameOriginIfPresent();
+            ($this->rateLimiter ?? new AssistantRateLimiter($this->connection))->enforce(
+                $userId,
+                $operation,
+                'WEBMCP_WRITE_RATE_LIMIT',
+                'WEBMCP_WRITE_RATE_WINDOW_SECONDS',
+                self::DEFAULT_RATE_LIMIT,
+                self::DEFAULT_RATE_WINDOW_SECONDS,
+            );
             SameOrigin::requireValid();
             if (!Csrf::validate($_SERVER['HTTP_X_CSRF_TOKEN'] ?? null)) {
                 throw new ApiError('csrf_failed', 'Сессия формы истекла. Обновите страницу.', 419);
@@ -51,7 +63,7 @@ final class SemanticWriteRequestGuard
             if ($contentType !== 'application/json') {
                 throw new ApiError('unsupported_media_type', 'Ожидается Content-Type application/json.', 415);
             }
-            $body = ApiInput::jsonObject((string) file_get_contents('php://input'), self::MAX_BODY_BYTES);
+            $body = ApiInput::jsonObject($this->readBoundedBody(), self::MAX_BODY_BYTES);
             $key = trim((string) ($_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? ''));
             if ($requireIdempotencyKey && $key === '') {
                 throw new InvalidArgumentException('Заголовок Idempotency-Key обязателен.');
@@ -108,5 +120,23 @@ final class SemanticWriteRequestGuard
     private function durationMs(int $startedAt): int
     {
         return min(86400000, max(0, (int) round((hrtime(true) - $startedAt) / 1_000_000)));
+    }
+
+    private function readBoundedBody(): string
+    {
+        $contentLength = $_SERVER['CONTENT_LENGTH'] ?? null;
+        if ($contentLength !== null) {
+            if (!is_string($contentLength) || preg_match('/^[0-9]+$/D', $contentLength) !== 1) {
+                throw new InvalidArgumentException('Некорректный Content-Length.');
+            }
+            if ((int) $contentLength > self::MAX_BODY_BYTES) {
+                throw new InvalidArgumentException('JSON body превышает допустимый размер.');
+            }
+        }
+        $body = file_get_contents('php://input', false, null, 0, self::MAX_BODY_BYTES + 1);
+        if (!is_string($body)) {
+            throw new InvalidArgumentException('Не удалось прочитать JSON body.');
+        }
+        return $body;
     }
 }
