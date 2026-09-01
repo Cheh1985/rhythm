@@ -25,11 +25,11 @@ $instanceNames = array_column(ToolCatalog::enabled(false, false, true, false), '
 $activationNames = array_column(ToolCatalog::enabled(false, false, false, true), 'name');
 $writeNames = [...$draftNames, ...$instanceNames, ...$activationNames];
 
-$check(count($readNames) === 11 && array_filter($readNames, static fn (string $name): bool => in_array($name, $writeNames, true)) === [], 'read-only mode не регистрирует writes');
+$check(count($readNames) === 12 && array_filter($readNames, static fn (string $name): bool => in_array($name, $writeNames, true)) === [], 'read-only mode не регистрирует writes');
 $check($draftNames === ['training.create_plan_draft', 'training.update_plan_draft'], 'draft flag публикует только два draft tool');
 $check($instanceNames === ['training.reschedule_workout', 'training.replace_exercise'], 'instance flag публикует только два instance tool');
 $check($activationNames === ['training.activate_plan'], 'activation flag публикует только activation tool');
-$check(count($catalog) === 16 && count(array_unique(array_column($catalog, 'name'))) === 16, 'полный каталог содержит 11 reads и 5 уникальных writes');
+$check(count($catalog) === 17 && count(array_unique(array_column($catalog, 'name'))) === 17, 'полный каталог содержит 12 reads и 5 уникальных writes');
 
 foreach ($catalog as $tool) {
     $check(strlen((string) ($tool['name'] ?? '')) <= 30 && strlen((string) ($tool['description'] ?? '')) <= 500, ($tool['name'] ?? 'tool') . ': metadata budget');

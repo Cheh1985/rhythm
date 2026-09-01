@@ -41,8 +41,9 @@ WEBMCP_AUDIT_RETENTION_DAYS=90
 | Tool | Класс | Назначение |
 |---|---|---|
 | `training.get_profile` | read | Минимальный профиль, timezone, локальная дата, ссылки на активные программы |
-| `training.get_current_plan` | read | Current version с полными templates, упражнениями, targets и недельным расписанием либо явное empty/ambiguous state |
-| `training.get_plan` | read | Безопасная полная проекция одной immutable версии, включая lifecycle metadata |
+| `training.get_current_plan` | read | Компактная current version: lifecycle, ссылки на templates и недельное расписание либо явное empty/ambiguous state |
+| `training.get_plan` | read | Компактная проекция одной версии с индексом templates и lifecycle metadata |
+| `training.get_plan_template` | read | Один template и страница до 50 упражнений; cursor привязан к версии и aggregate hash |
 | `training.list_plan_versions` | read | Все версии программы, включая draft lifecycle/binding, без raw snapshot/source |
 | `training.list_workouts` | read | Ограниченный date range, фильтры и cursor pagination |
 | `training.get_workout` | read | Planned workout, recorded fact либо оба объекта |
@@ -74,7 +75,7 @@ WEBMCP_AUDIT_RETENTION_DAYS=90
 
 Источник истины — `app/WebMcp/ToolCatalog.php`. Каждая top-level и вложенная object schema имеет `additionalProperties=false`; маршрутизатор adapter повторно проверяет вход до fetch, а backend выполняет окончательную typed validation. Draft tools описывают полную структуру metadata/templates/exercises/schedule и отдельный payload для каждой разрешённой операции, поэтому модель не должна угадывать форму вложенного JSON.
 
-Plan DTO не отдаёт `content_json`, `snapshot_json` или внутренние ID. Сервер декодирует сохранённый template aggregate и возвращает именованные поля упражнений и плановых показателей. Для draft version выдаются `lifecycle_status=draft` и `draft_binding` (`draft_id`, `lock_version`, `aggregate_hash`), достаточные для последующего typed update.
+Plan DTO не отдаёт `content_json`, `snapshot_json` или внутренние ID. `get_current_plan` и `get_plan` возвращают только компактный индекс templates; полные именованные поля упражнений и плановых показателей запрашиваются по одному template через `get_plan_template` с `limit<=50` и cursor pagination. Cursor нельзя переносить между программами, версиями или изменившимися draft aggregates. Для draft version выдаются `lifecycle_status=draft` и `draft_binding` (`draft_id`, `lock_version`, `aggregate_hash`), достаточные для последующего typed update.
 
 Успех API:
 

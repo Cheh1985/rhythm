@@ -85,6 +85,7 @@ $router->add('GET', '/api/assistant/profile', [$siteTools, 'profile']);
 $router->add('GET', '/api/assistant/plans', [$siteTools, 'plans']);
 $router->add('GET', '/api/assistant/plans/{programId}/versions', [$siteTools, 'planVersions']);
 $router->add('GET', '/api/assistant/plans/{programId}/versions/{version}', [$siteTools, 'planVersion']);
+$router->add('GET', '/api/assistant/plans/{programId}/templates/{templateId}', [$siteTools, 'planTemplate']);
 $router->add('GET', '/api/assistant/plans/{programId}', [$siteTools, 'plan']);
 $router->add('GET', '/api/assistant/workouts', [$siteTools, 'workouts']);
 $router->add('GET', '/api/assistant/workouts/{workoutId}', [$siteTools, 'workout']);

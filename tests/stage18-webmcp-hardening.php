@@ -85,7 +85,7 @@ $redactedJson = json_encode($redacted, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ER
 $check(!str_contains($redactedJson, $fixture['comment']) && !str_contains($redactedJson, $fixture['custom_name']), 'assistant audit не сохраняет prompt-like payload');
 
 $catalog = ToolCatalog::enabled(true, true, true, true);
-$check(count($catalog) === 16 && array_reduce($catalog, static fn (bool $ok, array $tool): bool => $ok && ($tool['annotations']['untrustedContentHint'] ?? false) === true, true), 'все tool outputs помечены как untrusted content');
+$check(count($catalog) === 17 && array_reduce($catalog, static fn (bool $ok, array $tool): bool => $ok && ($tool['annotations']['untrustedContentHint'] ?? false) === true, true), 'все tool outputs помечены как untrusted content');
 $check(ToolCatalog::enabled(false, false, false, false) === [], 'capability-disabled mode не публикует tools');
 
 $root = dirname(__DIR__);

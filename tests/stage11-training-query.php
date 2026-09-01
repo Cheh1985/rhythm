@@ -107,7 +107,7 @@ INSERT INTO program_versions VALUES
  (2,1,2,'manual','Прогрессия','Проверить технику','{"private":"snapshot-v2"}','hash-2',1,'2026-08-01 00:00:00','published',1,'hash-2','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL),
  (3,2,1,'manual','Private','Private','{"private":true}','hash-3',NULL,'2026-07-01 00:00:00','published',1,'hash-3','2026-07-01 00:00:00','2026-07-01 00:00:00',NULL);
 INSERT INTO workout_templates VALUES
- (1,1,2,'strength-a','Силовая A','strength','{"goal":"Объём","estimated_duration_min":60,"trainer_notes":"Техника","pre_workout":{"equipment":"Штанга"},"exercises":[{"exercise_id":"bench","name":"Жим лёжа","order":1,"sets":3,"rep_range":{"min":8,"max":10},"target_rir":{"min":1,"max":3},"rest_seconds":120,"weight":60,"muscles":["chest","triceps"],"equipment":"barbell"}]}','template-hash','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL),
+ (1,1,2,'strength-a','Силовая A','strength','{"goal":"Объём","estimated_duration_min":60,"trainer_notes":"Техника","pre_workout":{"equipment":"Штанга"},"exercises":[{"exercise_id":"bench","name":"Жим лёжа","order":1,"sets":3,"rep_range":{"min":8,"max":10},"target_rir":{"min":1,"max":3},"rest_seconds":120,"weight":60,"muscles":["chest","triceps"],"equipment":"barbell"},{"exercise_id":"row","name":"Тяга штанги","order":2,"sets":3,"rep_range":{"min":8,"max":12},"target_rir":{"min":1,"max":3},"rest_seconds":90,"weight":50,"muscles":["back","biceps"],"equipment":"barbell"}]}','template-hash','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL),
  (2,2,3,'private','Чужой шаблон','strength','{}','private-hash','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL);
 INSERT INTO program_schedule_slots VALUES
  (1,2,1,2,'2026-08-01 00:00:00');
@@ -181,9 +181,13 @@ $versionJson = json_encode($version, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERRO
 $check(count($programs['items']) === 1 && $version['version'] === 2 && $version['parent_version'] === 1 && $version['templates'][0]['template_id'] === 'strength-a', 'current/specific program version возвращаются безопасными проекциями');
 $check($programs['items'][0]['active_version_state'] === 'resolved' && $programs['items'][0]['current_version'] === 2, 'current version определяется active pointer');
 $check($version['lifecycle_status'] === 'published' && $version['schedule_slots'][0] === ['weekday'=>2,'template_id'=>'strength-a'], 'plan projection содержит lifecycle и versioned schedule');
-$check($version['templates'][0]['exercises'][0]['exercise_id'] === 'bench' && $version['templates'][0]['exercises'][0]['rep_range'] === ['min'=>8,'max'=>10], 'plan projection содержит упражнения и плановые параметры');
+$check($version['templates'][0]['exercise_count'] === 2 && !array_key_exists('exercises', $version['templates'][0]), 'plan projection остаётся компактным индексом шаблонов без упражнений');
 $check(!str_contains($versionJson, 'snapshot_json') && !str_contains($versionJson, 'content_json') && !str_contains($versionJson, 'private'), 'program projection не раскрывает raw snapshot/content payload');
 $check($service->programVersion(1, 'private-program') === null, 'чужая программа не открывается по публичному ID');
+$templatePage1 = $service->programTemplate(1, 'base', 'strength-a', 2, ['limit'=>1]);
+$templatePage2 = $service->programTemplate(1, 'base', 'strength-a', 2, ['limit'=>1, 'cursor'=>$templatePage1['next_cursor']]);
+$check($templatePage1['total_exercises'] === 2 && $templatePage1['exercises'][0]['exercise_id'] === 'bench' && $templatePage2['exercises'][0]['exercise_id'] === 'row' && $templatePage2['next_cursor'] === null, 'упражнения шаблона выдаются отдельными bounded cursor pages');
+$check($service->programTemplate(2, 'base', 'strength-a', 2) === null, 'чужой шаблон программы скрыт tenant scope');
 
 $pdo->exec(<<<'SQL'
 INSERT INTO program_versions VALUES
@@ -196,7 +200,9 @@ SQL);
 $versions = $service->programVersions(1, 'base');
 $draftProjection = $service->programVersion(1, 'base', 3);
 $check($versions['items'][0]['lifecycle_status'] === 'draft' && $versions['items'][0]['draft_binding']['draft_id'] === 6, 'version list различает draft и публикует safe binding владельцу');
-$check($draftProjection['draft_binding']['lock_version'] === 4 && $draftProjection['templates'][0]['exercises'][0]['exercise_id'] === 'row', 'draft можно обнаружить и продолжить в новом чате');
+$draftTemplate = $service->programTemplate(1, 'base', 'strength-b', 3);
+$check($draftProjection['draft_binding']['lock_version'] === 4 && $draftTemplate['exercises'][0]['exercise_id'] === 'row', 'draft можно обнаружить и продолжить в новом чате');
+$throws(fn () => $service->programTemplate(1, 'base', 'strength-b', 3, ['cursor'=>$templatePage1['next_cursor']]), 'cursor', 'cursor шаблона привязан к конкретной версии и template');
 
 $pdo->exec(<<<'SQL'
 INSERT INTO training_programs VALUES
@@ -258,8 +264,13 @@ $search2 = $service->searchExercises(1, 'и', ['limit'=>1,'cursor'=>$search1['ne
 $searchJson = json_encode([$search1,$search2], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 $check($search1['next_cursor'] !== null && $search1['items'][0]['exercise_id'] !== $search2['items'][0]['exercise_id'], 'exercise search имеет cursor/limit');
 $check(!str_contains($searchJson, 'secret'), 'поиск упражнений не раскрывает чужой catalogue row');
+$insertAlternative = $pdo->prepare("INSERT INTO exercises VALUES (?,NULL,?,'other','[\"other\"]','strength','machine',1,'absolute','active',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL)");
+for ($index = 0; $index < 105; $index++) {
+    $insertAlternative->execute(['distractor-' . $index, sprintf('Альфа %03d', $index)]);
+}
+$pdo->exec("INSERT INTO exercises VALUES ('zz-perfect',NULL,'Ягодный идеальный жим','chest','[\"chest\",\"triceps\"]','strength','barbell',2.5,'absolute','active',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL)");
 $alternatives = $service->exerciseAlternatives(1, 'bench');
-$check($alternatives['candidates'][0]['exercise_id'] === 'fly' && in_array('same_category', $alternatives['candidates'][0]['match_reasons'], true), 'кандидаты замены ранжируются детерминированно по мышцам/категории');
+$check($alternatives['candidates'][0]['exercise_id'] === 'zz-perfect' && in_array('same_category', $alternatives['candidates'][0]['match_reasons'], true), 'кандидаты ранжируются по всему видимому каталогу, а не по первым 100 именам');
 
 $combined = json_encode([$profile,$programs,$version,$plan,$fact,$history,$progress,$scheduled,$search1,$alternatives], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 foreach (['password_hash','private@example.test','source_json','snapshot_json','audit_logs','internal_plan_id','internal_session_id','internal_session_exercise_id'] as $forbidden) {

@@ -40,18 +40,31 @@ final class ToolCatalog
             self::tool(
                 'training.get_current_plan',
                 'Текущая программа',
-                'Get the safely resolved current active program with lifecycle, weekly schedule, templates, exercises, and planned targets, or an explicit ambiguous/empty state.',
+                'Get the safely resolved current active program summary with lifecycle, weekly schedule, and template references, or an explicit ambiguous/empty state. Use get_plan_template for exercises.',
                 self::objectSchema(),
                 $readAnnotations
             ),
             self::tool(
                 'training.get_plan',
                 'Версия программы',
-                'Get one owned program version with lifecycle, schedule, templates, exercises, and draft binding when mutable. Omit version for the active version.',
+                'Get one owned program-version summary with lifecycle, schedule, template references, and draft binding when mutable. Omit version for active; use get_plan_template for exercises.',
                 self::objectSchema([
                     'program_id' => self::identifier('Stable program ID returned by profile or current-plan tools.'),
                     'version' => self::positiveInteger('Optional immutable program version number.'),
                 ], ['program_id']),
+                $readAnnotations
+            ),
+            self::tool(
+                'training.get_plan_template',
+                'Упражнения шаблона',
+                'Get one owned program template and a bounded cursor-paginated page of its exercises. Omit version for the active program version.',
+                self::objectSchema([
+                    'program_id' => self::identifier('Stable program ID returned by profile or plan tools.'),
+                    'template_id' => self::identifier('Stable template ID returned by a plan tool.'),
+                    'version' => self::positiveInteger('Optional program version number.', 100000),
+                    'limit' => self::positiveInteger('Exercise page size from 1 to 50.', 50),
+                    'cursor' => self::cursor(),
+                ], ['program_id', 'template_id']),
                 $readAnnotations
             ),
             self::tool(

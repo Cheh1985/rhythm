@@ -327,6 +327,16 @@
                         : '/api/assistant/plans/' + encodeURIComponent(programId) + '/versions/' + version;
                     return requestJson(path, options);
                 }
+                case 'training.get_plan_template': {
+                    onlyKeys(input, ['program_id', 'template_id', 'version', 'limit', 'cursor']);
+                    const programId = identifier(input, 'program_id');
+                    const templateId = identifier(input, 'template_id');
+                    integerValue(input, 'version', 100000);
+                    integerValue(input, 'limit', 50);
+                    stringValue(input, 'cursor');
+                    const base = '/api/assistant/plans/' + encodeURIComponent(programId) + '/templates/' + encodeURIComponent(templateId);
+                    return requestJson(queryPath(base, input, ['version', 'limit', 'cursor']), options);
+                }
                 case 'training.list_plan_versions': {
                     onlyKeys(input, ['program_id']);
                     const programId = identifier(input, 'program_id');

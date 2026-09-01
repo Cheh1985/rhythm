@@ -43,6 +43,18 @@ final class SiteToolsApiController
         }, 'program', $programId);
     }
 
+    public function planTemplate(string $programId, string $templateId): never
+    {
+        $this->guard->run('plans.templates.get', ['version', 'limit', 'cursor'], function (int $userId, array $query) use ($programId, $templateId): ?array {
+            $version = SiteToolRequestGuard::optionalInteger($query, 'version', 1, 100000);
+            $limit = SiteToolRequestGuard::optionalInteger($query, 'limit', 1, TrainingQueryService::MAX_TEMPLATE_EXERCISE_LIMIT);
+            $options = [];
+            if ($limit !== null) $options['limit'] = $limit;
+            if (array_key_exists('cursor', $query)) $options['cursor'] = $query['cursor'];
+            return $this->queries->programTemplate($userId, $programId, $templateId, $version, $options);
+        }, 'program_template', $programId . ':' . $templateId);
+    }
+
     public function workouts(): never
     {
         $this->guard->run('workouts.list', ['from', 'to', 'type', 'status', 'limit', 'cursor'], function (int $userId, array $query): array {

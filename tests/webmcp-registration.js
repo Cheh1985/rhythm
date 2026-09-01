@@ -54,12 +54,21 @@ function fakePage(modelContext) {
     });
     await lifecycle.ready;
 
-    check(registrations.length === 11, 'регистрируются все 11 tools');
+    check(registrations.length === 12, 'регистрируются все 12 tools');
     check(registrations.map(({tool}) => tool.name).join('|') === catalog.map(({name}) => name).join('|'), 'имена берутся из серверного каталога');
     check(registrations.every(({tool}) => tool.description && tool.inputSchema.type === 'object'), 'description и inputSchema передаются в WebMCP');
     check(registrations.every(({tool}) => tool.annotations.readOnlyHint === true && tool.annotations.untrustedContentHint === true), 'annotations сохраняются');
     check(registrations.every(({options}) => options.signal === lifecycle.controller.signal), 'один AbortSignal управляет page-scoped регистрацией');
-    check(page.status.dataset.state === 'ready' && page.status.textContent.includes('11'), 'UI показывает успешную регистрацию');
+    check(page.status.dataset.state === 'ready' && page.status.textContent.includes('12'), 'UI показывает успешную регистрацию');
+
+    let templateUrl = null;
+    const templateResult = await adapter.executeTool('training.get_plan_template', {
+        program_id: 'base', template_id: 'strength-a', version: 2, limit: 10, cursor: 'cursor-safe',
+    }, {
+        locationHref: 'https://rhythm.example/assistant',
+        fetchImpl: async (url) => { templateUrl = String(url); return response(200, {data: {exercises: []}}); },
+    });
+    check(templateResult.ok === true && templateUrl.includes('/api/assistant/plans/base/templates/strength-a?') && templateUrl.includes('version=2') && templateUrl.includes('limit=10'), 'plan-template tool вызывает bounded detail endpoint');
 
     const profile = registrations.find(({tool}) => tool.name === 'training.get_profile').tool;
     const success = await profile.execute({}, {signal: new AbortController().signal});

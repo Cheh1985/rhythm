@@ -24,6 +24,7 @@ $expected = [
     'training.get_profile',
     'training.get_current_plan',
     'training.get_plan',
+    'training.get_plan_template',
     'training.list_plan_versions',
     'training.list_workouts',
     'training.get_workout',
@@ -33,7 +34,7 @@ $expected = [
     'training.search_exercises',
     'training.find_alternatives',
 ];
-$check(array_column($catalog, 'name') === $expected, 'каталог содержит ровно 11 read-only tools в стабильном порядке');
+$check(array_column($catalog, 'name') === $expected, 'каталог содержит ровно 12 read-only tools в стабильном порядке');
 
 foreach ($catalog as $tool) {
     $check(

@@ -156,7 +156,7 @@ const actionId = 'stage17-action-0001';
         confirmActivation: async () => 'cancel',
     });
     await lifecycle.ready;
-    check(registrations.length === 16 && registrations.filter((tool) => tool.annotations.readOnlyHint === false).length === 5, 'fake modelContext получает 11 reads и 5 writes');
+    check(registrations.length === 17 && registrations.filter((tool) => tool.annotations.readOnlyHint === false).length === 5, 'fake modelContext получает 12 reads и 5 writes');
     lifecycle.abort();
 
     console.log(`WebMCP write checks passed (${checks}).`);

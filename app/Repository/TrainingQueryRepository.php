@@ -103,6 +103,22 @@ SQL);
         return $query->fetchAll();
     }
 
+    public function templateRow(int $userId, int $internalVersionId, string $templateId): ?array
+    {
+        $query = $this->pdo()->prepare(<<<'SQL'
+SELECT wt.code,wt.name,wt.workout_type,wt.content_json,
+       (SELECT COUNT(*) FROM workout_plans wp WHERE wp.workout_template_id=wt.id AND wp.user_id=wt.user_id AND wp.deleted_at IS NULL) workout_count
+FROM workout_templates wt
+JOIN program_versions pv ON pv.id=wt.program_version_id
+JOIN training_programs p ON p.id=pv.program_id AND p.user_id=wt.user_id
+WHERE wt.user_id=? AND wt.program_version_id=? AND wt.code=? AND p.user_id=?
+  AND wt.deleted_at IS NULL AND p.deleted_at IS NULL
+LIMIT 1
+SQL);
+        $query->execute([$userId, $internalVersionId, $templateId, $userId]);
+        return $query->fetch() ?: null;
+    }
+
     public function scheduleSlotRows(int $userId, int $internalVersionId): array
     {
         $query = $this->pdo()->prepare(<<<'SQL'
@@ -379,6 +395,20 @@ SQL);
         $sql .= ' ORDER BY name,exercise_id LIMIT ' . ($limit + 1);
         $statement = $this->pdo()->prepare($sql);
         $statement->execute($params);
+        return $statement->fetchAll();
+    }
+
+    public function exerciseAlternativeRows(int $userId, string $sourceExerciseId, string $exerciseType): array
+    {
+        $statement = $this->pdo()->prepare(<<<'SQL'
+SELECT exercise_id,name,category,muscle_groups,exercise_type,equipment
+FROM exercises
+WHERE deleted_at IS NULL AND status='active'
+  AND (owner_user_id IS NULL OR owner_user_id=?)
+  AND exercise_type=? AND exercise_id<>?
+ORDER BY name,exercise_id
+SQL);
+        $statement->execute([$userId, $exerciseType, $sourceExerciseId]);
         return $statement->fetchAll();
     }
 }

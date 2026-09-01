@@ -19,6 +19,7 @@ final class TrainingQueryService
     public const MAX_LIST_LIMIT = 50;
     public const MAX_HISTORY_LIMIT = 50;
     public const MAX_SEARCH_LIMIT = 30;
+    public const MAX_TEMPLATE_EXERCISE_LIMIT = 50;
 
     public function __construct(private readonly ?TrainingQueryRepository $repository = null) {}
 
@@ -90,7 +91,14 @@ final class TrainingQueryService
         $issues = [];
         $templates = array_map(
             function (array $template) use (&$issues): array {
-                return $this->programTemplate($template, $issues);
+                $detail = $this->programTemplateDetail($template, $issues);
+                return [
+                    'template_id' => $detail['template_id'],
+                    'name' => $detail['name'],
+                    'workout_type' => $detail['workout_type'],
+                    'workout_count' => $detail['workout_count'],
+                    'exercise_count' => count($detail['exercises']),
+                ];
             },
             $this->repository()->templateRows($userId, (int) $row['internal_version_id'])
         );
@@ -122,7 +130,66 @@ final class TrainingQueryService
             'templates' => $templates,
             'schedule_slots' => $scheduleSlots,
             'data_quality' => $this->quality(array_values(array_unique($issues)), [
-                'Raw storage payloads are never exposed; templates are mapped to a bounded training DTO.',
+                'Template exercises are intentionally omitted from this bounded summary; request one template through training.get_plan_template.',
+                'Raw storage payloads are never exposed.',
+            ]),
+        ];
+    }
+
+    public function programTemplate(
+        int $userId,
+        string $programId,
+        string $templateId,
+        ?int $version = null,
+        array $options = []
+    ): ?array {
+        $programId = $this->identifier($programId, 'program_id');
+        $templateId = $this->identifier($templateId, 'template_id');
+        if ($version !== null && $version < 1) {
+            throw new InvalidArgumentException('version должен быть положительным целым числом.');
+        }
+        $limit = $this->limit($options['limit'] ?? 20, self::MAX_TEMPLATE_EXERCISE_LIMIT);
+        $versionRow = $this->repository()->programVersionRow($userId, $programId, $version);
+        if ($versionRow === null) return null;
+        $templateRow = $this->repository()->templateRow($userId, (int) $versionRow['internal_version_id'], $templateId);
+        if ($templateRow === null) return null;
+
+        $issues = [];
+        $detail = $this->programTemplateDetail($templateRow, $issues);
+        $binding = hash('sha256', implode("\0", [
+            $programId,
+            (string) $versionRow['version_number'],
+            $templateId,
+            (string) $versionRow['aggregate_hash'],
+        ]));
+        $cursor = $this->decodeCursor($options['cursor'] ?? null, 'program_template_exercises');
+        if ($cursor !== null && $cursor['binding'] !== $binding) {
+            throw new InvalidArgumentException('cursor недействителен для этой версии шаблона.');
+        }
+        $offset = $cursor['offset'] ?? 0;
+        if ($offset > count($detail['exercises'])) {
+            throw new InvalidArgumentException('cursor указывает за пределы списка упражнений.');
+        }
+        $totalExercises = count($detail['exercises']);
+        $exercises = array_slice($detail['exercises'], $offset, $limit);
+        $nextOffset = $offset + count($exercises);
+        $next = $nextOffset < $totalExercises
+            ? $this->encodeCursor('program_template_exercises', ['binding' => $binding, 'offset' => $nextOffset])
+            : null;
+        unset($detail['exercises']);
+
+        return [
+            'program_id' => (string) $versionRow['external_program_id'],
+            'version' => (int) $versionRow['version_number'],
+            'lifecycle_status' => (string) $versionRow['lifecycle_status'],
+            ...$detail,
+            'exercises' => $exercises,
+            'exercise_count' => count($exercises),
+            'total_exercises' => $totalExercises,
+            'next_cursor' => $next,
+            'data_quality' => $this->quality(array_values(array_unique($issues)), [
+                'Exercise details are cursor-paginated and limited to one owned program template.',
+                'Raw storage payloads are never exposed.',
             ]),
         ];
     }
@@ -165,7 +232,7 @@ final class TrainingQueryService
     }
 
     /** @param list<string> $issues */
-    private function programTemplate(array $row, array &$issues): array
+    private function programTemplateDetail(array $row, array &$issues): array
     {
         $content = [];
         try {
@@ -540,11 +607,10 @@ final class TrainingQueryService
         $source = $this->repository()->exerciseRow($userId, $this->identifier($exerciseId, 'exercise_id'));
         if ($source === null) return null;
         $limit = $this->limit($limit, 20);
-        $rows = $this->repository()->exerciseSearchRows($userId, '', null, 100);
+        $rows = $this->repository()->exerciseAlternativeRows($userId, (string) $source['exercise_id'], (string) $source['exercise_type']);
         $sourceMuscles = $this->muscles($source['muscle_groups'], $source['category']);
         $candidates = [];
         foreach ($rows as $row) {
-            if ($row['exercise_id'] === $source['exercise_id'] || $row['exercise_type'] !== $source['exercise_type']) continue;
             $muscles = $this->muscles($row['muscle_groups'], $row['category']);
             $shared = array_values(array_intersect($sourceMuscles, $muscles));
             $score = count($shared) * 3;
@@ -699,6 +765,11 @@ final class TrainingQueryService
         };
         foreach ($required as $key) {
             if (!isset($data[$key]) || ($key === 'sequence' ? !is_int($data[$key]) : !is_string($data[$key]))) throw new InvalidArgumentException('cursor повреждён.');
+        }
+        if ($scope === 'program_template_exercises') {
+            if (!isset($data['binding'], $data['offset']) || !is_string($data['binding']) || preg_match('/^[a-f0-9]{64}$/D', $data['binding']) !== 1 || !is_int($data['offset']) || $data['offset'] < 0) {
+                throw new InvalidArgumentException('cursor повреждён.');
+            }
         }
         return $data;
     }

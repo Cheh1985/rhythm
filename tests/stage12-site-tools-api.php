@@ -115,7 +115,7 @@ INSERT INTO program_versions VALUES
  (2,1,2,'manual','Прогрессия','Проверить технику','{}','hash-2',1,'2026-08-01 00:00:00','published',1,'hash-2','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL),
  (3,2,1,'manual','Private','Private','{}','hash-3',NULL,'2026-07-01 00:00:00','published',1,'hash-3','2026-07-01 00:00:00','2026-07-01 00:00:00',NULL);
 INSERT INTO workout_templates VALUES
- (1,1,2,'strength-a','Силовая A','strength','{"exercises":[{"exercise_id":"bench","name":"Жим лёжа","order":1,"sets":3,"rep_range":{"min":8,"max":10},"target_rir":{"min":1,"max":3},"rest_seconds":120,"weight":60}]}','template-hash','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL),
+ (1,1,2,'strength-a','Силовая A','strength','{"exercises":[{"exercise_id":"bench","name":"Жим лёжа","order":1,"sets":3,"rep_range":{"min":8,"max":10},"target_rir":{"min":1,"max":3},"rest_seconds":120,"weight":60},{"exercise_id":"row","name":"Тяга штанги","order":2,"sets":3,"rep_range":{"min":8,"max":12},"target_rir":{"min":1,"max":3},"rest_seconds":90,"weight":50}]}','template-hash','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL),
  (2,2,3,'private','Чужой шаблон','strength','{}','private-hash','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL);
 INSERT INTO program_schedule_slots VALUES
  (1,2,1,2,'2026-08-01 00:00:00');
@@ -274,11 +274,18 @@ try {
     $specificVersion = $request('GET', '/api/assistant/plans/base/versions/2');
     $check($specificVersion['status'] === 200 && ($specificVersion['json']['data']['version'] ?? null) === 2, 'specific plan version выбирается строго по номеру');
     $check(
-        ($specificVersion['json']['data']['templates'][0]['exercises'][0]['exercise_id'] ?? null) === 'bench'
+        ($specificVersion['json']['data']['templates'][0]['exercise_count'] ?? null) === 2
+        && !array_key_exists('exercises', $specificVersion['json']['data']['templates'][0] ?? [])
         && ($specificVersion['json']['data']['schedule_slots'][0]['weekday'] ?? null) === 2,
-        'specific plan version содержит упражнения и недельное расписание без raw JSON'
+        'specific plan version содержит bounded индекс шаблонов и недельное расписание'
     );
     $check(!array_key_exists('content_json', $specificVersion['json']['data']['templates'][0] ?? []), 'plan DTO не раскрывает content_json');
+    $templatePage1 = $request('GET', '/api/assistant/plans/base/templates/strength-a?version=2&limit=1');
+    $templateCursor = $templatePage1['json']['data']['next_cursor'] ?? null;
+    $templatePage2 = $request('GET', '/api/assistant/plans/base/templates/strength-a?version=2&limit=1&cursor=' . rawurlencode((string) $templateCursor));
+    $check($templatePage1['status'] === 200 && ($templatePage1['json']['data']['total_exercises'] ?? null) === 2 && ($templatePage1['json']['data']['exercises'][0]['exercise_id'] ?? null) === 'bench' && ($templatePage2['json']['data']['exercises'][0]['exercise_id'] ?? null) === 'row', 'template detail endpoint выдаёт bounded cursor pages');
+    $foreignTemplate = $request('GET', '/api/assistant/plans/private-program/templates/private?version=1');
+    $check($foreignTemplate['status'] === 404, 'foreign program template скрыт как 404');
     $invalidRoute = $request('GET', '/api/assistant/plans/base/versions/1abc');
     $check($invalidRoute['status'] === 422 && ($invalidRoute['json']['error']['code'] ?? null) === 'validation_error', 'route value 1abc отклоняется с 422');
     $foreignPlan = $request('GET', '/api/assistant/plans/private-program');

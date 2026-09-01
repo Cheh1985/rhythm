@@ -22,6 +22,6 @@
 9. Открыть preview и уйти со страницы/закрыть вкладку: tools снимаются, activation не происходит.
 10. Перевести браузер offline до prepare и отдельно до confirm: ожидается structured network error, автоматической activation нет. Writes не появляются в IndexedDB offline outbox и не воспроизводятся после восстановления сети.
 11. Проверить ответы 401/404/409/419/422/429, отсутствие raw payload/token в `assistant_tool_calls` и наличие audit для каждого вызова.
-12. Выключить write flags: остаются только 11 read tools. Выключить master flag: tools исчезают полностью. Обычные PWA-страницы и Safari продолжают работать без `document.modelContext`.
+12. Выключить write flags: остаются только 12 read tools. Выключить master flag: tools исчезают полностью. Обычные PWA-страницы и Safari продолжают работать без `document.modelContext`.
 
 Rollback выполняется в порядке `WEBMCP_ACTIVATION_ENABLED=false`, `WEBMCP_INSTANCE_WRITE_ENABLED=false`, `WEBMCP_DRAFT_WRITE_ENABLED=false`.
