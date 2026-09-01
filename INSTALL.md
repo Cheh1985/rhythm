@@ -97,7 +97,7 @@ php tests/webmcp-e2e.php
 
 ## WebMCP / ChatGPT Site tools
 
-На production оставьте все пять `WEBMCP_*_ENABLED=false`, пока staging checklist не закрыт. Включайте слоями: master + reads, затем draft writes, instance writes и activation последней. Настройте read/write rate limits и retention из `.env.example`.
+На production оставьте все пять `WEBMCP_*_ENABLED=false`, пока staging checklist не закрыт. Для первого canary задайте `WEBMCP_ALLOWED_USER_IDS` как comma-separated numeric ID пользователей (например, `12,37`), затем включайте слоями: master + reads, draft writes, instance writes и activation последней. Пустой allowlist или `*` разрешает WebMCP всем вошедшим пользователям. Настройте read/write rate limits и retention из `.env.example`.
 
 Для disposable MySQL/MariaDB staging server выполните:
 

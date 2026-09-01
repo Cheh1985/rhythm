@@ -10,6 +10,7 @@ use App\Repository\TrainingQueryRepository;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
+use JsonException;
 
 /** Stable, minimized DTO layer for read-only training use cases. */
 final class TrainingQueryService
@@ -86,12 +87,18 @@ final class TrainingQueryService
         if ($row === null) {
             return null;
         }
-        $templates = array_map(static fn (array $template): array => [
-            'template_code' => (string) $template['code'],
-            'name' => (string) $template['name'],
-            'workout_type' => (string) $template['workout_type'],
-            'workout_count' => (int) $template['workout_count'],
-        ], $this->repository()->templateRows($userId, (int) $row['internal_version_id']));
+        $issues = [];
+        $templates = array_map(
+            function (array $template) use (&$issues): array {
+                return $this->programTemplate($template, $issues);
+            },
+            $this->repository()->templateRows($userId, (int) $row['internal_version_id'])
+        );
+        $scheduleSlots = array_map(static fn (array $slot): array => [
+            'weekday' => (int) $slot['weekday'],
+            'template_id' => (string) $slot['template_code'],
+        ], $this->repository()->scheduleSlotRows($userId, (int) $row['internal_version_id']));
+        $lifecycle = (string) $row['lifecycle_status'];
 
         return [
             'program_id' => (string) $row['external_program_id'],
@@ -99,13 +106,24 @@ final class TrainingQueryService
             'description' => $row['description'],
             'status' => (string) $row['status'],
             'version' => (int) $row['version_number'],
+            'lifecycle_status' => $lifecycle,
             'parent_version' => $row['parent_version'] !== null ? (int) $row['parent_version'] : null,
             'source' => (string) $row['source'],
             'change_reason' => $row['change_reason'],
             'trainer_comment' => $row['trainer_comment'],
             'created_at_utc' => self::utc($row['created_at']),
+            'activated_at_utc' => self::utc($row['activated_at']),
+            'archived_at_utc' => self::utc($row['archived_at']),
+            'draft_binding' => $lifecycle === 'draft' ? [
+                'draft_id' => (int) $row['internal_version_id'],
+                'lock_version' => (int) $row['lock_version'],
+                'aggregate_hash' => (string) $row['aggregate_hash'],
+            ] : null,
             'templates' => $templates,
-            'data_quality' => $this->quality([], ['The immutable version payload is not exposed; this is a safe projection.']),
+            'schedule_slots' => $scheduleSlots,
+            'data_quality' => $this->quality(array_values(array_unique($issues)), [
+                'Raw storage payloads are never exposed; templates are mapped to a bounded training DTO.',
+            ]),
         ];
     }
 
@@ -119,6 +137,7 @@ final class TrainingQueryService
 
         $items = array_map(static fn (array $row): array => [
             'version' => (int) $row['version_number'],
+            'lifecycle_status' => (string) $row['lifecycle_status'],
             'parent_version' => $row['parent_version'] !== null ? (int) $row['parent_version'] : null,
             'source' => (string) $row['source'],
             'change_reason' => $row['change_reason'],
@@ -126,6 +145,13 @@ final class TrainingQueryService
             'template_count' => (int) $row['template_count'],
             'workout_count' => (int) $row['workout_count'],
             'created_at_utc' => self::utc($row['created_at']),
+            'activated_at_utc' => self::utc($row['activated_at']),
+            'archived_at_utc' => self::utc($row['archived_at']),
+            'draft_binding' => $row['lifecycle_status'] === 'draft' ? [
+                'draft_id' => (int) $row['internal_version_id'],
+                'lock_version' => (int) $row['lock_version'],
+                'aggregate_hash' => (string) $row['aggregate_hash'],
+            ] : null,
         ], $rows);
 
         return [
@@ -134,7 +160,72 @@ final class TrainingQueryService
             'status' => (string) $rows[0]['status'],
             'items' => $items,
             'count' => count($items),
-            'data_quality' => $this->quality([], ['Version payloads are immutable and intentionally excluded from this list.']),
+            'data_quality' => $this->quality([], ['Use lifecycle_status to distinguish mutable drafts from immutable published or archived versions.']),
+        ];
+    }
+
+    /** @param list<string> $issues */
+    private function programTemplate(array $row, array &$issues): array
+    {
+        $content = [];
+        try {
+            $decoded = json_decode((string) $row['content_json'], true, 64, JSON_THROW_ON_ERROR);
+            if (is_array($decoded) && !array_is_list($decoded)) {
+                $content = $decoded;
+            } else {
+                $issues[] = 'One program template has an unavailable structured payload.';
+            }
+        } catch (JsonException) {
+            $issues[] = 'One program template has invalid stored JSON and was returned without exercise details.';
+        }
+
+        $exerciseRows = $content['exercises'] ?? [];
+        if (!is_array($exerciseRows) || !array_is_list($exerciseRows)) {
+            $exerciseRows = [];
+            $issues[] = 'One program template has no valid exercise list.';
+        }
+        $exercises = [];
+        foreach ($exerciseRows as $exercise) {
+            if (!is_array($exercise) || !isset($exercise['exercise_id'], $exercise['name'], $exercise['order'], $exercise['sets'])) {
+                $issues[] = 'One malformed template exercise was omitted.';
+                continue;
+            }
+            $exercises[] = [
+                'exercise_id' => (string) $exercise['exercise_id'],
+                'name' => (string) $exercise['name'],
+                'sequence' => (int) $exercise['order'],
+                'sets' => (int) $exercise['sets'],
+                'rep_range' => is_array($exercise['rep_range'] ?? null) ? [
+                    'min' => (int) ($exercise['rep_range']['min'] ?? 0),
+                    'max' => (int) ($exercise['rep_range']['max'] ?? 0),
+                ] : null,
+                'target_rir' => is_array($exercise['target_rir'] ?? null) ? [
+                    'min' => isset($exercise['target_rir']['min']) ? (float) $exercise['target_rir']['min'] : null,
+                    'max' => isset($exercise['target_rir']['max']) ? (float) $exercise['target_rir']['max'] : null,
+                ] : null,
+                'weight_kg' => isset($exercise['weight']) ? (float) $exercise['weight'] : null,
+                'rest_seconds' => isset($exercise['rest_seconds']) ? (int) $exercise['rest_seconds'] : null,
+                'method' => isset($exercise['set_type']) ? (string) $exercise['set_type'] : 'normal',
+                'warmup_sets' => (bool) ($exercise['warmup_sets'] ?? false),
+                'group_id' => isset($exercise['group_id']) ? (string) $exercise['group_id'] : null,
+                'category' => isset($exercise['category']) ? (string) $exercise['category'] : null,
+                'muscle_groups' => is_array($exercise['muscles'] ?? null) ? array_values(array_map('strval', $exercise['muscles'])) : [],
+                'exercise_type' => isset($exercise['exercise_type']) ? (string) $exercise['exercise_type'] : null,
+                'equipment' => isset($exercise['equipment']) ? (string) $exercise['equipment'] : null,
+                'instructions' => isset($exercise['instructions']) ? (string) $exercise['instructions'] : null,
+            ];
+        }
+
+        return [
+            'template_id' => (string) $row['code'],
+            'name' => (string) $row['name'],
+            'workout_type' => (string) $row['workout_type'],
+            'workout_count' => (int) $row['workout_count'],
+            'goal' => isset($content['goal']) ? (string) $content['goal'] : null,
+            'estimated_duration_minutes' => isset($content['estimated_duration_min']) ? (int) $content['estimated_duration_min'] : null,
+            'trainer_notes' => isset($content['trainer_notes']) ? (string) $content['trainer_notes'] : null,
+            'pre_workout' => is_array($content['pre_workout'] ?? null) ? $content['pre_workout'] : null,
+            'exercises' => $exercises,
         ];
     }
 

@@ -56,7 +56,7 @@ SQL);
 
     public function programVersionRow(int $userId, string $programId, ?int $version): ?array
     {
-        $sql = 'SELECT p.external_program_id,p.name,p.description,p.status,pv.id internal_version_id,pv.version_number,pv.source,pv.change_reason,pv.trainer_comment,pv.created_at,parent.version_number parent_version FROM training_programs p JOIN program_versions pv ON pv.program_id=p.id LEFT JOIN program_versions parent ON parent.id=pv.parent_version_id AND parent.program_id=p.id WHERE p.user_id=? AND p.external_program_id=? AND p.deleted_at IS NULL';
+        $sql = 'SELECT p.external_program_id,p.name,p.description,p.status,pv.id internal_version_id,pv.version_number,pv.source,pv.change_reason,pv.trainer_comment,pv.created_at,pv.lifecycle_status,pv.lock_version,pv.aggregate_hash,pv.activated_at,pv.archived_at,parent.version_number parent_version FROM training_programs p JOIN program_versions pv ON pv.program_id=p.id LEFT JOIN program_versions parent ON parent.id=pv.parent_version_id AND parent.program_id=p.id WHERE p.user_id=? AND p.external_program_id=? AND p.deleted_at IS NULL';
         $params = [$userId, $programId];
         if ($version !== null) {
             $sql .= ' AND pv.version_number=?';
@@ -73,7 +73,8 @@ SQL);
     public function programVersionRows(int $userId, string $programId): array
     {
         $query = $this->pdo()->prepare(<<<'SQL'
-SELECT p.external_program_id,p.name,p.status,pv.version_number,pv.source,pv.change_reason,pv.trainer_comment,pv.created_at,
+SELECT p.external_program_id,p.name,p.status,pv.id internal_version_id,pv.version_number,pv.source,pv.change_reason,pv.trainer_comment,pv.created_at,
+       pv.lifecycle_status,pv.lock_version,pv.aggregate_hash,pv.activated_at,pv.archived_at,
        parent.version_number parent_version,
        (SELECT COUNT(*) FROM workout_templates wt WHERE wt.program_version_id=pv.id AND wt.user_id=p.user_id AND wt.deleted_at IS NULL) template_count,
        (SELECT COUNT(*) FROM workout_plans wp WHERE wp.program_version_id=pv.id AND wp.user_id=p.user_id AND wp.deleted_at IS NULL) workout_count
@@ -90,7 +91,7 @@ SQL);
     public function templateRows(int $userId, int $internalVersionId): array
     {
         $query = $this->pdo()->prepare(<<<'SQL'
-SELECT wt.code,wt.name,wt.workout_type,
+SELECT wt.code,wt.name,wt.workout_type,wt.content_json,
        (SELECT COUNT(*) FROM workout_plans wp WHERE wp.workout_template_id=wt.id AND wp.user_id=wt.user_id AND wp.deleted_at IS NULL) workout_count
 FROM workout_templates wt
 JOIN program_versions pv ON pv.id=wt.program_version_id
@@ -99,6 +100,24 @@ WHERE wt.user_id=? AND wt.program_version_id=? AND p.user_id=? AND wt.deleted_at
 ORDER BY wt.code
 SQL);
         $query->execute([$userId, $internalVersionId, $userId]);
+        return $query->fetchAll();
+    }
+
+    public function scheduleSlotRows(int $userId, int $internalVersionId): array
+    {
+        $query = $this->pdo()->prepare(<<<'SQL'
+SELECT pss.weekday,wt.code template_code
+FROM program_schedule_slots pss
+JOIN program_versions pv ON pv.id=pss.program_version_id
+JOIN training_programs p ON p.id=pv.program_id
+JOIN workout_templates wt
+  ON wt.id=pss.workout_template_id
+ AND wt.program_version_id=pss.program_version_id
+ AND wt.user_id=p.user_id
+WHERE p.user_id=? AND pss.program_version_id=? AND p.deleted_at IS NULL AND wt.deleted_at IS NULL
+ORDER BY pss.weekday
+SQL);
+        $query->execute([$userId, $internalVersionId]);
         return $query->fetchAll();
     }
 

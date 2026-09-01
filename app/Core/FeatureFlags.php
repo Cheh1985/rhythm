@@ -8,6 +8,7 @@ use InvalidArgumentException;
 
 final class FeatureFlags
 {
+    public const WEBMCP_ALLOWED_USER_IDS = 'WEBMCP_ALLOWED_USER_IDS';
     public const WEBMCP_ENABLED = 'WEBMCP_ENABLED';
     public const WEBMCP_READ_ENABLED = 'WEBMCP_READ_ENABLED';
     public const WEBMCP_DRAFT_WRITE_ENABLED = 'WEBMCP_DRAFT_WRITE_ENABLED';
@@ -32,6 +33,34 @@ final class FeatureFlags
         return $flag === self::WEBMCP_ENABLED
             ? $configured
             : self::configured(self::WEBMCP_ENABLED) && $configured;
+    }
+
+    public static function enabledForUser(string $flag, int $userId): bool
+    {
+        return self::enabled($flag) && self::userAllowed($userId);
+    }
+
+    public static function userAllowed(int $userId): bool
+    {
+        if ($userId < 1) {
+            return false;
+        }
+
+        $configured = trim((string) \env(self::WEBMCP_ALLOWED_USER_IDS, ''));
+        if ($configured === '' || $configured === '*') {
+            return true;
+        }
+
+        $allowed = [];
+        foreach (explode(',', $configured) as $value) {
+            $value = trim($value);
+            if (preg_match('/^[1-9][0-9]*$/D', $value) !== 1) {
+                return false;
+            }
+            $allowed[(int) $value] = true;
+        }
+
+        return isset($allowed[$userId]);
     }
 
     public static function configured(string $flag): bool

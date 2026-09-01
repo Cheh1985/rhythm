@@ -119,6 +119,9 @@ $foreign = $versions->createProgramDraft(2, [
 $insertPlan = $pdo->prepare("INSERT INTO workout_plans(user_id,external_plan_id,name,workout_type,scheduled_date,source_json,schema_version,status,version,created_at,updated_at) VALUES (1,?,?, 'strength',?,'{}','1.0',?,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
 $insertPlan->execute(['mutable-plan','Mutable','2026-09-02','planned']);
 $mutableId = (int) $pdo->lastInsertId();
+$insertLinkedPlan = $pdo->prepare("INSERT INTO workout_plans(user_id,external_plan_id,program_version_id,name,workout_type,scheduled_date,source_json,schema_version,status,version,created_at,updated_at) VALUES (1,?,?,'Linked mutable','strength',?,'{}','1.0','planned',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+$insertLinkedPlan->execute(['linked-mutable-plan', $v1['draft_id'], '2026-09-05']);
+$linkedMutableId = (int) $pdo->lastInsertId();
 $insertPlan->execute(['protected-plan','Protected','2026-09-03','in_progress']);
 $protectedId = (int) $pdo->lastInsertId();
 $pdo->exec("INSERT INTO workout_sessions(public_id,user_id,workout_plan_id,workout_type,status,started_at,version,created_at,updated_at) VALUES ('session-protected',1,{$protectedId},'strength','in_progress','2026-09-03 10:00:00',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
@@ -129,10 +132,11 @@ $pdo->exec("INSERT INTO workout_sessions(public_id,user_id,workout_plan_id,worko
 $activation = new ProgramActivationService($pdo);
 $keep = $activation->preview(1, $v2['draft_id'], $v2['lock_version'], $v2['aggregate_hash'], '2026-09-01', 1, 'keep');
 $check((int) $pdo->query("SELECT active_version_id FROM training_programs WHERE id={$baseProgramId}")->fetchColumn() === $v1['draft_id'], 'prepare preview ничего не активирует');
-$check(count($keep['future_plans']['kept']) === 1 && count($keep['future_plans']['superseded']) === 0, 'keep сохраняет будущий mutable plan');
+$check(count($keep['future_plans']['kept']) === 2 && count($keep['future_plans']['superseded']) === 0, 'keep сохраняет связанные и несвязанные future plans');
 $check(count($keep['future_plans']['protected']) === 2 && count($keep['future_plans']['created']) === 1 && count($keep['future_plans']['blocked_materialization']) === 1, 'keep показывает protected, created и blocked impact');
 $supersede = $activation->preview(1, $v2['draft_id'], $v2['lock_version'], $v2['aggregate_hash'], '2026-09-01', 1, 'supersede');
-$check(count($supersede['future_plans']['superseded']) === 1 && count($supersede['future_plans']['kept']) === 0, 'supersede показывает только отменяемые mutable plans');
+$check(count($supersede['future_plans']['superseded']) === 1 && $supersede['future_plans']['superseded'][0]['workout_id'] === 'linked-mutable-plan', 'supersede показывает только mutable plan прежней версии той же программы');
+$check(count($supersede['future_plans']['kept']) === 1 && $supersede['future_plans']['kept'][0]['workout_id'] === 'mutable-plan', 'supersede сохраняет ручной или несвязанный future plan');
 $check($supersede['programs']['will_pause_count'] === 1, 'preview показывает все другие active programs');
 $throws(fn () => $activation->preview(2, $v2['draft_id'], 1, $v2['aggregate_hash'], '2026-09-01', 1, 'keep'), InvalidArgumentException::class, 'не найден', 'ownership изолирует draft');
 $throws(fn () => $activation->preview(1, $v2['draft_id'], 1, str_repeat('0', 64), '2026-09-01', 1, 'keep'), VersionConflictException::class, 'aggregate_hash', 'stale hash отклонён');
@@ -159,8 +163,10 @@ $base = $pdo->query("SELECT status,active_version_id FROM training_programs WHER
 $check($base['status'] === 'active' && (int) $base['active_version_id'] === $v2['draft_id'], 'new version становится active pointer');
 $check($pdo->query("SELECT status FROM training_programs WHERE id={$otherProgramId}")->fetchColumn() === 'paused', 'предыдущая active программа переведена в paused');
 $check($pdo->query("SELECT lifecycle_status FROM program_versions WHERE id={$v1['draft_id']}")->fetchColumn() === 'published', 'old version сохранена immutable published');
-$mutable = $pdo->query("SELECT status,deleted_at FROM workout_plans WHERE id={$mutableId}")->fetch();
-$check($mutable['status'] === 'cancelled' && $mutable['deleted_at'] !== null, 'supersede мягко отменяет только future planned');
+$linkedMutable = $pdo->query("SELECT status,deleted_at FROM workout_plans WHERE id={$linkedMutableId}")->fetch();
+$unrelatedMutable = $pdo->query("SELECT status,deleted_at FROM workout_plans WHERE id={$mutableId}")->fetch();
+$check($linkedMutable['status'] === 'cancelled' && $linkedMutable['deleted_at'] !== null, 'supersede мягко отменяет future planned прежней версии программы');
+$check($unrelatedMutable['status'] === 'planned' && $unrelatedMutable['deleted_at'] === null, 'supersede не меняет ручные и несвязанные future plans');
 $check($pdo->query("SELECT status FROM workout_plans WHERE id={$protectedId}")->fetchColumn() === 'in_progress' && $pdo->query("SELECT status FROM workout_plans WHERE id={$completedId}")->fetchColumn() === 'completed', 'completed/in-progress/history не изменены');
 $check((int) $pdo->query("SELECT COUNT(*) FROM workout_exercises we JOIN workout_plans wp ON wp.id=we.workout_plan_id WHERE wp.program_version_id={$v2['draft_id']}")->fetchColumn() === 1, 'future workout materialized из version schedule/template');
 $check((int) $pdo->query("SELECT COUNT(*) FROM audit_logs WHERE action='activate' AND source='manual_confirmation'")->fetchColumn() === 1, 'activation пишет domain audit');

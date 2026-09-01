@@ -42,6 +42,12 @@ foreach (array_filter($catalog, static fn (array $tool): bool => in_array($tool[
 $writeJson = json_encode(array_values(array_filter($catalog, static fn (array $tool): bool => in_array($tool['name'], $writeNames, true))), JSON_THROW_ON_ERROR);
 $check(!str_contains($writeJson, 'user_id'), 'write input schemas не содержат user_id');
 $check(!preg_match('/archive|delete|history|backup/i', implode(',', $writeNames)), 'в каталоге нет операций вне этапа 9');
+$byName = array_column($catalog, null, 'name');
+$createSchema = $byName['training.create_plan_draft']['inputSchema'];
+$updateSchema = $byName['training.update_plan_draft']['inputSchema'];
+$metadataSchema = $createSchema['properties']['metadata'] ?? [];
+$check(($metadataSchema['additionalProperties'] ?? null) === false && isset($metadataSchema['properties']['templates']['items']['properties']['exercises']), 'create draft публикует закрытую nested program schema');
+$check(count($updateSchema['oneOf'] ?? []) === 7 && ($updateSchema['oneOf'][3]['properties']['payload']['properties']['exercise']['additionalProperties'] ?? null) === false, 'update draft публикует семь operation-specific closed payload schemas');
 
 $root = dirname(__DIR__);
 $routes = (string) file_get_contents($root . '/public/index.php');
@@ -53,7 +59,7 @@ $queue = (string) file_get_contents($root . '/public/assets/offline-queue.js');
 $check(str_contains($controller, 'ToolCatalog::enabled') && str_contains($controller, 'WEBMCP_DRAFT_WRITE_ENABLED') && str_contains($controller, 'WEBMCP_INSTANCE_WRITE_ENABLED'), 'assistant собирает каталог по отдельным flags');
 $check(str_contains($routes, '/activation/confirm') && str_contains($routes, '/activation/cancel'), 'semantic confirmation routes подключены');
 $check(str_contains($draftController, 'confirmation_token') && str_contains($draftController, "'mutated' => false"), 'confirm/cancel используют одноразовый session token и structured cancel');
-$check(str_contains($view, 'webmcp-activation-dialog') && str_contains($view, 'data-activation-form'), 'in-page activation modal отрисовывается приложением');
+$check(str_contains($view, 'webmcp-activation-dialog') && str_contains($view, 'data-activation-form') && str_contains($view, 'data-activation-items'), 'in-page activation modal отрисовывает itemized impact');
 $check(str_contains($adapter, 'requestActivationDecision') && !str_contains($adapter, 'requestUserInteraction') && !str_contains($adapter, 'navigator.modelContext'), 'adapter использует app modal и актуальный WebMCP API');
 $check(!str_contains($adapter, 'offlineQueue') && !str_contains($adapter, 'enqueue') && str_contains($queue, 'async function enqueue'), 'write adapter не подключён к offline outbox');
 

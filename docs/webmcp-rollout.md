@@ -7,7 +7,7 @@
 - [ ] Есть проверенный backup БД и документированное время восстановления.
 - [ ] Deploy artifact соответствует одному commit SHA; worktree чистый.
 - [ ] `APP_ENV=production`, `APP_DEBUG=false`, точный HTTPS `APP_URL`, доверенный proxy настроен явно.
-- [ ] `WEBMCP_*` flags выключены; read/write limits и audit retention заданы.
+- [ ] `WEBMCP_*` flags выключены; read/write limits, audit retention и `WEBMCP_ALLOWED_USER_IDS` заданы.
 - [ ] Выполнены `php tests/webmcp-e2e.php`, `php tests/smoke.php`, `php tests/stage8.php`.
 - [ ] Проверены JSON import/export, training-report и обычный backup download/preview.
 
@@ -40,13 +40,17 @@
 
 ## 5. Rollout
 
-- [ ] Canary tenant/окно согласованы; оператор и rollback owner доступны.
+- [ ] Canary tenant/окно согласованы; его numeric user ID явно записан в `WEBMCP_ALLOWED_USER_IDS`; оператор и rollback owner доступны.
 - [ ] `WEBMCP_ENABLED=true` + `WEBMCP_READ_ENABLED=true`; writes остаются false.
+- [ ] Пользователь вне allowlist получает обычную PWA без tool catalog и 404 от assistant API; canary пользователь видит tools.
 - [ ] Проверены latency/error/denied/429 и отсутствие cross-tenant событий в первые 30–60 минут.
 - [ ] Включён `WEBMCP_DRAFT_WRITE_ENABLED=true`; проверены idempotency и 409.
 - [ ] Включён `WEBMCP_INSTANCE_WRITE_ENABLED=true`; проверены provenance и неизменность program template/version.
 - [ ] `WEBMCP_ACTIVATION_ENABLED=true` включён последним; выполнены prepare/cancel и prepare/manual confirm.
+- [ ] В activation preview перечислены создаваемые, superseded, kept/protected instances; supersede не меняет ручные планы и планы другой программы.
 - [ ] Запланирован ежедневный audit prune и мониторинг результата команды.
+
+После стабильного canary расширяйте comma-separated allowlist небольшими партиями. Значение `*` или пустое значение применяйте только для общего rollout после закрытия acceptance; изменение allowlist не требует deploy.
 
 ## 6. Rollback
 

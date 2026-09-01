@@ -46,6 +46,9 @@ CREATE TABLE workout_templates (
  id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL,program_version_id INTEGER NULL,code TEXT NOT NULL,name TEXT NOT NULL,
  workout_type TEXT NOT NULL,content_json TEXT NOT NULL,content_hash TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,deleted_at TEXT NULL
 );
+CREATE TABLE program_schedule_slots (
+ id INTEGER PRIMARY KEY,program_version_id INTEGER NOT NULL,workout_template_id INTEGER NOT NULL,weekday INTEGER NOT NULL,created_at TEXT NOT NULL
+);
 CREATE TABLE workout_plans (
  id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL,external_plan_id TEXT NOT NULL,program_version_id INTEGER NULL,workout_template_id INTEGER NULL,
  name TEXT NOT NULL,workout_type TEXT NOT NULL,scheduled_date TEXT NOT NULL,goal TEXT NULL,estimated_duration_min INTEGER NULL,
@@ -104,8 +107,10 @@ INSERT INTO program_versions VALUES
  (2,1,2,'manual','Прогрессия','Проверить технику','{"private":"snapshot-v2"}','hash-2',1,'2026-08-01 00:00:00','published',1,'hash-2','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL),
  (3,2,1,'manual','Private','Private','{"private":true}','hash-3',NULL,'2026-07-01 00:00:00','published',1,'hash-3','2026-07-01 00:00:00','2026-07-01 00:00:00',NULL);
 INSERT INTO workout_templates VALUES
- (1,1,2,'strength-a','Силовая A','strength','{"private":"content"}','template-hash','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL),
+ (1,1,2,'strength-a','Силовая A','strength','{"goal":"Объём","estimated_duration_min":60,"trainer_notes":"Техника","pre_workout":{"equipment":"Штанга"},"exercises":[{"exercise_id":"bench","name":"Жим лёжа","order":1,"sets":3,"rep_range":{"min":8,"max":10},"target_rir":{"min":1,"max":3},"rest_seconds":120,"weight":60,"muscles":["chest","triceps"],"equipment":"barbell"}]}','template-hash','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL),
  (2,2,3,'private','Чужой шаблон','strength','{}','private-hash','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL);
+INSERT INTO program_schedule_slots VALUES
+ (1,2,1,2,'2026-08-01 00:00:00');
 INSERT INTO workout_plans VALUES
  (1,1,'plan-completed',2,1,'Силовая A','strength','2026-08-24','Объём',60,'Техника','{"secret":1}','{"raw":1}','1.0','completed',3,'2026-08-01 00:00:00','2026-08-24 10:00:00',NULL),
  (2,1,'plan-past-due',2,1,'Силовая B','strength','2020-01-01','Техника',45,NULL,NULL,'{"raw":2}','1.0','planned',1,'2020-01-01 00:00:00','2020-01-01 00:00:00',NULL),
@@ -173,10 +178,25 @@ $check(!str_contains($profileJson, 'private@example') && !str_contains($profileJ
 $programs = $service->programs(1);
 $version = $service->programVersion(1, 'base', 2);
 $versionJson = json_encode($version, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-$check(count($programs['items']) === 1 && $version['version'] === 2 && $version['parent_version'] === 1 && $version['templates'][0]['template_code'] === 'strength-a', 'current/specific program version возвращаются безопасными проекциями');
+$check(count($programs['items']) === 1 && $version['version'] === 2 && $version['parent_version'] === 1 && $version['templates'][0]['template_id'] === 'strength-a', 'current/specific program version возвращаются безопасными проекциями');
 $check($programs['items'][0]['active_version_state'] === 'resolved' && $programs['items'][0]['current_version'] === 2, 'current version определяется active pointer');
-$check(!str_contains($versionJson, 'snapshot') && !str_contains($versionJson, 'content'), 'program projection не содержит snapshot_json/content_json');
+$check($version['lifecycle_status'] === 'published' && $version['schedule_slots'][0] === ['weekday'=>2,'template_id'=>'strength-a'], 'plan projection содержит lifecycle и versioned schedule');
+$check($version['templates'][0]['exercises'][0]['exercise_id'] === 'bench' && $version['templates'][0]['exercises'][0]['rep_range'] === ['min'=>8,'max'=>10], 'plan projection содержит упражнения и плановые параметры');
+$check(!str_contains($versionJson, 'snapshot_json') && !str_contains($versionJson, 'content_json') && !str_contains($versionJson, 'private'), 'program projection не раскрывает raw snapshot/content payload');
 $check($service->programVersion(1, 'private-program') === null, 'чужая программа не открывается по публичному ID');
+
+$pdo->exec(<<<'SQL'
+INSERT INTO program_versions VALUES
+ (6,1,3,'webmcp','Следующая версия',NULL,'{}','hash-6',2,'2026-08-10 00:00:00','draft',4,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','2026-08-10 00:00:00',NULL,NULL);
+INSERT INTO workout_templates VALUES
+ (3,1,6,'strength-b','Силовая B','strength','{"exercises":[{"exercise_id":"row","name":"Тяга штанги","order":1,"sets":3,"rep_range":{"min":8,"max":12},"target_rir":{"min":1,"max":3},"rest_seconds":90}]}','draft-template-hash','2026-08-10 00:00:00','2026-08-10 00:00:00',NULL);
+INSERT INTO program_schedule_slots VALUES
+ (2,6,3,4,'2026-08-10 00:00:00');
+SQL);
+$versions = $service->programVersions(1, 'base');
+$draftProjection = $service->programVersion(1, 'base', 3);
+$check($versions['items'][0]['lifecycle_status'] === 'draft' && $versions['items'][0]['draft_binding']['draft_id'] === 6, 'version list различает draft и публикует safe binding владельцу');
+$check($draftProjection['draft_binding']['lock_version'] === 4 && $draftProjection['templates'][0]['exercises'][0]['exercise_id'] === 'row', 'draft можно обнаружить и продолжить в новом чате');
 
 $pdo->exec(<<<'SQL'
 INSERT INTO training_programs VALUES

@@ -16,9 +16,13 @@ WEBMCP_READ_ENABLED=false
 WEBMCP_DRAFT_WRITE_ENABLED=false
 WEBMCP_INSTANCE_WRITE_ENABLED=false
 WEBMCP_ACTIVATION_ENABLED=false
+# Пусто или * — все вошедшие пользователи; для canary — список numeric user IDs.
+WEBMCP_ALLOWED_USER_IDS=
 ```
 
 Дочерний flag действует только вместе с `WEBMCP_ENABLED=true`. Безопасная последовательность включения: master + reads → draft writes → instance writes → activation. Обратная последовательность используется для rollback.
+
+`WEBMCP_ALLOWED_USER_IDS` применяется сервером и к `/assistant`, и ко всем read/write endpoints. Например, `WEBMCP_ALLOWED_USER_IDS=12,37` публикует и исполняет tools только для этих двух tenant owners. Пустое значение и `*` сохраняют поведение «для всех вошедших»; некорректное непустое значение закрывает доступ fail-closed. Это rollout-механизм, а не замена session authentication и repository ownership checks.
 
 Лимиты и retention:
 
@@ -37,9 +41,9 @@ WEBMCP_AUDIT_RETENTION_DAYS=90
 | Tool | Класс | Назначение |
 |---|---|---|
 | `training.get_profile` | read | Минимальный профиль, timezone, локальная дата, ссылки на активные программы |
-| `training.get_current_plan` | read | Серверно разрешённая current version либо явное empty/ambiguous state |
-| `training.get_plan` | read | Безопасная проекция одной immutable версии программы |
-| `training.list_plan_versions` | read | Список immutable версий без raw snapshot/source |
+| `training.get_current_plan` | read | Current version с полными templates, упражнениями, targets и недельным расписанием либо явное empty/ambiguous state |
+| `training.get_plan` | read | Безопасная полная проекция одной immutable версии, включая lifecycle metadata |
+| `training.list_plan_versions` | read | Все версии программы, включая draft lifecycle/binding, без raw snapshot/source |
 | `training.list_workouts` | read | Ограниченный date range, фильтры и cursor pagination |
 | `training.get_workout` | read | Planned workout, recorded fact либо оба объекта |
 | `training.get_exercise_history` | read | История упражнения, метрики и data-quality сигналы |
@@ -63,12 +67,14 @@ WEBMCP_AUDIT_RETENTION_DAYS=90
 - Writes требуют exact `Origin`, session CSRF, `Content-Type: application/json`, закрытый JSON object, корректный `Idempotency-Key` и optimistic version.
 - `Sec-Fetch-Site`, когда браузер его присылает, должен быть `same-origin`. Отсутствие заголовка допускается для Safari/старых клиентов; Origin остаётся обязательным для writes.
 - Read/write rate limits считаются по database clock, пользователю и tool/operation. Размер GET query ограничен 4096 bytes; write body читается не более 1 MiB + 1 byte.
-- Activation не завершается на основании ответа модели: сервер создаёт краткоживущий одноразовый token, а человек подтверждает показанный impact preview в app dialog/form.
+- Activation не завершается на основании ответа модели: сервер создаёт краткоживущий одноразовый token, а человек подтверждает показанный itemized impact preview в app dialog/form. Режим supersede отменяет только изменяемые будущие workout instances, созданные предыдущими версиями той же программы; ручные планы и instances других программ остаются неизменными и могут блокировать конфликтующие даты.
 - `client_action_id` и `Idempotency-Key` связаны с payload. Повтор точного запроса возвращает receipt; повтор ключа с другим payload отклоняется.
 
 ## Input и output schemas
 
-Источник истины — `app/WebMcp/ToolCatalog.php`. Каждая top-level schema имеет `additionalProperties=false`; маршрутизатор adapter повторно проверяет вход до fetch, а backend выполняет окончательную typed validation.
+Источник истины — `app/WebMcp/ToolCatalog.php`. Каждая top-level и вложенная object schema имеет `additionalProperties=false`; маршрутизатор adapter повторно проверяет вход до fetch, а backend выполняет окончательную typed validation. Draft tools описывают полную структуру metadata/templates/exercises/schedule и отдельный payload для каждой разрешённой операции, поэтому модель не должна угадывать форму вложенного JSON.
+
+Plan DTO не отдаёт `content_json`, `snapshot_json` или внутренние ID. Сервер декодирует сохранённый template aggregate и возвращает именованные поля упражнений и плановых показателей. Для draft version выдаются `lifecycle_status=draft` и `draft_binding` (`draft_id`, `lock_version`, `aggregate_hash`), достаточные для последующего typed update.
 
 Успех API:
 

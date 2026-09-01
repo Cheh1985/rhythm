@@ -247,6 +247,33 @@
         setText('[data-activation-paused]', programs.will_pause_count || 0);
         setText('[data-activation-expiry]', prepared.expires_at_utc);
 
+        const renderPlanList = (key) => {
+            const items = Array.isArray(plans[key]) ? plans[key] : [];
+            const section = dialog.querySelector('[data-activation-section="' + key + '"]');
+            const body = dialog.querySelector('[data-activation-items="' + key + '"]');
+            const sectionCount = dialog.querySelector('[data-activation-section-count="' + key + '"]');
+            if (sectionCount) sectionCount.textContent = String(items.length);
+            if (!section || !body) return;
+            body.textContent = '';
+            const ownerDocument = dialog.ownerDocument || doc;
+            for (const item of items) {
+                const row = ownerDocument.createElement('tr');
+                for (const value of [
+                    item.date,
+                    item.name || item.template_id,
+                    item.program_id,
+                    item.status || item.reason || key,
+                ]) {
+                    const cell = ownerDocument.createElement('td');
+                    cell.textContent = String(value === undefined || value === null ? '—' : value);
+                    row.appendChild(cell);
+                }
+                body.appendChild(row);
+            }
+            section.hidden = items.length === 0;
+        };
+        for (const key of ['created', 'superseded', 'kept', 'protected', 'blocked_materialization']) renderPlanList(key);
+
         const form = dialog.querySelector('[data-activation-form]');
         const cancelButtons = Array.from(dialog.querySelectorAll('[data-activation-cancel]'));
         if (!form || cancelButtons.length === 0) throw new InputError('Форма подтверждения activation недоступна.');

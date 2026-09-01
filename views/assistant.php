@@ -55,6 +55,15 @@ $catalogJson = json_encode(
             <div><dt>Других программ paused</dt><dd data-activation-paused>0</dd></div>
             <div><dt>Истекает UTC</dt><dd data-activation-expiry>—</dd></div>
         </dl>
+        <div class="activation-preview-lists">
+            <?php foreach (['created' => 'Новые планы', 'superseded' => 'Отменяемые планы', 'kept' => 'Сохраняемые планы', 'protected' => 'Completed / in-progress — без изменений', 'blocked_materialization' => 'Заблокированные даты'] as $key => $label): ?>
+                <details class="chart-data" data-activation-section="<?= e($key) ?>" hidden>
+                    <summary><?= e($label) ?> (<span data-activation-section-count="<?= e($key) ?>">0</span>)</summary>
+                    <div class="table-scroll"><table><thead><tr><th>Дата</th><th>Тренировка</th><th>Программа</th><th>Статус</th></tr></thead>
+                    <tbody data-activation-items="<?= e($key) ?>"></tbody></table></div>
+                </details>
+            <?php endforeach; ?>
+        </div>
         <p class="alert">Activation изменит active version и будущие планы только после нажатия кнопки ниже. Preview и версии повторно проверяются сервером.</p>
         <div class="dialog-actions">
             <button class="button button-secondary" type="button" data-activation-cancel>Отменить</button>
@@ -88,8 +97,8 @@ $catalogJson = json_encode(
         <?php foreach (['created' => 'Новые планы', 'superseded' => 'Отменяемые планы', 'kept' => 'Сохраняемые планы', 'protected' => 'Completed / in-progress — без изменений', 'blocked_materialization' => 'Заблокированные даты'] as $key => $label): ?>
             <?php if ($impact['future_plans'][$key] !== []): ?>
                 <details class="chart-data"><summary><?= e($label) ?> (<?= count($impact['future_plans'][$key]) ?>)</summary>
-                    <div class="table-scroll"><table><thead><tr><th>Дата</th><th>Тренировка</th><th>Статус</th></tr></thead><tbody>
-                    <?php foreach ($impact['future_plans'][$key] as $plan): ?><tr><td><?= e($plan['date']) ?></td><td><?= e($plan['name']) ?></td><td><?= e($plan['status'] ?? $key) ?></td></tr><?php endforeach; ?>
+                    <div class="table-scroll"><table><thead><tr><th>Дата</th><th>Тренировка</th><th>Программа</th><th>Статус</th></tr></thead><tbody>
+                    <?php foreach ($impact['future_plans'][$key] as $plan): ?><tr><td><?= e($plan['date']) ?></td><td><?= e($plan['name'] ?? $plan['template_id'] ?? '—') ?></td><td><?= e($plan['program_id'] ?? '—') ?></td><td><?= e($plan['status'] ?? $plan['reason'] ?? $key) ?></td></tr><?php endforeach; ?>
                     </tbody></table></div>
                 </details>
             <?php endif; ?>

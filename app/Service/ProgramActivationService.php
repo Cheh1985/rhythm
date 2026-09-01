@@ -169,12 +169,17 @@ final class ProgramActivationService
 
         $existingSql = <<<SQL
 SELECT wp.id internal_id,wp.external_plan_id workout_id,wp.name,wp.scheduled_date,wp.status,wp.version,
+       source_version.program_id source_program_internal_id,
+       source_program.external_program_id source_program_id,
        CASE WHEN EXISTS (
            SELECT 1 FROM workout_sessions ws
            WHERE ws.workout_plan_id=wp.id AND ws.user_id=wp.user_id
              AND ws.status IN ('in_progress','completed') AND ws.deleted_at IS NULL
        ) THEN 1 ELSE 0 END protected_session
 FROM workout_plans wp
+LEFT JOIN program_versions source_version ON source_version.id=wp.program_version_id
+LEFT JOIN training_programs source_program
+       ON source_program.id=source_version.program_id AND source_program.user_id=wp.user_id
 WHERE wp.user_id=? AND wp.scheduled_date>=? AND wp.scheduled_date<=?
   AND wp.deleted_at IS NULL AND wp.status IN ('planned','in_progress','completed')
 ORDER BY wp.scheduled_date,wp.id
@@ -184,23 +189,28 @@ SQL;
         $existingQuery->execute([$input['user_id'], $input['effective_from'], $end]);
         $existing = $existingQuery->fetchAll(PDO::FETCH_ASSOC);
         $protected = [];
-        $mutable = [];
+        $replaceable = [];
+        $unrelated = [];
         foreach ($existing as $row) {
             $item = [
                 'workout_id' => (string) $row['workout_id'], 'date' => (string) $row['scheduled_date'], 'name' => (string) $row['name'],
                 'status' => (string) $row['status'], 'version' => (int) $row['version'],
+                'program_id' => $row['source_program_id'] !== null ? (string) $row['source_program_id'] : null,
             ];
             if ((int) $row['protected_session'] === 1 || in_array($row['status'], ['in_progress', 'completed'], true)) {
                 $protected[] = $item;
+            } elseif ($row['source_program_internal_id'] !== null && (int) $row['source_program_internal_id'] === (int) $draft['program_id']) {
+                $replaceable[] = $item;
             } else {
-                $mutable[] = $item;
+                $unrelated[] = $item;
             }
         }
 
         $blockedDates = [];
         foreach ($protected as $item) $blockedDates[$item['date']] = true;
+        foreach ($unrelated as $item) $blockedDates[$item['date']] = true;
         if ($input['policy'] === 'keep') {
-            foreach ($mutable as $item) $blockedDates[$item['date']] = true;
+            foreach ($replaceable as $item) $blockedDates[$item['date']] = true;
         }
 
         $slotByWeekday = [];
@@ -235,8 +245,8 @@ SQL;
             ],
             'programs' => ['will_pause_count' => count($willPause), 'will_pause' => $willPause],
             'future_plans' => [
-                'kept' => $input['policy'] === 'keep' ? $mutable : [],
-                'superseded' => $input['policy'] === 'supersede' ? $mutable : [],
+                'kept' => $input['policy'] === 'keep' ? [...$unrelated, ...$replaceable] : $unrelated,
+                'superseded' => $input['policy'] === 'supersede' ? $replaceable : [],
                 'protected' => $protected,
                 'blocked_materialization' => $blocked,
                 'created' => $created,
@@ -245,6 +255,7 @@ SQL;
                 'completed_and_in_progress_unchanged' => true,
                 'history_unchanged' => true,
                 'old_version_remains_immutable_published' => true,
+                'unrelated_future_plans_unchanged' => true,
             ],
         ];
     }

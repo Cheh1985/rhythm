@@ -48,6 +48,9 @@ final class SiteToolRequestGuard
 
             $user = Auth::requireUser(true);
             $userId = (int) $user['id'];
+            if (!FeatureFlags::enabledForUser(FeatureFlags::WEBMCP_READ_ENABLED, $userId)) {
+                throw new ApiError('not_found', 'Маршрут не найден.', 404);
+            }
             FetchMetadata::requireSameOriginIfPresent();
             $this->enforceRateLimit($userId, $toolName);
             $query = $this->query($allowedQuery);

@@ -48,6 +48,9 @@ CREATE TABLE workout_templates (
  id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL,program_version_id INTEGER NULL,code TEXT NOT NULL,name TEXT NOT NULL,
  workout_type TEXT NOT NULL,content_json TEXT NOT NULL,content_hash TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,deleted_at TEXT NULL
 );
+CREATE TABLE program_schedule_slots (
+ id INTEGER PRIMARY KEY,program_version_id INTEGER NOT NULL,workout_template_id INTEGER NOT NULL,weekday INTEGER NOT NULL,created_at TEXT NOT NULL
+);
 CREATE TABLE workout_plans (
  id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL,external_plan_id TEXT NOT NULL,program_version_id INTEGER NULL,workout_template_id INTEGER NULL,
  name TEXT NOT NULL,workout_type TEXT NOT NULL,scheduled_date TEXT NOT NULL,goal TEXT NULL,estimated_duration_min INTEGER NULL,
@@ -112,8 +115,10 @@ INSERT INTO program_versions VALUES
  (2,1,2,'manual','Прогрессия','Проверить технику','{}','hash-2',1,'2026-08-01 00:00:00','published',1,'hash-2','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL),
  (3,2,1,'manual','Private','Private','{}','hash-3',NULL,'2026-07-01 00:00:00','published',1,'hash-3','2026-07-01 00:00:00','2026-07-01 00:00:00',NULL);
 INSERT INTO workout_templates VALUES
- (1,1,2,'strength-a','Силовая A','strength','{}','template-hash','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL),
+ (1,1,2,'strength-a','Силовая A','strength','{"exercises":[{"exercise_id":"bench","name":"Жим лёжа","order":1,"sets":3,"rep_range":{"min":8,"max":10},"target_rir":{"min":1,"max":3},"rest_seconds":120,"weight":60}]}','template-hash','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL),
  (2,2,3,'private','Чужой шаблон','strength','{}','private-hash','2026-08-01 00:00:00','2026-08-01 00:00:00',NULL);
+INSERT INTO program_schedule_slots VALUES
+ (1,2,1,2,'2026-08-01 00:00:00');
 INSERT INTO workout_plans VALUES
  (1,1,'plan-completed',2,1,'Силовая A','strength','2026-08-24','Объём',60,'Техника',NULL,'{}','1.0','completed',3,'2026-08-01 00:00:00','2026-08-24 10:00:00',NULL),
  (2,1,'plan-today',2,1,'Сегодня','strength','2026-08-26','Лёгкая',40,NULL,NULL,'{}','1.0','planned',1,'2026-08-20 00:00:00','2026-08-20 00:00:00',NULL),
@@ -265,8 +270,15 @@ try {
 
     $versions = $request('GET', '/api/assistant/plans/base/versions');
     $check($versions['status'] === 200 && ($versions['json']['data']['count'] ?? null) === 2, 'list plan versions возвращает обе безопасные версии');
-    $specificVersion = $request('GET', '/api/assistant/plans/base/versions/1');
-    $check($specificVersion['status'] === 200 && ($specificVersion['json']['data']['version'] ?? null) === 1, 'specific plan version выбирается строго по номеру');
+    $check(($versions['json']['data']['items'][0]['lifecycle_status'] ?? null) === 'published', 'list plan versions раскрывает lifecycle state');
+    $specificVersion = $request('GET', '/api/assistant/plans/base/versions/2');
+    $check($specificVersion['status'] === 200 && ($specificVersion['json']['data']['version'] ?? null) === 2, 'specific plan version выбирается строго по номеру');
+    $check(
+        ($specificVersion['json']['data']['templates'][0]['exercises'][0]['exercise_id'] ?? null) === 'bench'
+        && ($specificVersion['json']['data']['schedule_slots'][0]['weekday'] ?? null) === 2,
+        'specific plan version содержит упражнения и недельное расписание без raw JSON'
+    );
+    $check(!array_key_exists('content_json', $specificVersion['json']['data']['templates'][0] ?? []), 'plan DTO не раскрывает content_json');
     $invalidRoute = $request('GET', '/api/assistant/plans/base/versions/1abc');
     $check($invalidRoute['status'] === 422 && ($invalidRoute['json']['error']['code'] ?? null) === 'validation_error', 'route value 1abc отклоняется с 422');
     $foreignPlan = $request('GET', '/api/assistant/plans/private-program');

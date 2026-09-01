@@ -32,11 +32,12 @@ final class AssistantController
         header('Pragma: no-cache');
         header('Vary: Cookie');
 
-        $masterEnabled = FeatureFlags::enabled(FeatureFlags::WEBMCP_ENABLED);
-        $readEnabled = FeatureFlags::enabled(FeatureFlags::WEBMCP_READ_ENABLED);
-        $draftWriteEnabled = FeatureFlags::enabled(FeatureFlags::WEBMCP_DRAFT_WRITE_ENABLED);
-        $instanceWriteEnabled = FeatureFlags::enabled(FeatureFlags::WEBMCP_INSTANCE_WRITE_ENABLED);
-        $activationEnabled = FeatureFlags::enabled(FeatureFlags::WEBMCP_ACTIVATION_ENABLED);
+        $userId = (int) $user['id'];
+        $masterEnabled = FeatureFlags::enabledForUser(FeatureFlags::WEBMCP_ENABLED, $userId);
+        $readEnabled = FeatureFlags::enabledForUser(FeatureFlags::WEBMCP_READ_ENABLED, $userId);
+        $draftWriteEnabled = FeatureFlags::enabledForUser(FeatureFlags::WEBMCP_DRAFT_WRITE_ENABLED, $userId);
+        $instanceWriteEnabled = FeatureFlags::enabledForUser(FeatureFlags::WEBMCP_INSTANCE_WRITE_ENABLED, $userId);
+        $activationEnabled = FeatureFlags::enabledForUser(FeatureFlags::WEBMCP_ACTIVATION_ENABLED, $userId);
         $toolCatalog = ToolCatalog::enabled($readEnabled, $draftWriteEnabled, $instanceWriteEnabled, $activationEnabled);
 
         \render('assistant', [
@@ -47,7 +48,7 @@ final class AssistantController
             'webMcpDraftWriteEnabled' => $draftWriteEnabled,
             'webMcpInstanceWriteEnabled' => $instanceWriteEnabled,
             'webMcpActivationEnabled' => $activationEnabled,
-            'activationConfirmation' => $activationEnabled ? $this->confirmations->peek((int) $user['id']) : null,
+            'activationConfirmation' => $activationEnabled ? $this->confirmations->peek($userId) : null,
             'activationError' => $_SESSION['activation_error'] ?? null,
             'activationSuccess' => $_SESSION['activation_success'] ?? null,
         ], 'Ассистент');
@@ -60,7 +61,7 @@ final class AssistantController
         $userId = (int) $user['id'];
         $startedAt = hrtime(true);
         try {
-            if (!FeatureFlags::enabled(FeatureFlags::WEBMCP_ACTIVATION_ENABLED)) {
+            if (!FeatureFlags::enabledForUser(FeatureFlags::WEBMCP_ACTIVATION_ENABLED, $userId)) {
                 throw new \RuntimeException('Activation workflow выключен.');
             }
             SameOrigin::requireValid();

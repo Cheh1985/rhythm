@@ -91,6 +91,15 @@ putenv('WEBMCP_READ_ENABLED=true');
 $check(!FeatureFlags::enabled(FeatureFlags::WEBMCP_READ_ENABLED), 'дочерний flag не обходит выключенный master flag');
 putenv('WEBMCP_ENABLED=true');
 $check(FeatureFlags::enabled(FeatureFlags::WEBMCP_READ_ENABLED), 'дочерний flag включается только вместе с master flag');
+putenv('WEBMCP_ALLOWED_USER_IDS=1, 3');
+$check(FeatureFlags::enabledForUser(FeatureFlags::WEBMCP_READ_ENABLED, 1), 'canary allowlist включает разрешённого пользователя');
+$check(!FeatureFlags::enabledForUser(FeatureFlags::WEBMCP_READ_ENABLED, 2), 'canary allowlist не публикует tools остальным пользователям');
+putenv('WEBMCP_ALLOWED_USER_IDS=1,broken');
+$check(!FeatureFlags::enabledForUser(FeatureFlags::WEBMCP_READ_ENABLED, 1), 'некорректный allowlist fail-closed');
+putenv('WEBMCP_ALLOWED_USER_IDS=*');
+$check(FeatureFlags::enabledForUser(FeatureFlags::WEBMCP_READ_ENABLED, 2), 'wildcard allowlist разрешает rollout всем вошедшим пользователям');
+putenv('WEBMCP_ALLOWED_USER_IDS');
+$check(FeatureFlags::enabledForUser(FeatureFlags::WEBMCP_READ_ENABLED, 2), 'пустой allowlist сохраняет rollout для всех вошедших пользователей');
 putenv('WEBMCP_ENABLED=false');
 putenv('WEBMCP_READ_ENABLED=false');
 
