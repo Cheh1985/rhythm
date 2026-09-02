@@ -32,6 +32,23 @@ if ($match[1] === 'write') {
     );
 }
 
+if ($match[2] === 'length.missing') {
+    unset($_SERVER['CONTENT_LENGTH']);
+} elseif ($match[2] === 'length.empty') {
+    $_SERVER['CONTENT_LENGTH'] = '';
+} elseif ($match[2] === 'length.zero') {
+    $_SERVER['CONTENT_LENGTH'] = '0';
+} elseif ($match[2] === 'length.positive') {
+    $_SERVER['CONTENT_LENGTH'] = '1';
+} elseif ($match[2] === 'length.invalid') {
+    $_SERVER['CONTENT_LENGTH'] = 'broken';
+} elseif ($match[2] === 'length.negative') {
+    $_SERVER['CONTENT_LENGTH'] = '-1';
+} elseif ($match[2] === 'transfer.encoding') {
+    unset($_SERVER['CONTENT_LENGTH']);
+    $_SERVER['HTTP_TRANSFER_ENCODING'] = 'chunked';
+}
+
 (new SiteToolRequestGuard())->run(
     $match[2],
     [],

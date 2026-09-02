@@ -158,6 +158,11 @@ final class SiteToolRequestGuard
     private function requireEmptyBody(): void
     {
         $contentLength = $_SERVER['CONTENT_LENGTH'] ?? null;
+        // Some FastCGI configurations expose an absent GET body as an empty
+        // CONTENT_LENGTH value instead of omitting the server variable.
+        if ($contentLength === '') {
+            $contentLength = null;
+        }
         if ($contentLength !== null && (!is_string($contentLength) || preg_match('/^[0-9]+$/D', $contentLength) !== 1)) {
             throw new InvalidArgumentException('Некорректный Content-Length.');
         }

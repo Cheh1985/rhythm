@@ -143,6 +143,27 @@ try {
 
     $readFetch = $request('GET', '/read/read.fetch', null, ['Sec-Fetch-Site: same-site']);
     $check($readFetch['status'] === 403 && ($readFetch['json']['error']['code'] ?? null) === 'cross_origin_denied', 'read boundary также отклоняет declared non-same-origin');
+
+    $missingLength = $request('GET', '/read/length.missing');
+    $check($missingLength['status'] === 200, 'read принимает отсутствующий Content-Length');
+
+    $emptyLength = $request('GET', '/read/length.empty');
+    $check($emptyLength['status'] === 200, 'read принимает FastCGI CONTENT_LENGTH с пустой строкой');
+
+    $zeroLength = $request('GET', '/read/length.zero');
+    $check($zeroLength['status'] === 200, 'read принимает нулевой Content-Length');
+
+    $positiveLength = $request('GET', '/read/length.positive');
+    $check($positiveLength['status'] === 422 && ($positiveLength['json']['error']['code'] ?? null) === 'validation_error', 'read отклоняет положительный Content-Length');
+
+    $invalidLength = $request('GET', '/read/length.invalid');
+    $check($invalidLength['status'] === 422 && ($invalidLength['json']['error']['code'] ?? null) === 'validation_error', 'read отклоняет нечисловой Content-Length');
+
+    $negativeLength = $request('GET', '/read/length.negative');
+    $check($negativeLength['status'] === 422 && ($negativeLength['json']['error']['code'] ?? null) === 'validation_error', 'read отклоняет отрицательный Content-Length');
+
+    $transferEncoding = $request('GET', '/read/transfer.encoding');
+    $check($transferEncoding['status'] === 422 && ($transferEncoding['json']['error']['code'] ?? null) === 'validation_error', 'read отклоняет Transfer-Encoding');
 } finally {
     proc_terminate($process);
     foreach ($pipes as $pipe) if (is_resource($pipe)) fclose($pipe);
