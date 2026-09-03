@@ -33,7 +33,8 @@ final class SystemContent
             ['original_exercise_id', 'original_exercise_name'],
         ];
         foreach ($pairs as [$idKey, $nameKey]) {
-            $id = isset($row[$idKey]) ? (string) $row[$idKey] : '';
+            $rawId = $row[$idKey] ?? null;
+            $id = is_string($rawId) || is_int($rawId) ? (string) $rawId : '';
             if ($id !== '' && isset($names[$id]) && array_key_exists($nameKey, $row)) $row[$nameKey] = $names[$id];
         }
 

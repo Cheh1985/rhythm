@@ -7,8 +7,10 @@ putenv('DB_DSN=sqlite::memory:');
 require dirname(__DIR__) . '/bootstrap.php';
 
 use App\Core\Locale;
+use App\Core\SystemContent;
 use App\Repository\TrainingQueryRepository;
 use App\Repository\TrainingRepository;
+use App\WebMcp\ToolCatalog;
 
 $failures = [];
 $checks = 0;
@@ -22,6 +24,8 @@ Locale::set('en');
 $check(locale() === 'en' && t('Сегодня') === 'Today', 'locale и PHP-каталог переключаются на EN');
 $check(local_date('2026-09-03') === '3 Sep 2026', 'EN-дата использует недвусмысленный international format');
 $check(unit('kg') === 'kg' && system_label('workout_type', 'swimming') === 'Swimming', 'единицы и системные enum локализуются');
+$localizedTools = SystemContent::localize(ToolCatalog::enabled(true, true, true, true));
+$check(count($localizedTools) === 17 && is_array($localizedTools[12]['inputSchema']['properties']['metadata'] ?? null), 'полный WebMCP-каталог безопасно проходит EN-локализацию');
 
 Locale::beginRender();
 $userText = e('Ритм — пользовательская заметка');
