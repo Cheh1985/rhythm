@@ -43,6 +43,10 @@ $contract = json_decode((string) file_get_contents(dirname(__DIR__) . '/docs/tra
 $check(is_array($contract) && ($contract['properties']['schema']['const'] ?? null) === 'training-plan', 'training-plan JSON Schema');
 $routes = (string) file_get_contents(dirname(__DIR__) . '/public/index.php');
 $check(str_contains($routes, '/plans/import/preview') && str_contains($routes, '/programs') && str_contains($routes, '/exercises'), 'stage 2 routes');
+$landing = (string) file_get_contents(dirname(__DIR__) . '/views/landing.php');
+$check(str_contains($routes, "[\$web, 'home']") && str_contains($landing, "url('/login')") && str_contains($landing, 'WebMCP'), 'public landing route, login link and exchange modes');
+$layout = (string) file_get_contents(dirname(__DIR__) . '/views/layout.php');
+$check(str_contains($routes, "'/help'") && is_file(dirname(__DIR__) . '/views/help.php') && str_contains($layout, "url('/help')"), 'user guide route, view and top navigation');
 $check(str_contains($routes, '/api/sessions/{id}/sets') && str_contains($routes, '/replace-exercise') && str_contains($routes, '/discomfort'), 'stage 3 API routes');
 $workoutJs = (string) file_get_contents(dirname(__DIR__) . '/public/assets/workout.js');
 $check(str_contains($workoutJs, 'session_version') && str_contains($workoutJs, 'endAt') && str_contains($workoutJs, 'client_action_id'), 'stage 3 autosave and timestamp timer');
@@ -65,4 +69,4 @@ if ($failures !== []) {
     exit(1);
 }
 
-fwrite(STDOUT, 'Smoke checks passed (' . (27 - count($failures)) . ").\n");
+fwrite(STDOUT, 'Smoke checks passed (' . (29 - count($failures)) . ").\n");

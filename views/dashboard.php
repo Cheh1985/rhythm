@@ -34,6 +34,7 @@
 <section class="section-block">
     <div class="section-title"><h2>Быстрые действия</h2></div>
     <div class="action-list">
+        <a href="<?= e(url('/help')) ?>"><span class="action-icon green">?</span><span><strong>Как пользоваться</strong><small>Простая инструкция по шагам</small></span><b>›</b></a>
         <a href="<?= e(url('/plans/import')) ?>"><span class="action-icon coral">＋</span><span><strong>Импортировать план</strong><small>JSON v1.0 и безопасное превью</small></span><b>›</b></a>
         <a href="<?= e(url('/history')) ?>"><span class="action-icon green">◷</span><span><strong>История тренировок</strong><small>Фильтры, подходы и объём</small></span><b>›</b></a>
         <a href="<?= e(url('/analytics')) ?>"><span class="action-icon blue">⌁</span><span><strong>Аналитика</strong><small>Недели, мышцы и PR</small></span><b>›</b></a>

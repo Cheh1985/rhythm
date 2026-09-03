@@ -17,10 +17,29 @@ final class WebController
 {
     public function __construct(private readonly TrainingRepository $training = new TrainingRepository()) {}
 
+    public function home(): void
+    {
+        if (Auth::user()) {
+            $this->dashboard();
+            return;
+        }
+
+        \render('landing', [
+            'landingPage' => true,
+            'metaDescription' => 'Ритм помогает записывать тренировки, передавать фактические данные ChatGPT или другому ИИ и получать персональный план с учётом прогресса.',
+        ], 'Дневник тренировок с ИИ-тренером');
+    }
+
     public function dashboard(): void
     {
         $user = Auth::requireUser();
         \render('dashboard', ['user' => $user, ...$this->training->dashboard((int) $user['id'])], 'Сегодня');
+    }
+
+    public function help(): void
+    {
+        Auth::requireUser();
+        \render('help', [], 'Как пользоваться');
     }
 
     public function importForm(): void

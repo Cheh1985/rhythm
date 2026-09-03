@@ -1,5 +1,5 @@
 'use strict';
-const SHELL_VERSION = 'rhythm-shell-v8.0';
+const SHELL_VERSION = 'rhythm-shell-v8.4';
 const USER_PAGES = 'rhythm-user-pages-v1';
 const scope = self.registration.scope;
 const asset = (path) => new URL(path, scope).toString();
@@ -47,7 +47,7 @@ self.addEventListener('fetch', (event) => {
 async function networkFirstNavigation(request) {
     try {
         const response = await fetch(request);
-        if (response.ok && response.headers.get('X-Rhythm-Private') === '1' && /\/(?:sessions\/\d+|swimming(?:\/\d+)?|schedule)\/?$/.test(new URL(request.url).pathname)) {
+        if (response.ok && response.headers.get('X-Rhythm-Private') === '1' && /\/(?:help|sessions\/\d+|swimming(?:\/\d+)?|schedule)\/?$/.test(new URL(request.url).pathname)) {
             const cache = await caches.open(USER_PAGES);
             await cache.put(request, response.clone());
         }

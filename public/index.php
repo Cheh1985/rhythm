@@ -22,7 +22,8 @@ $siteTools = new SiteToolsApiController();
 $programDrafts = new ProgramDraftController();
 $workoutInstances = new WorkoutInstanceController();
 
-$router->add('GET', '/', [$web, 'dashboard']);
+$router->add('GET', '/', [$web, 'home']);
+$router->add('GET', '/help', [$web, 'help']);
 $router->add('GET', '/login', [$auth, 'loginForm']);
 $router->add('POST', '/login', [$auth, 'login']);
 $router->add('GET', '/register', [$auth, 'registerForm']);

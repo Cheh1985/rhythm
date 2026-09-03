@@ -5,6 +5,7 @@ use App\Core\Csrf;
 
 $currentUser = Auth::user();
 $currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$isLandingPage = ($landingPage ?? false) === true;
 if ($currentUser) {
     header('X-Rhythm-Private: 1');
     header('Cache-Control: private, no-store, max-age=0');
@@ -12,12 +13,12 @@ if ($currentUser) {
 }
 ?>
 <!doctype html>
-<html lang="ru" data-theme="<?= e($currentUser['theme'] ?? 'system') ?>">
+<html lang="ru" data-theme="<?= e($isLandingPage ? 'light' : ($currentUser['theme'] ?? 'system')) ?>">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
     <meta name="theme-color" content="#193e2f">
-    <meta name="description" content="Ритм — мобильный дневник тренировок">
+    <meta name="description" content="<?= e($metaDescription ?? 'Ритм — мобильный дневник тренировок') ?>">
     <meta name="csrf-token" content="<?= e(Csrf::token()) ?>">
     <meta name="app-url" content="<?= e(rtrim((string) env('APP_URL', ''), '/')) ?>">
     <meta name="rhythm-user-id" content="<?= $currentUser ? (int) $currentUser['id'] : '' ?>">
@@ -33,14 +34,28 @@ if ($currentUser) {
     <title><?= e($title) ?> — Ритм</title>
 </head>
 <body>
-<div class="app-shell">
+<div class="app-shell <?= $isLandingPage ? 'landing-shell' : '' ?>">
     <?php if ($currentUser): ?>
         <header class="topbar">
             <a class="brand" href="<?= e(url('/')) ?>" aria-label="На главную"><span class="brand-mark">Р</span><span>Ритм</span></a>
-            <a class="stage-pill" href="<?= e(url('/settings')) ?>">Настройки</a>
+            <div class="topbar-actions">
+                <a class="stage-pill" href="<?= e(url('/help')) ?>">Как пользоваться</a>
+                <a class="stage-pill" href="<?= e(url('/settings')) ?>">Настройки</a>
+            </div>
+        </header>
+    <?php elseif ($isLandingPage): ?>
+        <header class="landing-header">
+            <a class="brand" href="<?= e(url('/')) ?>" aria-label="Ритм — на главную"><span class="brand-mark">Р</span><span>Ритм</span></a>
+            <nav class="landing-nav" aria-label="Навигация по странице">
+                <a href="#how-it-works">Как это работает</a>
+                <a href="#data-exchange">JSON + MD</a>
+                <a href="#webmcp">WebMCP</a>
+                <a class="landing-login" href="<?= e(url('/login')) ?>">Войти</a>
+            </nav>
+            <a class="landing-login landing-login-mobile" href="<?= e(url('/login')) ?>">Войти</a>
         </header>
     <?php endif; ?>
-    <main class="main <?= $currentUser ? '' : 'auth-main' ?>">
+    <main class="main <?= $currentUser ? '' : ($isLandingPage ? 'landing-main' : 'auth-main') ?>">
         <?= $content ?>
     </main>
     <?php if ($currentUser): ?>
