@@ -20,7 +20,7 @@
 --   WEBMCP_INSTANCE_WRITE_ENABLED=true
 --   WEBMCP_ACTIVATION_ENABLED=true
 
-SET NAMES utf8mb4;
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 SET time_zone = '+00:00';
 
 START TRANSACTION;
@@ -285,11 +285,11 @@ SELECT
     d.plan_status,
     1,
     CASE WHEN d.plan_status = 'completed'
-         THEN DATE_ADD(d.scheduled_date, INTERVAL 12 HOUR)
-         ELSE @rhythm_demo_now END,
+         THEN CAST(DATE_ADD(d.scheduled_date, INTERVAL 12 HOUR) AS DATETIME)
+         ELSE CAST(@rhythm_demo_now AS DATETIME) END,
     CASE WHEN d.plan_status = 'completed'
-         THEN DATE_ADD(d.scheduled_date, INTERVAL 17 HOUR)
-         ELSE @rhythm_demo_now END,
+         THEN CAST(DATE_ADD(d.scheduled_date, INTERVAL 17 HOUR) AS DATETIME)
+         ELSE CAST(@rhythm_demo_now AS DATETIME) END,
     NULL
 FROM (
     SELECT DATE_SUB(@rhythm_demo_week, INTERVAL 28 DAY) scheduled_date, 'a' template_key, 'completed' plan_status
