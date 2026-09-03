@@ -1,5 +1,5 @@
 <section class="page-head dashboard-head">
-    <div><p class="eyebrow"><?= e((new DateTimeImmutable('now'))->format('d.m.Y')) ?></p><h1>Сегодня</h1><p class="muted">Привет, <?= e($user['login']) ?></p></div>
+    <div><p class="eyebrow"><?= e(local_date((new DateTimeImmutable('now'))->format('Y-m-d'))) ?></p><h1>Сегодня</h1><p class="muted">Привет, <?= e($user['login']) ?></p></div>
     <form method="post" action="<?= e(url('/logout')) ?>"><input type="hidden" name="_csrf" value="<?= e(\App\Core\Csrf::token()) ?>"><button class="icon-button" aria-label="Выйти">↪</button></form>
 </section>
 
@@ -9,10 +9,10 @@
 
 <section class="hero-card">
     <?php if ($next): ?>
-        <div class="hero-meta"><span class="tag"><?= $next['workout_type'] === 'swimming' ? 'ПЛАВАНИЕ' : 'СИЛОВАЯ' ?></span><span><?= e(date('d.m', strtotime($next['scheduled_date']))) ?></span></div>
+        <div class="hero-meta"><span class="tag"><?= e(mb_strtoupper(system_label('workout_type', $next['workout_type']))) ?></span><span><?= e(local_date($next['scheduled_date'], true)) ?></span></div>
         <h2><?= e($next['name']) ?></h2>
-        <p><?= e($next['goal'] ?: 'Следуйте плану и фиксируйте каждый подход.') ?></p>
-        <div class="hero-stats"><span><strong><?= (int) $next['exercise_count'] ?></strong> упражнений</span><span><strong><?= (int) ($next['estimated_duration_min'] ?: 0) ?></strong> мин.</span></div>
+        <p><?= $next['goal'] ? e($next['goal']) : te('Следуйте плану и фиксируйте каждый подход.') ?></p>
+        <div class="hero-stats"><span><strong><?= (int) $next['exercise_count'] ?></strong> упражнений</span><span><strong><?= (int) ($next['estimated_duration_min'] ?: 0) ?></strong> <?= e(unit('min')) ?>.</span></div>
         <a class="button button-light button-wide" href="<?= e(url('/plans/' . $next['id'])) ?>">Открыть тренировку <span>→</span></a>
     <?php else: ?>
         <div class="hero-meta"><span class="tag">СЛЕДУЮЩИЙ ШАГ</span></div>

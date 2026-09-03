@@ -114,7 +114,7 @@ set_exception_handler(static function (Throwable $exception): void {
     }
 
     if (PHP_SAPI === 'cli') {
-        fwrite(STDERR, $debug ? $message : "Ошибка приложения.\n");
+        fwrite(STDERR, $debug ? $message : t("Ошибка приложения.") . "\n");
         return;
     }
 
@@ -127,7 +127,7 @@ set_exception_handler(static function (Throwable $exception): void {
         echo json_encode($apiError->envelope(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         return;
     }
-    echo $debug ? '<pre>' . e($message) . '</pre>' : '<h1>Что-то пошло не так</h1><p>Попробуйте ещё раз позже.</p>';
+    echo $debug ? '<pre>' . e($message) . '</pre>' : '<h1>' . e(t('Что-то пошло не так')) . '</h1><p>' . e(t('Попробуйте ещё раз позже.')) . '</p>';
 });
 
 function db(): Database

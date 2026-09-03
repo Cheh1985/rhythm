@@ -1,6 +1,6 @@
 <?php
 $exercise=$analytics['exercise'];
-$recordLabels=['max_weight'=>'Максимальный вес','max_reps_at_weight'=>'Повторы с весом','best_e1rm'=>'Лучший e1RM','exercise_tonnage'=>'Объём упражнения','rep_range_completed'=>'Верх диапазона'];
+$recordLabels=array_map('t', ['max_weight'=>'Максимальный вес','max_reps_at_weight'=>'Повторы с весом','best_e1rm'=>'Лучший e1RM','exercise_tonnage'=>'Объём упражнения','rep_range_completed'=>'Верх диапазона']);
 ?>
 <section class="page-head"><div><p class="eyebrow">Упражнение · стабильный ID</p><h1><?= e($exercise['name']) ?></h1><p class="stable-id"><code><?= e($exercise['exercise_id']) ?></code></p></div></section>
 <?php if($exercise['muscle_groups']): ?><div class="chip-row"><?php foreach($exercise['muscle_groups'] as $group): ?><span class="tag"><?= e(str_replace('_',' ',$group)) ?></span><?php endforeach; ?></div><?php endif; ?>
@@ -13,7 +13,7 @@ $recordLabels=['max_weight'=>'Максимальный вес','max_reps_at_weig
 
 <section class="section-block"><div class="section-title"><h2>Подходы по датам</h2></div><div class="exercise-history">
 <?php if(!$analytics['sessions']): ?><div class="empty-state compact"><p>Упражнение ещё не встречалось в завершённых тренировках.</p></div><?php endif; ?>
-<?php foreach($analytics['sessions'] as $session): ?><article class="exercise-session card"><div class="exercise-session-head"><div><time><?= e($session['local_date']) ?></time><h3><a href="<?= e(url('/sessions/'.$session['session_id'])) ?>"><?= e($session['workout_name']) ?></a></h3></div><div><strong><?= e(round((float)$session['tonnage'])) ?> кг</strong><small><?= (int)$session['working_sets'] ?> sets · RIR <?= $session['average_rir']!==null?e($session['average_rir']):'—' ?></small></div></div>
+<?php foreach($analytics['sessions'] as $session): ?><article class="exercise-session card"><div class="exercise-session-head"><div><time><?= e($session['local_date']) ?></time><h3><a href="<?= e(url('/sessions/'.$session['session_id'])) ?>"><?= e($session['workout_name']) ?></a></h3></div><div><strong><?= e(round((float)$session['tonnage'])) ?> <?= e(unit('kg')) ?></strong><small><?= (int)$session['working_sets'] ?> <?= e(unit('sets')) ?> · RIR <?= $session['average_rir']!==null?e($session['average_rir']):'—' ?></small></div></div>
 <div class="set-pills"><?php foreach($session['sets'] as $set): ?><span><b><?= e($set['weight_kg']) ?>×<?= (int)$set['reps'] ?></b><small>RIR <?= e($set['rir']) ?></small></span><?php endforeach; ?></div>
-<?php if($session['best_set']): ?><p class="best-set">Лучший set: <?= e($session['best_set']['weight_kg']) ?> кг × <?= (int)$session['best_set']['reps'] ?> · e1RM <?= e($session['best_set']['e1rm_kg']) ?> кг</p><?php endif; ?></article><?php endforeach; ?>
+<?php if($session['best_set']): ?><p class="best-set">Лучший set: <?= e($session['best_set']['weight_kg']) ?> <?= e(unit('kg')) ?> × <?= (int)$session['best_set']['reps'] ?> · e1RM <?= e($session['best_set']['e1rm_kg']) ?> <?= e(unit('kg')) ?></p><?php endif; ?></article><?php endforeach; ?>
 </div></section>

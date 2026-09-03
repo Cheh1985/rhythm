@@ -15,8 +15,8 @@ final class AuthController
         if (Auth::user()) {
             \redirect('/');
         }
-        \render('auth/login', ['error' => $_SESSION['flash_error'] ?? null], 'Вход');
-        unset($_SESSION['flash_error']);
+        \render('auth/login', ['error' => $_SESSION['flash_error'] ?? null, 'success' => $_SESSION['flash_success'] ?? null], 'Вход');
+        unset($_SESSION['flash_error'], $_SESSION['flash_success']);
     }
 
     public function login(): never
@@ -43,8 +43,8 @@ final class AuthController
         if (Auth::user()) {
             \redirect('/');
         }
-        \render('auth/register', ['error' => $_SESSION['flash_error'] ?? null], 'Регистрация');
-        unset($_SESSION['flash_error']);
+        \render('auth/register', ['error' => $_SESSION['flash_error'] ?? null, 'success' => $_SESSION['flash_success'] ?? null], 'Регистрация');
+        unset($_SESSION['flash_error'], $_SESSION['flash_success']);
     }
 
     public function register(): never

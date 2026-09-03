@@ -1,9 +1,9 @@
 <?php
-$statusLabels = ['pending' => 'Ожидает', 'active' => 'В работе', 'waiting' => 'Оборудование занято', 'completed' => 'Готово', 'skipped' => 'Пропущено'];
+$statusLabels = array_map('t', ['pending' => 'Ожидает', 'active' => 'В работе', 'waiting' => 'Оборудование занято', 'completed' => 'Готово', 'skipped' => 'Пропущено']);
 ?>
 <div class="workout-page" data-session-id="<?= (int) $session['id'] ?>" data-session-version="<?= (int) $session['version'] ?>">
 <section class="workout-head">
-    <div><p class="eyebrow"><?= e(date('d.m.Y', strtotime($session['scheduled_date']))) ?></p><h1><?= e($session['name']) ?></h1><small class="autosave-state" role="status">Проверяем синхронизацию…</small><div class="sync-strip"><span data-network-state>Онлайн</span><button type="button" data-sync-retry hidden>Повторить</button></div></div>
+    <div><p class="eyebrow"><?= e(local_date($session['scheduled_date'])) ?></p><h1><?= e($session['name']) ?></h1><small class="autosave-state" role="status">Проверяем синхронизацию…</small><div class="sync-strip"><span data-network-state>Онлайн</span><button type="button" data-sync-retry hidden>Повторить</button></div></div>
     <div class="elapsed"><span>Время</span><strong data-started-at="<?= e(gmdate('c', strtotime($session['started_at'] . ' UTC'))) ?>">00:00</strong></div>
 </section>
 <div class="progress-line"><span style="width:<?= $session['summary']['total_exercises'] ? round($session['summary']['completed_exercises']/$session['summary']['total_exercises']*100) : 0 ?>%"></span></div>
@@ -24,7 +24,7 @@ $statusLabels = ['pending' => 'Ожидает', 'active' => 'В работе', '
     <?php if ($exercise['previous_sets']): ?><p class="previous"><span>В прошлый раз</span><?php foreach ($exercise['previous_sets'] as $set): ?><b><?= e($set['weight_kg']) ?>×<?= (int) $set['reps'] ?> · RIR <?= e($set['rir']) ?></b><?php endforeach; ?></p><?php endif; ?>
     <?php if ($exercise['instructions']): ?><details class="instructions"><summary>Инструкция</summary><p><?= nl2br(e($exercise['instructions'])) ?></p></details><?php endif; ?>
     <div class="saved-sets">
-    <?php foreach ($exercise['sets'] as $set): ?><div class="saved-set" data-set-id="<?= (int) $set['id'] ?>" data-set-version="<?= (int) $set['version'] ?>" data-weight="<?= e($set['weight_kg']) ?>" data-reps="<?= (int) $set['reps'] ?>" data-rir="<?= e($set['rir']) ?>"><span><?= $set['set_type']==='warmup'?'Р':'П' ?><?= (int) $set['set_number'] ?></span><strong><?= e($set['weight_kg']) ?> кг × <?= (int) $set['reps'] ?></strong><small>RIR <?= e($set['rir']) ?></small><button type="button" data-edit-set aria-label="Изменить подход">Изменить</button></div><?php endforeach; ?>
+    <?php foreach ($exercise['sets'] as $set): ?><div class="saved-set" data-set-id="<?= (int) $set['id'] ?>" data-set-version="<?= (int) $set['version'] ?>" data-weight="<?= e($set['weight_kg']) ?>" data-reps="<?= (int) $set['reps'] ?>" data-rir="<?= e($set['rir']) ?>"><span><?= $set['set_type']==='warmup'?(locale()==='en'?'W':'Р'):(locale()==='en'?'S':'П') ?><?= (int) $set['set_number'] ?></span><strong><?= e($set['weight_kg']) ?> <?= e(unit('kg')) ?> × <?= (int) $set['reps'] ?></strong><small>RIR <?= e($set['rir']) ?></small><button type="button" data-edit-set aria-label="Изменить подход">Изменить</button></div><?php endforeach; ?>
     </div>
     <?php if (!in_array($exercise['status'], ['completed', 'skipped'], true)): ?>
     <form class="set-entry" data-working-next="<?= count($working) + 1 ?>" data-warmup-next="<?= count($warmups) + 1 ?>">

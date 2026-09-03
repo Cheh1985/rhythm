@@ -62,6 +62,30 @@ final class SwimmingReportService
 
     public function markdown(array $report): string
     {
+        if (\locale() === 'en') {
+            $report = \App\Core\SystemContent::localize($report);
+            $session = $report['session'];
+            $lines = [
+                '# Swimming ' . $session['date'], '',
+                '- Distance: ' . $session['total_distance_m'] . ' m', '- Duration: ' . $session['duration_minutes'] . ' min',
+                '- Pool: ' . $session['pool_length_m'] . ' m', '- Primary stroke: ' . $session['primary_style'],
+                '- Intensity: ' . $session['intensity'] . '/10',
+                '- Fatigue (arms / back / legs): ' . $session['fatigue']['arms'] . ' / ' . $session['fatigue']['back'] . ' / ' . $session['fatigue']['legs'],
+                '- Wellbeing: ' . $session['wellbeing'] . '/5', '', '## Intervals', '',
+            ];
+            foreach ($report['intervals'] as $interval) {
+                $repeat = $interval['repeat_count'] > 1 ? $interval['repeat_count'] . '×' : '';
+                $line = $interval['sequence'] . '. ' . $repeat . $interval['distance_m'] . ' m · ' . $interval['style'];
+                if ($interval['intensity'] !== null) $line .= ' · intensity ' . $interval['intensity'] . '/10';
+                if ($interval['rest_seconds'] !== null) $line .= ' · rest ' . $interval['rest_seconds'] . ' sec';
+                if ($interval['note']) $line .= ' — ' . str_replace(["\r", "\n"], ' ', (string) $interval['note']);
+                $lines[] = $line;
+            }
+            if ($session['comment']) array_push($lines, '', '## Comment', '', (string) $session['comment']);
+            array_push($lines, '', '## Training sequence', '', 'The data is listed without physiological conclusions.');
+            foreach ($report['training_sequence'] as $item) $lines[] = '- ' . $item['occurred_at_utc'] . ' · ' . $item['type'] . ' · ' . $item['label'];
+            return implode("\n", $lines) . "\n";
+        }
         $session = $report['session'];
         $lines = [
             '# Плавание ' . $session['date'], '',

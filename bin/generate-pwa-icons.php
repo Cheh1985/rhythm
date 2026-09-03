@@ -40,5 +40,8 @@ function renderIcon(int $size, string $path): void
 }
 
 $directory = dirname(__DIR__) . '/public/icons';
-foreach ([180, 192, 512] as $size) renderIcon($size, $directory . '/icon-' . $size . '.png');
+foreach ([180, 192, 512] as $size) {
+    renderIcon($size, $directory . '/icon-' . $size . '.png');
+    renderIcon($size, $directory . '/icon-en-' . $size . '.png');
+}
 fwrite(STDOUT, "PWA icons generated.\n");

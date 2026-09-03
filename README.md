@@ -71,13 +71,14 @@ node --preserve-symlinks --preserve-symlinks-main tests/webmcp-registration.js
 php tests/stage17-webmcp-writes.php
 node --preserve-symlinks --preserve-symlinks-main tests/webmcp-writes.js
 php tests/stage18-webmcp-hardening.php
+php tests/stage19-localization.php
 php tests/webmcp-e2e.php
 php -l public/index.php
 php bin/cleanup.php
 php bin/prune-assistant-audit.php
 ```
 
-После входа импортируйте план через `/plans/import` или создайте плавание через `/swimming`; недельный ритм меняется на `/schedule`. Backup, restore и тема находятся на `/settings`. Для offline smoke используйте сценарии из [docs/offline-first.md](docs/offline-first.md). Форматы импорта/экспорта описаны в [docs/json-format.md](docs/json-format.md).
+После входа импортируйте план через `/plans/import` или создайте плавание через `/swimming`; недельный ритм меняется на `/schedule`. Backup, restore, тема и язык интерфейса находятся на `/settings`. RU/EN можно выбрать и до входа: гостевой выбор хранится в cookie, а после входа применяется настройка профиля. Для offline smoke используйте сценарии из [docs/offline-first.md](docs/offline-first.md). Форматы импорта/экспорта описаны в [docs/json-format.md](docs/json-format.md).
 
 ChatGPT Site tools доступны только на authenticated `/assistant`. Master/read/draft/instance/activation классы управляются отдельными `WEBMCP_*` flags; activation всегда ждёт ручного подтверждения в приложении. Полный каталог, security model, testing и operator guidance описаны в [docs/webmcp.md](docs/webmcp.md), controlled rollout — в [docs/webmcp-rollout.md](docs/webmcp-rollout.md). Ручные ранние smoke-сценарии сохранены в [docs/webmcp-stage5-smoke.md](docs/webmcp-stage5-smoke.md) и [docs/webmcp-stage9-smoke.md](docs/webmcp-stage9-smoke.md).
 

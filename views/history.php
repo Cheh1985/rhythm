@@ -1,8 +1,8 @@
 <?php
 $items = $history['items'];
 $filters = $history['filters'];
-$statusLabels = ['completed' => 'Завершена', 'in_progress' => 'В процессе', 'cancelled' => 'Отменена'];
-$typeLabels = ['strength' => 'Силовая', 'swimming' => 'Плавание', 'cardio' => 'Кардио', 'mobility' => 'Мобильность', 'other' => 'Другое'];
+$statusLabels = array_map('t', ['completed' => 'Завершена', 'in_progress' => 'В процессе', 'cancelled' => 'Отменена']);
+$typeLabels = array_map('t', ['strength' => 'Силовая', 'swimming' => 'Плавание', 'cardio' => 'Кардио', 'mobility' => 'Мобильность', 'other' => 'Другое']);
 $pageUrl = static function (int $page) use ($filters): string {
     return url('/history?' . http_build_query(array_filter([...$filters, 'page' => $page], static fn (mixed $value): bool => $value !== '' && $value !== null)));
 };
@@ -29,7 +29,7 @@ $pageUrl = static function (int $page) use ($filters): string {
     <?php foreach ($items as $session): ?>
         <a class="timeline-item" href="<?= e(url($session['href'])) ?>">
             <time datetime="<?= e($session['started_at']) ?>"><?= e(local_datetime($session['started_at'], $timezone, 'd.m.Y')) ?><small><?= e(local_datetime($session['started_at'], $timezone, 'H:i')) ?></small></time>
-            <div><h3><?= e($session['name']) ?></h3><p><?php if($session['workout_type']==='swimming'): ?><?= (int)$session['distance_m'] ?> м · <?= (int)$session['duration_minutes'] ?> мин<?php else: ?><?= (int)$session['working_sets'] ?> рабочих · <?= e(round((float)$session['tonnage'])) ?> кг<?php if($session['average_rir']!==null): ?> · RIR <?= e(round((float)$session['average_rir'],1)) ?><?php endif; ?><?php endif; ?></p></div>
+            <div><h3><?= e($session['name']) ?></h3><p><?php if($session['workout_type']==='swimming'): ?><?= (int)$session['distance_m'] ?> <?= e(unit('m')) ?> · <?= (int)$session['duration_minutes'] ?> <?= e(unit('min')) ?><?php else: ?><?= (int)$session['working_sets'] ?> <?= e(unit('sets')) ?> · <?= e(round((float)$session['tonnage'])) ?> <?= e(unit('kg')) ?><?php if($session['average_rir']!==null): ?> · RIR <?= e(round((float)$session['average_rir'],1)) ?><?php endif; ?><?php endif; ?></p></div>
             <span class="tag"><?= e($statusLabels[$session['status']] ?? $session['status']) ?></span>
         </a>
     <?php endforeach; ?>

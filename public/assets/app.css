@@ -145,6 +145,10 @@ input:focus, textarea:focus, select:focus { outline: 3px solid rgba(25,62,47,.15
 .swim-list-item { display: grid; grid-template-columns: 5.5rem minmax(0,1fr); gap: .25rem .8rem; padding: 1rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--card); text-decoration: none; }.swim-list-item time { grid-row: span 2; align-self: center; color: var(--muted); }.swim-list-item span { color: var(--muted); font-size: .8rem; }
 .swim-blocks,.sequence-list,.schedule-grid { display: grid; gap: .65rem; }.swim-blocks article { display: grid; grid-template-columns: 2.3rem 1fr; gap: .7rem; padding: .85rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--card); }.swim-blocks article>span { display: grid; width: 2.2rem; height: 2.2rem; place-items: center; border-radius: .7rem; color: #fff; background: var(--green); font-weight: 800; }.swim-blocks small { display: block; margin-top: .25rem; color: var(--muted); }.swim-blocks p { margin: .4rem 0 0; }
 .settings-card h2 { margin-top: 0; }.restore-preview { padding: 1rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--green-soft); }.restore-preview code { overflow-wrap: anywhere; }.danger-zone { margin-top: 1rem; border-color: #d58b7d; }.danger-zone summary { cursor: pointer; color: #a23b2c; font-weight: 800; }.inline-delete { margin: .6rem 0 1rem; padding: .7rem; border: 1px dashed #d58b7d; border-radius: .8rem; }
+.language-switch { display:inline-flex; align-items:center; gap:.3rem; padding:.3rem .45rem; border:1px solid var(--line); border-radius:999px; background:var(--card); }
+.language-switch button { appearance:none; border:0; padding:.2rem .35rem; color:var(--muted); background:transparent; font:inherit; font-size:.78rem; font-weight:800; cursor:pointer; }
+.language-switch button[aria-pressed="true"] { color:var(--green); text-decoration:underline; text-underline-offset:.18rem; }
+.landing-header-tools { display:flex; align-items:center; gap:.7rem; }.auth-language { display:flex; justify-content:flex-end; margin-bottom:.5rem; }
 
 /* Simple in-app user guide. */
 .help-head .muted { max-width: 38rem; line-height: 1.55; }

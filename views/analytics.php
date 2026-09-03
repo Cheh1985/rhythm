@@ -1,7 +1,7 @@
 <?php
 $current = $analytics['current'];
-$muscleLabels = ['quadriceps'=>'Квадрицепс','glutes'=>'Ягодичные','chest'=>'Грудь','upper_chest'=>'Верх груди','triceps'=>'Трицепс','front_delts'=>'Передняя дельта','lats'=>'Широчайшие','biceps'=>'Бицепс','upper_back'=>'Верх спины','hamstrings'=>'Задняя поверхность бедра','delts'=>'Дельты','lower_back'=>'Низ спины','calves'=>'Икры','side_delts'=>'Средняя дельта','rear_delts'=>'Задняя дельта','legs'=>'Ноги','arms'=>'Руки','shoulders'=>'Плечи','back'=>'Спина','not_set'=>'Не указано'];
-$recordLabels = ['max_weight'=>'Максимальный вес','max_reps_at_weight'=>'Повторы с весом','best_e1rm'=>'Лучший e1RM','exercise_tonnage'=>'Объём упражнения','session_tonnage'=>'Объём тренировки','rep_range_completed'=>'Верх диапазона'];
+$muscleLabels = array_map('t', ['quadriceps'=>'Квадрицепс','glutes'=>'Ягодичные','chest'=>'Грудь','upper_chest'=>'Верх груди','triceps'=>'Трицепс','front_delts'=>'Передняя дельта','lats'=>'Широчайшие','biceps'=>'Бицепс','upper_back'=>'Верх спины','hamstrings'=>'Задняя поверхность бедра','delts'=>'Дельты','lower_back'=>'Низ спины','calves'=>'Икры','side_delts'=>'Средняя дельта','rear_delts'=>'Задняя дельта','legs'=>'Ноги','arms'=>'Руки','shoulders'=>'Плечи','back'=>'Спина','not_set'=>'Не указано']);
+$recordLabels = array_map('t', ['max_weight'=>'Максимальный вес','max_reps_at_weight'=>'Повторы с весом','best_e1rm'=>'Лучший e1RM','exercise_tonnage'=>'Объём упражнения','session_tonnage'=>'Объём тренировки','rep_range_completed'=>'Верх диапазона']);
 $chart = static fn(string $key,string $title,string $unit='') => line_chart(array_map(static fn(array $week):array=>['label'=>$week['label'],'value'=>$week[$key]],$analytics['weeks']),$title,$unit);
 ?>
 <section class="page-head"><div><p class="eyebrow">12 недель · <?= e($analytics['timezone']) ?></p><h1>Аналитика</h1><p class="muted">Текущая неделя начинается в понедельник по вашему часовому поясу.</p></div></section>
@@ -25,5 +25,5 @@ $chart = static fn(string $key,string $title,string $unit='') => line_chart(arra
 
 <section class="section-block"><div class="section-title"><h2>Недавние PR</h2></div><div class="record-list">
 <?php if(!$analytics['records']): ?><div class="empty-state compact"><p>Новые ориентиры появятся после завершённых тренировок.</p></div><?php endif; ?>
-<?php foreach($analytics['records'] as $record): ?><a href="<?= e(url('/sessions/'.$record['session_id'])) ?>"><span class="record-icon">◆</span><div><strong><?= e($recordLabels[$record['record_type']]??$record['record_type']) ?></strong><small><?= e($record['exercise_name']??'Вся тренировка') ?> · <?= e(local_datetime($record['achieved_at'],$analytics['timezone'],'d.m.Y')) ?></small></div><b><?= e(round((float)$record['value_decimal'],2)) ?></b></a><?php endforeach; ?>
+<?php foreach($analytics['records'] as $record): ?><a href="<?= e(url('/sessions/'.$record['session_id'])) ?>"><span class="record-icon">◆</span><div><strong><?= e($recordLabels[$record['record_type']]??$record['record_type']) ?></strong><small><?= !empty($record['exercise_name']) ? e($record['exercise_name']) : te('Вся тренировка') ?> · <?= e(local_datetime($record['achieved_at'],$analytics['timezone'],'d.m.Y')) ?></small></div><b><?= e(round((float)$record['value_decimal'],2)) ?></b></a><?php endforeach; ?>
 </div></section>

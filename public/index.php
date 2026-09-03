@@ -12,6 +12,9 @@ use App\Controller\ProgramDraftController;
 use App\Controller\WorkoutInstanceController;
 use App\Controller\WebController;
 use App\Core\Router;
+use App\Core\Locale;
+
+Locale::bootstrap();
 
 $router = new Router();
 $auth = new AuthController();
@@ -71,6 +74,7 @@ $router->add('GET', '/assistant', [$assistant, 'index']);
 $router->add('POST', '/assistant/activation/confirm', [$assistant, 'confirmActivation']);
 $router->add('POST', '/assistant/activation/cancel', [$assistant, 'cancelActivation']);
 $router->add('POST', '/settings/theme', [$web, 'saveTheme']);
+$router->add('POST', '/language', [$web, 'saveLanguage']);
 $router->add('POST', '/restore/preview', [$web, 'restorePreview']);
 $router->add('POST', '/restore/confirm', [$web, 'restoreConfirm']);
 $router->add('POST', '/restore/cancel', [$web, 'restoreCancel']);

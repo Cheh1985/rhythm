@@ -1,6 +1,6 @@
 <section class="page-head"><div><p class="eyebrow">Стабильные идентификаторы</p><h1>Упражнения</h1><p class="muted">Глобальный справочник доступен всем. Пользовательские записи принадлежат только вам.</p></div></section>
-<?php if ($error): ?><div class="alert alert-error" role="alert"><?= e($error) ?></div><?php endif; ?>
-<?php if ($success): ?><div class="alert alert-success" role="status"><?= e($success) ?></div><?php endif; ?>
+<?php if ($error): ?><div class="alert alert-error" role="alert"><?= te($error) ?></div><?php endif; ?>
+<?php if ($success): ?><div class="alert alert-success" role="status"><?= te($success) ?></div><?php endif; ?>
 <details class="card exercise-create"><summary>Добавить своё упражнение</summary><form class="stack-form" method="post" action="<?= e(url('/exercises')) ?>">
     <input type="hidden" name="_csrf" value="<?= e(\App\Core\Csrf::token()) ?>">
     <label>Стабильный exercise_id<input name="exercise_id" pattern="[a-z0-9][a-z0-9._-]{2,79}" maxlength="80" placeholder="my_split_squat_001" required><small>После создания ID не меняется.</small></label>

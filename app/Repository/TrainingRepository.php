@@ -6,6 +6,7 @@ namespace App\Repository;
 
 use App\Domain\Analytics;
 use App\Core\RequestContext;
+use App\Core\Locale;
 use App\Core\VersionConflictException;
 use App\Domain\Swimming;
 use App\Domain\TrainingMetrics;
@@ -901,7 +902,12 @@ SQL);
 
     public function exercises(int $userId): array
     {
-        $query = \db()->pdo()->prepare("SELECT exercise_id,owner_user_id,name,category,equipment,progression_increment,progression_mode,status FROM exercises WHERE deleted_at IS NULL AND (owner_user_id IS NULL OR owner_user_id=?) ORDER BY owner_user_id IS NULL DESC,status='active' DESC,name");
+        if (Locale::current() === 'en') {
+            $query = $this->pdo()->prepare("SELECT e.exercise_id,e.owner_user_id,COALESCE(et.name,e.name) name,e.category,e.equipment,e.progression_increment,e.progression_mode,e.status FROM exercises e LEFT JOIN exercise_translations et ON et.exercise_id=e.exercise_id AND et.locale='en' WHERE e.deleted_at IS NULL AND (e.owner_user_id IS NULL OR e.owner_user_id=?) ORDER BY e.owner_user_id IS NULL DESC,e.status='active' DESC,COALESCE(et.name,e.name)");
+            $query->execute([$userId]);
+            return $query->fetchAll();
+        }
+        $query = $this->pdo()->prepare("SELECT exercise_id,owner_user_id,name,category,equipment,progression_increment,progression_mode,status FROM exercises WHERE deleted_at IS NULL AND (owner_user_id IS NULL OR owner_user_id=?) ORDER BY owner_user_id IS NULL DESC,status='active' DESC,name");
         $query->execute([$userId]);
         return $query->fetchAll();
     }
@@ -970,7 +976,7 @@ SQL);
                 $value = $key === 'biceps'
                     ? (($item['biceps_left_cm'] !== null || $item['biceps_right_cm'] !== null) ? round(((float) ($item['biceps_left_cm'] ?? $item['biceps_right_cm']) + (float) ($item['biceps_right_cm'] ?? $item['biceps_left_cm'])) / 2, 2) : null)
                     : $item[$key];
-                if ($value !== null) $points[] = ['label' => date('d.m.y', strtotime((string) $item['measured_on'])), 'value' => (float) $value];
+                if ($value !== null) $points[] = ['label' => \local_date((string) $item['measured_on'], true), 'value' => (float) $value];
             }
             $charts[$key] = [...$definition, 'points' => $points];
         }
@@ -1188,6 +1194,20 @@ SQL);
         $query = $this->pdo()->prepare('UPDATE users SET theme=?,updated_at=UTC_TIMESTAMP() WHERE id=? AND deleted_at IS NULL');
         $query->execute([$theme, $userId]);
         if ($query->rowCount() !== 1) throw new InvalidArgumentException('Пользователь не найден.');
+    }
+
+    public function updateLocale(int $userId, string $locale): void
+    {
+        if (!Locale::valid($locale)) {
+            throw new InvalidArgumentException(\t('Выберите русский или английский язык.'));
+        }
+        $query = $this->pdo()->prepare('UPDATE users SET locale=?,updated_at=UTC_TIMESTAMP() WHERE id=? AND deleted_at IS NULL');
+        $query->execute([$locale, $userId]);
+        if ($query->rowCount() !== 1) {
+            $exists = $this->pdo()->prepare('SELECT 1 FROM users WHERE id=? AND deleted_at IS NULL');
+            $exists->execute([$userId]);
+            if (!$exists->fetchColumn()) throw new InvalidArgumentException(\t('Пользователь не найден.'));
+        }
     }
 
     public function cancelSession(int $sessionId, int $userId, int $version, bool $confirmed): void

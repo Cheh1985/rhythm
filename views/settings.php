@@ -1,11 +1,13 @@
 <?php $csrf=\App\Core\Csrf::token(); ?>
 <section class="page-head"><div><p class="eyebrow">Production polish</p><h1>Настройки и данные</h1><p class="muted">Тема, полная резервная копия и безопасное восстановление.</p></div></section>
-<?php if($error): ?><div class="alert alert-error" role="alert"><?= e($error) ?></div><?php endif; ?>
-<?php if($success): ?><div class="alert alert-success" role="status"><?= e($success) ?></div><?php endif; ?>
+<?php if($error): ?><div class="alert alert-error" role="alert"><?= te($error) ?></div><?php endif; ?>
+<?php if($success): ?><div class="alert alert-success" role="status"><?= te($success) ?></div><?php endif; ?>
 
 <section class="card settings-card"><h2>Нужна помощь?</h2><p class="muted">Откройте короткую инструкцию: от первого плана до итогов тренировки.</p><a class="button button-quiet" href="<?= e(url('/help')) ?>">Как пользоваться</a></section>
 
 <section class="card settings-card section-block"><h2>Тема</h2><form method="post" action="<?= e(url('/settings/theme')) ?>" class="stack-form"><input type="hidden" name="_csrf" value="<?= e($csrf) ?>"><label>Оформление<select name="theme"><option value="system" <?= $user['theme']==='system'?'selected':'' ?>>Как в системе</option><option value="light" <?= $user['theme']==='light'?'selected':'' ?>>Светлое</option><option value="dark" <?= $user['theme']==='dark'?'selected':'' ?>>Тёмное</option></select></label><button class="button button-primary">Сохранить тему</button></form></section>
+
+<section class="card settings-card section-block"><h2>Язык</h2><p class="muted">Язык интерфейса сохраняется в аккаунте и применяется на всех устройствах после входа.</p><?php require APP_ROOT . '/views/partials/language-switch.php'; ?></section>
 
 <section class="card settings-card section-block"><h2>Резервная копия</h2><p class="muted">Экспорт v1.1 содержит полную историю текущего пользователя, версии программ и их расписание — без пароля, сессий входа и technical assistant audit. JSON подписан SHA-256 checksum; restore также читает v1.0.</p><div class="button-row"><a class="button button-primary" href="<?= e(url('/backup')) ?>">Скачать JSON</a><a class="button button-quiet" href="<?= e(url('/backup?format=zip')) ?>">Скачать ZIP</a></div></section>
 

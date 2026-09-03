@@ -76,8 +76,8 @@ $catalogJson = json_encode(
 <section class="card" id="activation-confirmation" aria-labelledby="activation-title">
     <p class="eyebrow">Human-in-the-loop</p>
     <h2 id="activation-title">Подтверждение activation</h2>
-    <?php if ($activationError): ?><p class="alert alert-error"><?= e($activationError) ?></p><?php endif; ?>
-    <?php if ($activationSuccess): ?><p class="alert alert-success"><?= e($activationSuccess) ?></p><?php endif; ?>
+    <?php if ($activationError): ?><p class="alert alert-error"><?= te($activationError) ?></p><?php endif; ?>
+    <?php if ($activationSuccess): ?><p class="alert alert-success"><?= te($activationSuccess) ?></p><?php endif; ?>
     <?php if (!$webMcpActivationEnabled): ?>
         <p class="muted">Activation workflow выключен feature flag.</p>
     <?php elseif (!$activationConfirmation): ?>

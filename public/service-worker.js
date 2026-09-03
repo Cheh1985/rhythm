@@ -1,22 +1,30 @@
 'use strict';
-const SHELL_VERSION = 'rhythm-shell-v8.4';
+const SHELL_VERSION = 'rhythm-shell-v9.0';
 const USER_PAGES = 'rhythm-user-pages-v1';
+const LOCALE_META = 'rhythm-locale-meta-v1';
 const scope = self.registration.scope;
 const asset = (path) => new URL(path, scope).toString();
 const APP_SHELL = [
     asset('./offline.html'),
+    asset('./offline.en.html'),
     asset('./manifest.json'),
+    asset('./manifest.en.json'),
     asset('./assets/app.css'),
     asset('./assets/workout.css'),
     asset('./assets/summary.css'),
     asset('./assets/offline-queue.js'),
+    asset('./assets/i18n.js'),
     asset('./assets/pwa.js'),
     asset('./assets/workout.js'),
     asset('./assets/swimming.js'),
     asset('./icons/icon.svg'),
+    asset('./icons/icon-en.svg'),
     asset('./icons/icon-180.png'),
     asset('./icons/icon-192.png'),
     asset('./icons/icon-512.png'),
+    asset('./icons/icon-en-180.png'),
+    asset('./icons/icon-en-192.png'),
+    asset('./icons/icon-en-512.png'),
 ];
 
 self.addEventListener('install', (event) => {
@@ -30,6 +38,9 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('message', (event) => {
     if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
     if (event.data?.type === 'CLEAR_USER_DATA') event.waitUntil(caches.delete(USER_PAGES));
+    if (event.data?.type === 'SET_LOCALE' && ['ru', 'en'].includes(event.data.locale)) {
+        event.waitUntil(setLocale(event.data.locale));
+    }
 });
 
 self.addEventListener('fetch', (event) => {
@@ -54,6 +65,21 @@ async function networkFirstNavigation(request) {
         return response;
     } catch (_) {
         const privatePage = await caches.open(USER_PAGES).then((cache) => cache.match(request));
-        return privatePage || caches.match(asset('./offline.html'));
+        return privatePage || offlineFallback();
     }
+}
+
+async function setLocale(locale) {
+    const cache = await caches.open(LOCALE_META);
+    const key = asset('./__active_locale__');
+    const previous = await cache.match(key).then((response) => response ? response.text() : 'ru');
+    await cache.put(key, new Response(locale, {headers: {'Content-Type': 'text/plain'}}));
+    if (previous !== locale) await caches.delete(USER_PAGES);
+}
+
+async function offlineFallback() {
+    const locale = await caches.open(LOCALE_META)
+        .then((cache) => cache.match(asset('./__active_locale__')))
+        .then((response) => response ? response.text() : 'ru');
+    return caches.match(asset(locale === 'en' ? './offline.en.html' : './offline.html'));
 }

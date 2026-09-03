@@ -261,6 +261,11 @@ final class ToolCatalog
     /** @param array<string, mixed> $inputSchema @param array<string, bool> $annotations */
     private static function tool(string $name, string $title, string $description, array $inputSchema, array $annotations): array
     {
+        // The catalog is also loaded directly by its contract tests, without the
+        // application bootstrap that defines the translation helper.
+        if (function_exists('t')) {
+            $title = \t($title);
+        }
         return compact('name', 'title', 'description', 'inputSchema', 'annotations');
     }
 

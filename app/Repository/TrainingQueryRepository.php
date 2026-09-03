@@ -386,6 +386,18 @@ SQL);
 
     public function exerciseSearchRows(int $userId, string $queryText, ?array $cursor, int $limit): array
     {
+        if (\locale() === 'en') {
+            $sql = "SELECT e.exercise_id,COALESCE(et.name,e.name) name,e.category,e.muscle_groups,e.exercise_type,e.equipment FROM exercises e LEFT JOIN exercise_translations et ON et.exercise_id=e.exercise_id AND et.locale='en' WHERE e.deleted_at IS NULL AND e.status='active' AND (e.owner_user_id IS NULL OR e.owner_user_id=?) AND (e.name LIKE ? OR et.name LIKE ?)";
+            $params = [$userId, '%' . $queryText . '%', '%' . $queryText . '%'];
+            if ($cursor !== null) {
+                $sql .= ' AND (COALESCE(et.name,e.name)>? OR (COALESCE(et.name,e.name)=? AND e.exercise_id>?))';
+                array_push($params, $cursor['name'], $cursor['name'], $cursor['key']);
+            }
+            $sql .= ' ORDER BY COALESCE(et.name,e.name),e.exercise_id LIMIT ' . ($limit + 1);
+            $statement = $this->pdo()->prepare($sql);
+            $statement->execute($params);
+            return $statement->fetchAll();
+        }
         $sql = "SELECT exercise_id,name,category,muscle_groups,exercise_type,equipment FROM exercises WHERE deleted_at IS NULL AND status='active' AND (owner_user_id IS NULL OR owner_user_id=?) AND name LIKE ?";
         $params = [$userId, '%' . $queryText . '%'];
         if ($cursor !== null) {

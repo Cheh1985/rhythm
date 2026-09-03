@@ -145,6 +145,7 @@ final class ReportService
 
     public function markdown(array $report): string
     {
+        if (\locale() === 'en') return $this->markdownEnglish(\App\Core\SystemContent::localize($report));
         $plan = $report['plan']; $session = $report['session']; $ready = $report['readiness']; $summary = $report['summary'];
         $lines = [
             '# Отчёт о тренировке: ' . $plan['name'], '', '- Дата: ' . $plan['date'], '- Длительность: ' . $session['duration_minutes'] . ' мин.',
@@ -186,6 +187,48 @@ final class ReportService
         $lines[] = $comparison ? '- К прошлой такой тренировке: объём ' . $this->signed($comparison['tonnage_kg_delta']) . ' кг, рабочих подходов ' . $this->signed($comparison['working_sets_delta']) . ', длительность ' . $this->signed($comparison['duration_minutes_delta']) . ' мин.' : '- Сравнение: предыдущая такая тренировка не найдена.';
         array_push($lines, '', '## Комментарий пользователя', '', $session['comment'] ?: 'Нет комментария.', '');
         if ($session['edited_after_completion']) { $lines[] = '> Данные редактировались после завершения; изменения сохранены в audit trail JSON-отчёта.'; $lines[] = ''; }
+        return implode("\n", $lines);
+    }
+
+    private function markdownEnglish(array $report): string
+    {
+        $plan = $report['plan']; $session = $report['session']; $ready = $report['readiness']; $summary = $report['summary'];
+        $missing = 'not provided';
+        $lines = [
+            '# Workout report: ' . $plan['name'], '', '- Date: ' . $plan['date'], '- Duration: ' . $session['duration_minutes'] . ' min',
+            '- Plan: `' . $plan['plan_id'] . '`', '- Session effort: ' . ($session['session_rpe'] ?? $missing) . '/10',
+            '- Wellbeing: ' . ($session['wellbeing'] ?? $missing) . '/5', '', '## Pre-workout readiness', '',
+            '- Weight: ' . ($ready['body_weight_kg'] !== null ? $ready['body_weight_kg'] . ' kg' : $missing),
+            '- Sleep: ' . ($ready['sleep'] !== null ? $ready['sleep'] . '/5' : $missing),
+            '- Energy: ' . ($ready['energy'] !== null ? $ready['energy'] . '/5' : $missing),
+            '- Readiness: ' . ($ready['readiness'] !== null ? $ready['readiness'] . '/5' : $missing),
+        ];
+        if ($ready['comment']) $lines[] = '- Comment: ' . $ready['comment'];
+        $lines[] = '';
+        foreach ($report['exercises'] as $exercise) {
+            $planned = $exercise['planned']; $fact = $exercise['fact'];
+            array_push($lines, '## ' . $exercise['name'], '', '**Plan:** ' . $planned['sets'] . ' × ' . $planned['rep_range']['min'] . '–' . $planned['rep_range']['max'] . '; RIR ' . ($planned['target_rir']['min'] ?? '—') . '–' . ($planned['target_rir']['max'] ?? '—') . '; rest ' . $planned['rest_seconds'] . ' sec.');
+            if ($fact['substitution']) $lines[] = '**Substitution:** `' . $fact['substitution']['original_exercise_id'] . '` → `' . $fact['substitution']['actual_exercise_id'] . '`. Reason: ' . ($fact['substitution']['reason'] ?: $missing) . '.';
+            if ($fact['skip']) {
+                $lines[] = '**Result:** exercise skipped. Reason: `' . $fact['skip']['reason'] . '`.';
+            } else {
+                $lines[] = '**Result:**';
+                foreach ($fact['sets'] as $set) $lines[] = '- ' . ($set['type'] === 'warmup' ? 'Warm-up ' : 'Working ') . $set['set_number'] . ': ' . $set['weight_kg'] . ' kg × ' . $set['reps'] . '; RIR ' . $set['rir'];
+                $lines[] = '- Exercise volume: ' . $fact['tonnage_kg'] . ' kg; average RIR: ' . ($fact['average_rir'] ?? 'no data') . '.';
+                if ($fact['best_e1rm']) $lines[] = '- Best Epley e1RM: ' . $fact['best_e1rm']['e1rm_kg'] . ' kg (estimate, not an actual maximum).';
+            }
+            if ($fact['personal_records']) $lines[] = '- New personal e1RM benchmark: ' . $fact['personal_records'][0]['value'] . ' kg.';
+            foreach ($fact['discomfort'] as $item) $lines[] = '- Discomfort: ' . $item['body_area'] . ', ' . $item['intensity'] . '/10' . ($item['comment'] ? ' — ' . $item['comment'] : '') . '.';
+            if ($fact['comment']) $lines[] = '- Comment: ' . $fact['comment'];
+            $suggestion = $exercise['suggestion'];
+            $lines[] = $suggestion ? '**Suggestion:** ' . $suggestion['current_weight_kg'] . ' → ' . $suggestion['suggested_weight_kg'] . ' kg; status `' . $suggestion['status'] . '`. The program was not changed automatically.' : '**Suggestion:** no weight increase.';
+            $lines[] = '';
+        }
+        array_push($lines, '## Summary', '', '- Exercises completed: ' . $summary['completed_exercises'] . '; skipped: ' . $summary['skipped_exercises'] . '.', '- Working sets: ' . $summary['working_sets'] . '.', '- Training volume: ' . $summary['tonnage_kg'] . ' kg.', '- Average RIR: ' . ($summary['average_rir'] ?? 'no data') . '.');
+        $comparison = $summary['comparison_with_previous'];
+        $lines[] = $comparison ? '- Compared with the previous matching workout: volume ' . $this->signed($comparison['tonnage_kg_delta']) . ' kg, working sets ' . $this->signed($comparison['working_sets_delta']) . ', duration ' . $this->signed($comparison['duration_minutes_delta']) . ' min.' : '- Comparison: no previous matching workout was found.';
+        array_push($lines, '', '## User comment', '', $session['comment'] ?: 'No comment.', '');
+        if ($session['edited_after_completion']) array_push($lines, '> Data was edited after completion; changes are preserved in the JSON report audit trail.', '');
         return implode("\n", $lines);
     }
 

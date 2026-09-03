@@ -1,12 +1,17 @@
 (() => {
     'use strict';
     const userId = document.querySelector('meta[name="rhythm-user-id"]')?.content || '';
+    const activeLocale = document.querySelector('meta[name="rhythm-locale"]')?.content || 'ru';
     if (userId) localStorage.setItem('rhythm-active-user', userId);
+    localStorage.setItem('rhythm-locale', activeLocale);
 
     async function register() {
         if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
         const base = document.querySelector('meta[name="app-url"]')?.content || '';
         const registration = await navigator.serviceWorker.register(base + '/service-worker.js', {scope: base + '/'});
+        const shareLocale = () => (registration.active || navigator.serviceWorker.controller)?.postMessage({type: 'SET_LOCALE', locale: activeLocale});
+        shareLocale();
+        navigator.serviceWorker.ready.then(shareLocale).catch(() => {});
         const announce = (worker) => {
             if (!worker || !navigator.serviceWorker.controller) return;
             window.dispatchEvent(new CustomEvent('rhythm-sw-update', {detail: {registration}}));

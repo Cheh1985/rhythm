@@ -1,5 +1,5 @@
 <section class="page-head"><div><p class="eyebrow">Безопасный импорт</p><h1>Импорт плана</h1><p class="muted">training-plan v1.0 · до <?= e(number_format((int) env('MAX_UPLOAD_BYTES', '1048576') / 1048576, 1, ',', ' ')) ?> МБ</p></div></section>
-<?php if ($error): ?><div class="alert alert-error" role="alert"><?= e($error) ?></div><?php endif; ?>
+<?php if ($error): ?><div class="alert alert-error" role="alert"><?= te($error) ?></div><?php endif; ?>
 <?php if (!$preview): ?>
 <form class="upload-card" method="post" enctype="multipart/form-data" action="<?= e(url('/plans/import/preview')) ?>">
     <input type="hidden" name="_csrf" value="<?= e(\App\Core\Csrf::token()) ?>">
@@ -9,7 +9,7 @@
 <p class="format-help">Пример: <code>tests/fixtures/training-plan/full-body-a.json</code>. Точный контракт: <code>docs/json-format.md</code>.</p>
 <?php else: ?>
 <section class="card preview-card">
-    <div class="hero-meta"><span class="tag"><?= e(mb_strtoupper($preview['workout_type'])) ?></span><span><?= e(date('d.m.Y', strtotime($preview['scheduled_date']))) ?></span></div>
+    <div class="hero-meta"><span class="tag"><?= e(mb_strtoupper(system_label('workout_type', $preview['workout_type']))) ?></span><span><?= e(local_date($preview['scheduled_date'])) ?></span></div>
     <h2><?= e($preview['workout_name']) ?></h2>
     <p><?= e($preview['program_name']) ?> · v<?= (int) $preview['program_version'] ?></p>
     <p class="version-reason"><strong>Причина версии:</strong> <?= e($preview['change_reason']) ?></p>

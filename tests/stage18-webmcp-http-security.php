@@ -11,14 +11,14 @@ $pdo = new PDO('sqlite:' . $databasePath, null, null, [PDO::ATTR_ERRMODE => PDO:
 $pdo->exec(<<<'SQL'
 CREATE TABLE users (
  id INTEGER PRIMARY KEY,login TEXT NOT NULL,email TEXT NOT NULL,password_hash TEXT NOT NULL,role TEXT NOT NULL,
- timezone TEXT NOT NULL,theme TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,deleted_at TEXT NULL
+ timezone TEXT NOT NULL,theme TEXT NOT NULL,locale TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,deleted_at TEXT NULL
 );
 CREATE TABLE assistant_tool_calls (
  id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL,request_id TEXT NOT NULL,tool_name TEXT NOT NULL,
  outcome TEXT NOT NULL,entity_type TEXT NULL,entity_id TEXT NULL,error_code TEXT NULL,duration_ms INTEGER NULL,
  metadata_json TEXT NULL,created_at TEXT NOT NULL
 );
-INSERT INTO users VALUES (1,'stage18','stage18@example.test','not-used','user','Europe/Moscow','system',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL);
+INSERT INTO users VALUES (1,'stage18','stage18@example.test','not-used','user','Europe/Moscow','system','ru',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL);
 SQL);
 unset($pdo);
 

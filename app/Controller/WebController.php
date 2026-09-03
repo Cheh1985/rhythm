@@ -6,6 +6,7 @@ namespace App\Controller;
 
 use App\Core\Auth;
 use App\Core\Csrf;
+use App\Core\Locale;
 use App\Repository\TrainingRepository;
 use App\Service\BackupService;
 use App\Service\PlanImportService;
@@ -27,7 +28,10 @@ final class WebController
         \render('landing', [
             'landingPage' => true,
             'metaDescription' => 'Ритм помогает записывать тренировки, передавать фактические данные ChatGPT или другому ИИ и получать персональный план с учётом прогресса.',
+            'error' => $_SESSION['flash_error'] ?? null,
+            'success' => $_SESSION['flash_success'] ?? null,
         ], 'Дневник тренировок с ИИ-тренером');
+        unset($_SESSION['flash_error'], $_SESSION['flash_success']);
     }
 
     public function dashboard(): void
@@ -503,6 +507,33 @@ final class WebController
         try { $this->training->updateTheme((int)$user['id'], (string)($_POST['theme']??'')); $_SESSION['flash_success']='Тема сохранена.'; }
         catch (\Throwable $e) { $_SESSION['flash_error']=$e->getMessage(); }
         \redirect('/settings');
+    }
+
+    public function saveLanguage(): never
+    {
+        $returnTo = $this->safeReturnTo((string) ($_POST['return_to'] ?? '/'));
+        if (!Csrf::validate($_POST['_csrf'] ?? null)) {
+            $_SESSION['flash_error'] = t('Сессия формы истекла.');
+            \redirect($returnTo);
+        }
+        try {
+            $selected = (string) ($_POST['locale'] ?? '');
+            if (!Locale::valid($selected)) throw new InvalidArgumentException(t('Выберите русский или английский язык.'));
+            if ($user = Auth::user()) $this->training->updateLocale((int) $user['id'], $selected);
+            Locale::set($selected);
+            $_SESSION['flash_success'] = t('Язык сохранён.', [], $selected);
+        } catch (\Throwable $exception) {
+            $_SESSION['flash_error'] = $exception->getMessage();
+        }
+        \redirect($returnTo);
+    }
+
+    private function safeReturnTo(string $returnTo): string
+    {
+        if ($returnTo === '' || !str_starts_with($returnTo, '/') || str_starts_with($returnTo, '//') || str_contains($returnTo, '\\') || preg_match('/[\r\n]/', $returnTo)) return '/';
+        $parts = parse_url($returnTo);
+        if ($parts === false || isset($parts['scheme']) || isset($parts['host'])) return '/';
+        return $returnTo;
     }
 
     public function restorePreview(): never

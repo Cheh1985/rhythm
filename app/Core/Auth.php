@@ -23,7 +23,7 @@ final class Auth
         if ($id < 1) {
             return null;
         }
-        $statement = \db()->pdo()->prepare('SELECT id, login, email, role, timezone, theme FROM users WHERE id = ? AND deleted_at IS NULL');
+        $statement = \db()->pdo()->prepare('SELECT id, login, email, role, timezone, theme, locale FROM users WHERE id = ? AND deleted_at IS NULL');
         $statement->execute([$id]);
         $row = $statement->fetch();
         $user = $row ?: null;
@@ -85,12 +85,13 @@ final class Auth
     public static function register(string $login, string $email, string $password): int
     {
         $id = \db()->transaction(static function (PDO $pdo) use ($login, $email, $password): int {
-            $statement = $pdo->prepare('INSERT INTO users (login, email, password_hash, role, timezone, theme, created_at, updated_at) VALUES (?, ?, ?, \'user\', ?, \'system\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)');
+            $statement = $pdo->prepare('INSERT INTO users (login, email, password_hash, role, timezone, theme, locale, created_at, updated_at) VALUES (?, ?, ?, \'user\', ?, \'system\', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)');
             $statement->execute([
                 mb_strtolower(trim($login)),
                 mb_strtolower(trim($email)),
                 password_hash($password, PASSWORD_DEFAULT),
                 \env('APP_TIMEZONE', 'Europe/Moscow'),
+                Locale::current(),
             ]);
             $userId = (int) $pdo->lastInsertId();
             $schedule = $pdo->prepare('INSERT INTO schedules (user_id,weekday,workout_type,label,active,version,created_at,updated_at) VALUES (?,?,?,?,1,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)');

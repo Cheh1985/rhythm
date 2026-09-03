@@ -9,6 +9,7 @@ CREATE TABLE users (
     role ENUM('user','admin') NOT NULL DEFAULT 'user',
     timezone VARCHAR(64) NOT NULL DEFAULT 'Europe/Moscow',
     theme ENUM('light','dark','system') NOT NULL DEFAULT 'system',
+    locale ENUM('ru','en') NOT NULL DEFAULT 'ru',
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     deleted_at DATETIME NULL,
@@ -43,6 +44,15 @@ CREATE TABLE exercises (
     CONSTRAINT fk_exercises_owner FOREIGN KEY (owner_user_id) REFERENCES users(id),
     INDEX idx_exercises_owner_status (owner_user_id, status),
     INDEX idx_exercises_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE exercise_translations (
+    exercise_id VARCHAR(80) NOT NULL,
+    locale ENUM('ru','en') NOT NULL,
+    name VARCHAR(190) NOT NULL,
+    PRIMARY KEY (exercise_id, locale),
+    INDEX idx_exercise_translations_locale_name (locale, name),
+    CONSTRAINT fk_exercise_translations_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(exercise_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE training_programs (

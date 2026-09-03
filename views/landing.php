@@ -1,3 +1,5 @@
+<?php if($error ?? null): ?><div class="alert alert-error" role="alert"><?= te($error) ?></div><?php endif; ?>
+<?php if($success ?? null): ?><div class="alert alert-success" role="status"><?= te($success) ?></div><?php endif; ?>
 <section class="landing-hero" aria-labelledby="landing-title">
     <div class="landing-hero-copy">
         <p class="landing-kicker"><span></span> Дневник, который даёт ИИ контекст</p>
@@ -67,7 +69,7 @@
     <ol class="file-flow" aria-label="Схема обмена данными через JSON и Markdown">
         <li class="file-flow-card">
             <span class="file-flow-number">01</span>
-            <div class="file-flow-icon file-flow-app">Р</div>
+            <div class="file-flow-icon file-flow-app"><?= e(locale() === 'en' ? 'R' : 'Р') ?></div>
             <small>В приложении</small>
             <strong>Завершите тренировку</strong>
             <p>«Ритм» собирает план, выполненные подходы, RIR, замены и самочувствие.</p>
@@ -130,7 +132,7 @@
             <span class="webmcp-card-label">С WebMCP</span>
             <h3>Один связанный диалог</h3>
             <div class="direct-route-diagram" role="img" aria-label="ИИ взаимодействует с Ритмом через разрешённые инструменты WebMCP">
-                <div class="direct-node"><span>Р</span><strong>Ритм</strong><small>ваши данные</small></div>
+                <div class="direct-node"><span><?= e(locale() === 'en' ? 'R' : 'Р') ?></span><strong>Ритм</strong><small>ваши данные</small></div>
                 <div class="direct-connection"><span>разрешённые инструменты</span><b>↔</b></div>
                 <div class="direct-node direct-node-ai"><span>AI</span><strong>ИИ-тренер</strong><small>анализ и черновик</small></div>
             </div>
@@ -184,7 +186,7 @@
 </section>
 
 <footer class="landing-footer">
-    <a class="brand" href="<?= e(url('/')) ?>"><span class="brand-mark">Р</span><span>Ритм</span></a>
+    <a class="brand" href="<?= e(url('/')) ?>"><span class="brand-mark"><?= e(locale() === 'en' ? 'R' : 'Р') ?></span><span>Ритм</span></a>
     <p>Дневник тренировок, который помнит больше.</p>
     <a href="<?= e(url('/login')) ?>">Войти в сервис →</a>
 </footer>

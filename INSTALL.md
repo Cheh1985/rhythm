@@ -26,7 +26,7 @@ GRANT ALL PRIVILEGES ON training_diary.* TO 'training_user'@'localhost';
 php bin/install.php
 ```
 
-Если база уже была создана на предыдущем этапе, не запускайте `schema.sql` повторно: после резервной копии примените по порядку недостающие миграции `database/migrations/002_*.sql` … `010_program_version_lifecycle.sql` штатным MySQL/MariaDB-клиентом. После `010` сначала выполните dry-run `php bin/reconcile-program-versions.php`; `--apply` связывает только однозначные single-version программы и не выбирает ambiguous cases.
+Если база уже была создана на предыдущем этапе, не запускайте `schema.sql` повторно: после резервной копии примените по порядку все недостающие миграции до `database/migrations/013_localization.sql` штатным MySQL/MariaDB-клиентом. После `010` сначала выполните dry-run `php bin/reconcile-program-versions.php`; `--apply` связывает только однозначные single-version программы и не выбирает ambiguous cases.
 
 Для ручной установки последовательно импортируйте `database/schema.sql`, затем `database/seed.sql`.
 
@@ -51,7 +51,7 @@ php -S 127.0.0.1:8000 router.php
 - разрешите PHP запись только в `storage/logs/` и `storage/cache/`;
 - храните время сервера и БД в UTC; пользовательская timezone задаётся отдельно.
 
-Service Worker работает только в secure context: production должен обслуживаться по HTTPS (localhost разрешён браузерами для разработки). Не задавайте агрессивный долгий HTTP-cache для `service-worker.js` и `manifest.json`. После deploy новой версии откройте приложение: оно предложит обновление и активирует новый Worker только после явного подтверждения, когда локальная тренировка уже записана в IndexedDB.
+Service Worker работает только в secure context: production должен обслуживаться по HTTPS (localhost разрешён браузерами для разработки). Не задавайте агрессивный долгий HTTP-cache для `service-worker.js`, `manifest.json` и `manifest.en.json`. После deploy новой версии откройте приложение: оно предложит обновление и активирует новый Worker только после явного подтверждения, когда локальная тренировка уже записана в IndexedDB.
 
 ### FASTPANEL
 
@@ -89,6 +89,7 @@ php tests/stage5.php
 php tests/stage6.php
 php tests/stage7.php
 php tests/stage8.php
+php tests/stage19-localization.php
 node --preserve-symlinks --preserve-symlinks-main tests/stage4-queue.js
 php tests/webmcp-e2e.php
 ```

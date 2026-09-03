@@ -25,7 +25,7 @@ $pdo = new PDO('sqlite:' . $databasePath, null, null, [
 $pdo->exec(<<<'SQL'
 CREATE TABLE users (
  id INTEGER PRIMARY KEY,login TEXT NOT NULL,email TEXT NOT NULL,password_hash TEXT NOT NULL,role TEXT NOT NULL,
- timezone TEXT NOT NULL,theme TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,deleted_at TEXT NULL
+ timezone TEXT NOT NULL,theme TEXT NOT NULL,locale TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,deleted_at TEXT NULL
 );
 CREATE TABLE login_attempts (
  id INTEGER PRIMARY KEY AUTOINCREMENT,attempt_key TEXT NOT NULL,ip_address TEXT NOT NULL,successful INTEGER NOT NULL,attempted_at TEXT NOT NULL
@@ -98,9 +98,9 @@ CREATE TABLE assistant_tool_calls (
 SQL);
 
 $passwordHash = password_hash('stage12-password', PASSWORD_DEFAULT);
-$insertUser = $pdo->prepare('INSERT INTO users VALUES (?,?,?,?,?,?,?,?,?,NULL)');
-$insertUser->execute([1, 'athlete', 'private@example.test', $passwordHash, 'user', 'Europe/Moscow', 'system', '2025-01-01 00:00:00', '2026-08-01 00:00:00']);
-$insertUser->execute([2, 'other', 'other@example.test', $passwordHash, 'user', 'UTC', 'system', '2025-02-01 00:00:00', '2026-08-01 00:00:00']);
+$insertUser = $pdo->prepare('INSERT INTO users VALUES (?,?,?,?,?,?,?,?,?,?,NULL)');
+$insertUser->execute([1, 'athlete', 'private@example.test', $passwordHash, 'user', 'Europe/Moscow', 'system', 'ru', '2025-01-01 00:00:00', '2026-08-01 00:00:00']);
+$insertUser->execute([2, 'other', 'other@example.test', $passwordHash, 'user', 'UTC', 'system', 'ru', '2025-02-01 00:00:00', '2026-08-01 00:00:00']);
 $pdo->exec(<<<'SQL'
 INSERT INTO exercises VALUES
  ('bench',NULL,'Жим лёжа','chest','["chest","triceps"]','strength','barbell',2.5,'absolute','active',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL),

@@ -1,6 +1,6 @@
-<section class="page-head"><div><p class="eyebrow"><?= e(date('d.m.Y', strtotime($plan['scheduled_date']))) ?> · <?= e($plan['workout_type']) ?></p><h1><?= e($plan['name']) ?></h1><p class="muted"><?= e($plan['goal']) ?></p><p class="plan-origin"><?= e($plan['program_name'] ?: 'Без программы') ?> · v<?= (int) $plan['program_version'] ?> · <code><?= e($plan['external_plan_id']) ?></code></p></div></section>
-<?php if ($error): ?><div class="alert alert-error" role="alert"><?= e($error) ?></div><?php endif; ?>
-<?php if ($success): ?><div class="alert alert-success" role="status"><?= e($success) ?></div><?php endif; ?>
+<section class="page-head"><div><p class="eyebrow"><?= e(local_date($plan['scheduled_date'])) ?> · <?= e(system_label('workout_type', $plan['workout_type'])) ?></p><h1><?= e($plan['name']) ?></h1><p class="muted"><?= e($plan['goal']) ?></p><p class="plan-origin"><?= $plan['program_name'] ? e($plan['program_name']) : te('Без программы') ?> · v<?= (int) $plan['program_version'] ?> · <code><?= e($plan['external_plan_id']) ?></code></p></div></section>
+<?php if ($error): ?><div class="alert alert-error" role="alert"><?= te($error) ?></div><?php endif; ?>
+<?php if ($success): ?><div class="alert alert-success" role="status"><?= te($success) ?></div><?php endif; ?>
 <?php if ($plan['trainer_notes']): ?><div class="coach-note"><strong>Заметка тренера</strong><p><?= nl2br(e($plan['trainer_notes'])) ?></p></div><?php endif; ?>
 <section class="plan-list">
 <?php foreach ($plan['exercises'] as $index => $exercise): ?>
