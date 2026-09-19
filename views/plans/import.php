@@ -1,4 +1,4 @@
-<section class="page-head"><div><p class="eyebrow">Безопасный импорт</p><h1>Импорт плана</h1><p class="muted">training-plan v1.0 · до <?= e(number_format((int) env('MAX_UPLOAD_BYTES', '1048576') / 1048576, 1, ',', ' ')) ?> МБ</p></div></section>
+<section class="page-head"><div><p class="eyebrow">Безопасный импорт</p><h1>Импорт плана</h1><p class="muted">training-plan v1.1 / v1.0 · до <?= e(number_format((int) env('MAX_UPLOAD_BYTES', '1048576') / 1048576, 1, ',', ' ')) ?> МБ</p></div></section>
 <?php if ($error): ?><div class="alert alert-error" role="alert"><?= te($error) ?></div><?php endif; ?>
 <?php if (!$preview): ?>
 <form class="upload-card" method="post" enctype="multipart/form-data" action="<?= e(url('/plans/import/preview')) ?>">
@@ -15,7 +15,7 @@
     <p class="version-reason"><strong>Причина версии:</strong> <?= e($preview['change_reason']) ?></p>
     <div class="hero-stats dark"><span><strong><?= (int) $preview['exercise_count'] ?></strong> упражнений</span><span><strong><?= count($preview['unknown_exercises']) ?></strong> новых</span></div>
     <div class="preview-exercises" aria-label="Упражнения плана">
-        <?php foreach ($preview['exercises'] as $index => $exercise): ?><div><span><?= $index + 1 ?></span><p><strong><?= e($exercise['name']) ?></strong><small><?= (int) $exercise['sets'] ?> × <?= (int) $exercise['rep_min'] ?>–<?= (int) $exercise['rep_max'] ?> · <code><?= e($exercise['exercise_id']) ?></code></small></p></div><?php endforeach; ?>
+        <?php foreach ($preview['exercises'] as $index => $exercise): ?><div><span><?= $index + 1 ?></span><p><strong><?= e($exercise['name']) ?></strong><small><?php if ($exercise['weight_value'] !== null): ?><?= e(\App\Domain\Weight::text($exercise)) ?> · <?php endif; ?><?= (int) $exercise['sets'] ?> × <?= (int) $exercise['rep_min'] ?>–<?= (int) $exercise['rep_max'] ?> · <code><?= e($exercise['exercise_id']) ?></code></small></p></div><?php endforeach; ?>
     </div>
     <?php if ($preview['conflicting_exercise_ids']): ?><div class="alert alert-error"><strong>Недоступные идентификаторы</strong><span><?= e(implode(', ', $preview['conflicting_exercise_ids'])) ?></span><small>Эти ID заняты упражнениями другого пользователя. Такой план сохранить нельзя.</small></div><?php endif; ?>
     <?php if ($preview['inactive_exercise_ids']): ?><div class="alert alert-error"><strong>Неактивные упражнения</strong><span><?= e(implode(', ', $preview['inactive_exercise_ids'])) ?></span><small>Сначала активируйте их в справочнике.</small></div><?php endif; ?>

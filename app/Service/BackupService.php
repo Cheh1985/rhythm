@@ -13,7 +13,7 @@ final class BackupService
     private const TABLES_V10 = ['custom_exercises','training_programs','program_versions','workout_templates','workout_plans','workout_exercises','workout_sessions','readiness_logs','session_exercises','exercise_sets','discomfort_logs','progression_suggestions','personal_records','body_measurements','schedules','swimming_sessions','swimming_intervals','training_sequence','audit_logs'];
     private const TABLES_V11 = ['custom_exercises','training_programs','program_versions','workout_templates','program_schedule_slots','workout_plans','workout_exercises','workout_sessions','readiness_logs','session_exercises','exercise_sets','discomfort_logs','progression_suggestions','personal_records','body_measurements','schedules','swimming_sessions','swimming_intervals','training_sequence','audit_logs'];
     private const REQUIRED = [
-        'custom_exercises'=>['exercise_id','name'],'training_programs'=>['id','external_program_id'],'program_versions'=>['id','program_id','version_number'],
+        'exercise_weight_preferences'=>['exercise_id','weight_unit','updated_at'],'custom_exercises'=>['exercise_id','name'],'training_programs'=>['id','external_program_id'],'program_versions'=>['id','program_id','version_number'],
         'workout_templates'=>['id','code'],'program_schedule_slots'=>['id','program_version_id','workout_template_id','weekday'],'workout_plans'=>['id','external_plan_id'],'workout_exercises'=>['id','workout_plan_id','exercise_id','sequence_no'],
         'workout_sessions'=>['id','public_id','workout_plan_id'],'readiness_logs'=>['workout_session_id'],'session_exercises'=>['id','workout_session_id','workout_exercise_id','original_exercise_id','actual_exercise_id'],
         'exercise_sets'=>['id','public_id','workout_session_id','session_exercise_id'],'discomfort_logs'=>['id','workout_session_id','body_area','logged_at'],
@@ -28,9 +28,9 @@ final class BackupService
     {
         if ($userId < 1) throw new InvalidArgumentException('Некорректный пользователь резервной копии.');
         $data = [];
-        foreach (self::TABLES_V11 as $table) $data[$table] = $this->exportRows($table, $userId);
+        foreach ($this->tablesForVersion('1.2') as $table) $data[$table] = $this->exportRows($table, $userId);
         return [
-            'schema'=>'training-diary-backup','schema_version'=>'1.1','backup_id'=>'backup-'.bin2hex(random_bytes(16)),
+            'schema'=>'training-diary-backup','schema_version'=>'1.2','backup_id'=>'backup-'.bin2hex(random_bytes(16)),
             'exported_at_utc'=>gmdate('Y-m-d\TH:i:s\Z'),'checksum_sha256'=>hash('sha256',$this->canonical($data)),'data'=>$data,
         ];
     }
@@ -41,7 +41,7 @@ final class BackupService
         catch (\JsonException) { throw new InvalidArgumentException('Некорректная резервная копия: JSON не читается.'); }
         $root=['schema','schema_version','backup_id','exported_at_utc','checksum_sha256','data'];
         if (!is_array($backup) || array_is_list($backup) || array_diff(array_keys($backup),$root) || array_diff($root,array_keys($backup))) throw new InvalidArgumentException('Резервная копия содержит неизвестные или отсутствующие корневые поля.');
-        if ($backup['schema']!=='training-diary-backup' || !in_array($backup['schema_version'],['1.0','1.1'],true)) throw new InvalidArgumentException('Формат резервной копии не поддерживается.');
+        if ($backup['schema']!=='training-diary-backup' || !in_array($backup['schema_version'],['1.0','1.1','1.2'],true)) throw new InvalidArgumentException('Формат резервной копии не поддерживается.');
         if (!is_string($backup['backup_id']) || !preg_match('/^backup-[a-f0-9]{32}$/',$backup['backup_id'])) throw new InvalidArgumentException('Некорректный backup_id.');
         if (!is_string($backup['exported_at_utc']) || !preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/',$backup['exported_at_utc'])) throw new InvalidArgumentException('Некорректное время экспорта.');
         $data=$backup['data']??null;
@@ -55,6 +55,22 @@ final class BackupService
             foreach ($data[$table] as $row) {
                 if (!is_array($row) || array_is_list($row)) throw new InvalidArgumentException("Секция {$table} содержит некорректную запись.");
                 foreach (self::REQUIRED[$table] as $field) if (!array_key_exists($field,$row) || is_array($row[$field]) || is_object($row[$field])) throw new InvalidArgumentException("В секции {$table} отсутствует обязательное поле {$field}.");
+                if ($backup['schema_version'] === '1.2') {
+                    if (in_array($table, ['session_exercises','exercise_weight_preferences'], true)) \App\Domain\Weight::unit($row['weight_unit'] ?? null);
+                    if (in_array($table, ['exercise_sets','workout_exercises'], true)) {
+                        $planned = $table === 'workout_exercises';
+                        $value = $row[$planned ? 'planned_weight_value' : 'weight_value'] ?? null;
+                        $unit = \App\Domain\Weight::unit($row[$planned ? 'planned_weight_unit' : 'weight_unit'] ?? null);
+                        $kg = $row[$planned ? 'planned_weight_kg' : 'performed_weight_kg'] ?? null;
+                        // MySQL DECIMAL values are exported as strings.
+                        if ($value !== null) {
+                            if (!is_numeric($value)) throw new InvalidArgumentException('Некорректный вес в backup.');
+                            \App\Domain\Weight::input(['weight_value' => (float) $value, 'weight_unit' => $unit]);
+                        }
+                        $expected = \App\Domain\Weight::toKg($value === null ? null : (float) $value, $unit);
+                        if (($expected === null) !== ($kg === null) || ($kg !== null && (!is_numeric($kg) || abs((float) $kg - $expected) > 0.00000002))) throw new InvalidArgumentException('Исходный вес backup не соответствует килограммам.');
+                    }
+                }
                 foreach ($row as $value) if (is_array($value)||is_object($value)) throw new InvalidArgumentException("Секция {$table} содержит вложенное значение.");
             }
         }
@@ -81,6 +97,17 @@ final class BackupService
             $tables=$this->tablesForVersion($version);
             $data=$backup['data'];
             $data['program_schedule_slots']??=[];
+            $data['exercise_weight_preferences']??=[];
+            foreach (['exercise_sets' => ['weight_value','weight_unit','performed_weight_kg'], 'workout_exercises' => ['planned_weight_value','planned_weight_unit','planned_weight_kg']] as $table => [$valueKey,$unitKey,$kgKey]) {
+                foreach ($data[$table] as &$row) {
+                    $row[$valueKey] = $version === '1.2' ? ($row[$valueKey] ?? ($row[$kgKey] ?? null)) : ($row[$kgKey] ?? null);
+                    $row[$unitKey] = $version === '1.2' ? ($row[$unitKey] ?? 'kg') : 'kg';
+                    $row[$kgKey] = \App\Domain\Weight::toKg($row[$valueKey] === null ? null : (float) $row[$valueKey], $row[$unitKey]);
+                }
+                unset($row);
+            }
+            if ($version !== '1.2') foreach ($data['session_exercises'] as &$row) $row['weight_unit'] = 'kg';
+            unset($row);
             $maps=[];$counts=array_fill_keys($tables,['inserted'=>0,'skipped'=>0]);$counts['training_sequence']['skipped']=count($data['training_sequence']);
             $mark=static function(string $table,bool $inserted)use(&$counts):void{$counts[$table][$inserted?'inserted':'skipped']++;};
 
@@ -90,6 +117,15 @@ final class BackupService
                 $this->insert($pdo,'exercises',$row,['owner_user_id'=>$userId]);$mark('custom_exercises',true);
             }
 
+            foreach ($data['exercise_weight_preferences'] as $row) {
+                if (!$this->exercise($pdo, (string) $row['exercise_id'], $userId)) throw new InvalidArgumentException('Недоступное упражнение в настройках веса.');
+                $unit = \App\Domain\Weight::unit($row['weight_unit']);
+                $q = $pdo->prepare('SELECT weight_unit FROM exercise_weight_preferences WHERE user_id=? AND exercise_id=?');
+                $q->execute([$userId, $row['exercise_id']]);
+                $new = $q->fetchColumn() === false;
+                if ($new) $pdo->prepare('INSERT INTO exercise_weight_preferences (user_id,exercise_id,weight_unit,updated_at) VALUES (?,?,?,?)')->execute([$userId, $row['exercise_id'], $unit, $row['updated_at']]);
+                $mark('exercise_weight_preferences', $new);
+            }
             $newPrograms=[];$requestedActive=[];
             foreach($data['training_programs'] as $row){
                 $id=$this->id($pdo,'SELECT id FROM training_programs WHERE user_id=? AND external_program_id=?',[$userId,$row['external_program_id']]);
@@ -174,10 +210,18 @@ final class BackupService
     {
         $pdo=$this->pdo();
         if($table==='training_sequence')return(new \App\Repository\TrainingRepository($pdo))->trainingSequence($userId,100);
-        if($table==='custom_exercises')$sql='SELECT * FROM exercises WHERE owner_user_id=? ORDER BY exercise_id';
+        if($table==='exercise_weight_preferences')$sql='SELECT * FROM exercise_weight_preferences WHERE user_id=? ORDER BY exercise_id';
+        elseif($table==='custom_exercises')$sql='SELECT * FROM exercises WHERE owner_user_id=? ORDER BY exercise_id';
         elseif(in_array($table,['training_programs','workout_templates','workout_plans','workout_sessions','readiness_logs','exercise_sets','discomfort_logs','progression_suggestions','personal_records','body_measurements','schedules','swimming_sessions','audit_logs'],true))$sql="SELECT * FROM {$table} WHERE user_id=? ORDER BY id";
         else $sql=['program_versions'=>'SELECT pv.* FROM program_versions pv JOIN training_programs p ON p.id=pv.program_id WHERE p.user_id=? ORDER BY pv.id','program_schedule_slots'=>'SELECT pss.* FROM program_schedule_slots pss JOIN program_versions pv ON pv.id=pss.program_version_id JOIN training_programs p ON p.id=pv.program_id WHERE p.user_id=? ORDER BY pss.id','workout_exercises'=>'SELECT we.* FROM workout_exercises we JOIN workout_plans p ON p.id=we.workout_plan_id WHERE p.user_id=? ORDER BY we.id','session_exercises'=>'SELECT se.* FROM session_exercises se JOIN workout_sessions ws ON ws.id=se.workout_session_id WHERE ws.user_id=? ORDER BY se.id','swimming_intervals'=>'SELECT si.* FROM swimming_intervals si JOIN swimming_sessions sw ON sw.id=si.swimming_session_id WHERE sw.user_id=? ORDER BY si.id'][$table]??throw new RuntimeException('Неизвестная backup-секция.');
-        $q=$pdo->prepare($sql);$q->execute([$userId]);return $q->fetchAll(PDO::FETCH_ASSOC);
+        $q=$pdo->prepare($sql);$q->execute([$userId]);$rows=$q->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as &$row) {
+            if ($table === 'exercise_sets') { $row['weight_value'] ??= $row['performed_weight_kg'] ?? null; $row['performed_weight_kg'] ??= null; $row['weight_unit'] ??= 'kg'; }
+            if ($table === 'workout_exercises') { $row['planned_weight_value'] ??= $row['planned_weight_kg'] ?? null; $row['planned_weight_kg'] ??= null; $row['planned_weight_unit'] ??= 'kg'; }
+            if ($table === 'session_exercises') $row['weight_unit'] ??= 'kg';
+        }
+        unset($row);
+        return $rows;
     }
     private function restoreExists(int $userId,string $checksum):bool{try{$q=$this->pdo()->prepare('SELECT 1 FROM backup_restores WHERE user_id=? AND checksum_sha256=?');$q->execute([$userId,$checksum]);return(bool)$q->fetchColumn();}catch(\Throwable){return false;}}
     private function insert(PDO $pdo,string $table,array $row,array $overrides=[]):int{$available=array_flip($this->columns($pdo,$table));$payload=array_intersect_key([...$row,...$overrides],$available);unset($payload['id']);if(!$payload)throw new RuntimeException("Нет полей для {$table}.");$names=array_keys($payload);$quoted=implode(',',array_map(static fn($v)=>"`{$v}`",$names));$pdo->prepare("INSERT INTO `{$table}` ({$quoted}) VALUES (".implode(',',array_fill(0,count($names),'?')).')')->execute(array_values($payload));return(int)$pdo->lastInsertId();}
@@ -185,7 +229,7 @@ final class BackupService
     private function id(PDO $pdo,string $sql,array $args):?int{$q=$pdo->prepare($sql);$q->execute($args);$id=$q->fetchColumn();return$id===false?null:(int)$id;}
     private function exercise(PDO $pdo,string $id,int $userId):bool{$q=$pdo->prepare('SELECT 1 FROM exercises WHERE exercise_id=? AND (owner_user_id IS NULL OR owner_user_id=?)');$q->execute([$id,$userId]);return(bool)$q->fetchColumn();}
     private function auditEntity(string $type,string $id,array $maps):string{$table=['workout_plan'=>'workout_plans','workout_session'=>'workout_sessions','session_exercise'=>'session_exercises','exercise_set'=>'exercise_sets','swimming_session'=>'swimming_sessions','body_measurement'=>'body_measurements'][$type]??null;return$table&&isset($maps[$table][$id])?(string)$maps[$table][$id]:$id;}
-    private function tablesForVersion(string $version):array{return match($version){'1.0'=>self::TABLES_V10,'1.1'=>self::TABLES_V11,default=>throw new InvalidArgumentException('Формат резервной копии не поддерживается.')};}
+    private function tablesForVersion(string $version):array{return match($version){'1.0'=>self::TABLES_V10,'1.1'=>self::TABLES_V11,'1.2'=>[...self::TABLES_V11,'exercise_weight_preferences'],default=>throw new InvalidArgumentException('Формат резервной копии не поддерживается.')};}
     private function canonical(array $data):string{$sort=function(mixed $v)use(&$sort):mixed{if(!is_array($v))return$v;if(!array_is_list($v))ksort($v,SORT_STRING);foreach($v as $k=>$x)$v[$k]=$sort($x);return$v;};return json_encode($sort($data),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_PRESERVE_ZERO_FRACTION|JSON_THROW_ON_ERROR);}
     private function pdo():PDO{return$this->connection??\db()->pdo();}
     private function transaction(callable $callback):mixed{if($this->connection===null)return\db()->transaction($callback);$this->connection->beginTransaction();try{$result=$callback($this->connection);$this->connection->commit();return$result;}catch(\Throwable $e){if($this->connection->inTransaction())$this->connection->rollBack();throw$e;}}

@@ -51,6 +51,7 @@ $router->add('GET', '/api/sessions/{id}', [$api, 'session']);
 $router->add('POST', '/api/sessions/{id}/sets', [$api, 'addSet']);
 $router->add('PATCH', '/api/sets/{id}', [$api, 'updateSet']);
 $router->add('PATCH', '/api/sessions/{id}/exercise-status', [$api, 'exerciseStatus']);
+$router->add('PATCH', '/api/sessions/{id}/weight-unit', [$api, 'changeWeightUnit']);
 $router->add('PATCH', '/api/sessions/{id}/replace-exercise', [$api, 'replaceExercise']);
 $router->add('POST', '/api/sessions/{id}/discomfort', [$api, 'discomfort']);
 $router->add('POST', '/api/sessions/{id}/finish', [$api, 'finish']);

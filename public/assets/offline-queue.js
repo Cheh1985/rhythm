@@ -152,6 +152,27 @@
         db.close();
     }
 
+    // Read and change under one IndexedDB write lock, shared by all tabs.
+    async function updateAction(key, change) {
+        const db = await openDb();
+        try {
+            return await new Promise((resolve, reject) => {
+                const tx = db.transaction('outbox', 'readwrite');
+                const store = tx.objectStore('outbox');
+                let result = null, failure = null;
+                const request = store.get(key);
+                request.onsuccess = () => {
+                    if (!request.result) return;
+                    try { result = change(request.result); if (result) store.put(result); }
+                    catch (error) { failure = error; tx.abort(); }
+                };
+                tx.oncomplete = () => resolve(result);
+                tx.onerror = () => reject(failure || tx.error);
+                tx.onabort = () => reject(failure || tx.error || new Error('IndexedDB transaction aborted'));
+            });
+        } finally { db.close(); }
+    }
+
     async function removeAction(key) {
         const db = await openDb();
         const tx = db.transaction('outbox', 'readwrite');
@@ -186,5 +207,5 @@
         });
     }
 
-    return {DB_NAME, uuid, createAction, orderActions, rebaseAction, versionsFromSession, saveSession, getSession, enqueue, listActions, putAction, removeAction, clearUser};
+    return {DB_NAME, uuid, createAction, orderActions, rebaseAction, versionsFromSession, saveSession, getSession, enqueue, listActions, putAction, updateAction, removeAction, clearUser};
 });

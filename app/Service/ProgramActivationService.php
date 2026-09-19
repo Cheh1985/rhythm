@@ -294,7 +294,7 @@ SQL;
 
         $externalId = $this->externalPlanId((string) $draft['external_program_id'], (int) $aggregate['program']['version'], $item['date']);
         $source = [
-            'schema' => TrainingPlanContractValidator::SCHEMA, 'schema_version' => '1.0', 'plan_id' => $externalId,
+            'schema' => TrainingPlanContractValidator::SCHEMA, 'schema_version' => '1.1', 'plan_id' => $externalId,
             'program' => [
                 'program_id' => $aggregate['program']['program_id'], 'name' => $aggregate['program']['name'],
                 'description' => $aggregate['program']['description'], 'version' => $aggregate['program']['version'],
@@ -316,14 +316,14 @@ SQL;
             $userId, $externalId, (int) $draft['id'], (int) $templateId, $template['name'], $template['type'], $item['date'],
             $template['goal'] ?? null, $template['estimated_duration_min'] ?? null, $template['trainer_notes'] ?? null,
             isset($template['pre_workout']) ? $this->plans->json($template['pre_workout']) : null,
-            $this->plans->canonicalJson($source), '1.0',
+            $this->plans->canonicalJson($source), '1.1',
         ]);
         $planId = (int) $pdo->lastInsertId();
-        $exerciseInsert = $pdo->prepare('INSERT INTO workout_exercises (workout_plan_id,exercise_id,sequence_no,planned_sets,rep_min,rep_max,target_rir_min,target_rir_max,rest_seconds,planned_weight_kg,warmup_sets,method_type,group_id,instructions,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
+        $exerciseInsert = $pdo->prepare('INSERT INTO workout_exercises (workout_plan_id,exercise_id,sequence_no,planned_sets,rep_min,rep_max,target_rir_min,target_rir_max,rest_seconds,planned_weight_kg,planned_weight_value,planned_weight_unit,warmup_sets,method_type,group_id,instructions,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
         foreach ($template['exercises'] as $exercise) {
             $exerciseInsert->execute([
                 $planId, $exercise['exercise_id'], $exercise['order'], $exercise['sets'], $exercise['rep_range']['min'], $exercise['rep_range']['max'],
-                $exercise['target_rir']['min'], $exercise['target_rir']['max'], $exercise['rest_seconds'], $exercise['weight'] ?? null,
+                $exercise['target_rir']['min'], $exercise['target_rir']['max'], $exercise['rest_seconds'], \App\Domain\Weight::toKg(isset($exercise['weight']) ? (float) $exercise['weight'] : null, $exercise['weight_unit'] ?? 'kg'), $exercise['weight'] ?? null, $exercise['weight_unit'] ?? 'kg',
                 !empty($exercise['warmup_sets']) ? 1 : 0, $exercise['set_type'] ?? 'normal', $exercise['group_id'] ?? null, $exercise['instructions'] ?? null,
             ]);
         }

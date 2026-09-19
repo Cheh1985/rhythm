@@ -4,7 +4,7 @@
 <?php if ($plan['trainer_notes']): ?><div class="coach-note"><strong>Заметка тренера</strong><p><?= nl2br(e($plan['trainer_notes'])) ?></p></div><?php endif; ?>
 <section class="plan-list">
 <?php foreach ($plan['exercises'] as $index => $exercise): ?>
-    <article class="plan-item"><span class="plan-index"><?= $index + 1 ?></span><div><h3><?= e($exercise['exercise_name']) ?></h3><p><?= (int) $exercise['planned_sets'] ?> × <?= (int) $exercise['rep_min'] ?>–<?= (int) $exercise['rep_max'] ?> · RIR <?= e($exercise['target_rir_min']) ?>–<?= e($exercise['target_rir_max']) ?> · <?= (int) $exercise['rest_seconds'] ?> сек.</p><?php if ($exercise['instructions']): ?><small><?= e($exercise['instructions']) ?></small><?php endif; ?></div></article>
+    <article class="plan-item"><span class="plan-index"><?= $index + 1 ?></span><div><h3><?= e($exercise['exercise_name']) ?></h3><p><?php if ($exercise['planned_weight_kg'] !== null): ?><?= e(\App\Domain\Weight::text(['weight_value' => $exercise['planned_weight_value'] ?? $exercise['planned_weight_kg'], 'weight_unit' => $exercise['planned_weight_unit'] ?? 'kg'])) ?> · <?php endif; ?><?= (int) $exercise['planned_sets'] ?> × <?= (int) $exercise['rep_min'] ?>–<?= (int) $exercise['rep_max'] ?> · RIR <?= e($exercise['target_rir_min']) ?>–<?= e($exercise['target_rir_max']) ?> · <?= (int) $exercise['rest_seconds'] ?> сек.</p><?php if ($exercise['instructions']): ?><small><?= e($exercise['instructions']) ?></small><?php endif; ?></div></article>
 <?php endforeach; ?>
 </section>
 <?php if ($plan['active_session_id']): ?>

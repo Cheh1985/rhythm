@@ -41,7 +41,7 @@ $check($progression->suggest($exercise, [$eligibleSets[0], [...$eligibleSets[1],
 
 $reporter = new ReportService($pdo, $repository);
 $report = $reporter->build($offlineSession, 1);
-$check($report['schema'] === 'training-report' && $report['schema_version'] === '1.0', 'report имеет маркеры training-report v1.0');
+$check($report['schema'] === 'training-report' && $report['schema_version'] === '1.1', 'report имеет маркеры training-report v1.1');
 $check(isset($report['exercises'][0]['planned'], $report['exercises'][0]['fact']) && array_key_exists('suggestion', $report['exercises'][0]), 'report разделяет planned, fact и suggestion');
 $check($report['exercises'][0]['fact']['substitution']['original_exercise_id'] === 'bench' && $report['exercises'][0]['fact']['substitution']['actual_exercise_id'] === 'row', 'report хранит замену отдельно от плана');
 $check(count($report['exercises'][0]['fact']['discomfort']) === 1 && $report['exercises'][0]['fact']['discomfort'][0]['intensity'] === 2, 'report содержит структурированный дискомфорт');

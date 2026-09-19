@@ -10,7 +10,7 @@ use JsonException;
 final class TrainingPlanContractValidator
 {
     public const SCHEMA = 'training-plan';
-    public const SUPPORTED_VERSIONS = ['1.0'];
+    public const SUPPORTED_VERSIONS = ['1.0', '1.1'];
 
     public function decode(string $json, ?int $maxBytes = null): array
     {
@@ -35,7 +35,7 @@ final class TrainingPlanContractValidator
         $this->object($data, 'корень', ['schema', 'schema_version', 'plan_id', 'program', 'workout', 'exercises'], ['trainer_notes', 'pre_workout']);
         $this->exactString($data['schema'], 'schema', self::SCHEMA);
         if (!is_string($data['schema_version']) || !in_array($data['schema_version'], self::SUPPORTED_VERSIONS, true)) {
-            throw new InvalidArgumentException('schema_version должна быть строкой с поддерживаемым значением 1.0.');
+            throw new InvalidArgumentException('schema_version должна быть строкой с поддерживаемым значением 1.0 или 1.1.');
         }
         $this->identifier($data['plan_id'], 'plan_id', 190);
 
@@ -82,14 +82,14 @@ final class TrainingPlanContractValidator
             }
         }
 
-        $this->validateExercises($data['exercises']);
+        $this->validateExercises($data['exercises'], 'exercises', $data['schema_version']);
     }
 
     /**
      * Shared training-plan v1.0 exercise/range rules. Program drafts reuse this
      * method without pretending that their aggregate is a training-plan root.
      */
-    public function validateExercises(mixed $exercises, string $rootPath = 'exercises'): void
+    public function validateExercises(mixed $exercises, string $rootPath = 'exercises', string $version = '1.1'): void
     {
         if (!is_array($exercises) || !array_is_list($exercises) || count($exercises) < 1 || count($exercises) > 100) {
             throw new InvalidArgumentException($rootPath . ' должен быть массивом от 1 до 100 упражнений.');
@@ -101,7 +101,7 @@ final class TrainingPlanContractValidator
             $exercise = $this->objectValue($value, $path);
             $this->object($exercise, $path, ['exercise_id', 'name', 'order', 'sets', 'rep_range', 'target_rir', 'rest_seconds'], [
                 'category', 'muscles', 'exercise_type', 'equipment', 'progression_increment', 'progression_mode',
-                'weight', 'warmup_sets', 'set_type', 'group_id', 'instructions',
+                ...($version === '1.1' ? ['weight_unit'] : []), 'weight', 'warmup_sets', 'set_type', 'group_id', 'instructions',
             ]);
             $this->identifier($exercise['exercise_id'], $path . '.exercise_id', 80);
             $this->text($exercise['name'], $path . '.name', 190);
@@ -143,8 +143,10 @@ final class TrainingPlanContractValidator
             if (array_key_exists('progression_mode', $exercise) && (!is_string($exercise['progression_mode']) || !in_array($exercise['progression_mode'], ['absolute', 'percent'], true))) {
                 throw new InvalidArgumentException($path . '.progression_mode должно быть absolute или percent.');
             }
+            if (array_key_exists('weight_unit', $exercise)) \App\Domain\Weight::unit($exercise['weight_unit']);
             if (array_key_exists('weight', $exercise) && $exercise['weight'] !== null) {
                 $this->number($exercise['weight'], $path . '.weight', 0, 2000);
+                \App\Domain\Weight::input(['weight_value' => $exercise['weight'], 'weight_unit' => $exercise['weight_unit'] ?? 'kg']);
             }
             if (array_key_exists('warmup_sets', $exercise) && !is_bool($exercise['warmup_sets'])) {
                 throw new InvalidArgumentException($path . '.warmup_sets должно быть boolean.');

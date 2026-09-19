@@ -188,6 +188,7 @@ final class ProgramVersionService
             }
 
             $aggregate = $this->decodeStoredAggregate((string) $row['snapshot_json']);
+            $aggregate['schema_version'] = ProgramDraftValidator::VERSION;
             $aggregate = $this->applyOperation($aggregate, $operation, $payload);
             $aggregate = $this->drafts->canonicalAggregate($aggregate);
             $this->validateExerciseReferences($pdo, $userId, $aggregate);

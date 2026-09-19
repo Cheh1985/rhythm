@@ -43,6 +43,7 @@ CREATE TABLE users(
  id INTEGER PRIMARY KEY,login TEXT,email TEXT,password_hash TEXT,role TEXT,timezone TEXT,theme TEXT,
  created_at TEXT,updated_at TEXT,deleted_at TEXT NULL
 );
+CREATE TABLE exercise_weight_preferences (user_id INTEGER NOT NULL,exercise_id TEXT NOT NULL,weight_unit TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(user_id,exercise_id));
 CREATE TABLE exercises(
  exercise_id TEXT PRIMARY KEY,owner_user_id INTEGER NULL,name TEXT,category TEXT NULL,muscle_groups TEXT NULL,
  exercise_type TEXT,equipment TEXT NULL,progression_increment REAL,progression_mode TEXT,status TEXT,
@@ -70,7 +71,7 @@ CREATE TABLE workout_plans(
 CREATE TABLE workout_exercises(
  id INTEGER PRIMARY KEY AUTOINCREMENT,workout_plan_id INTEGER,exercise_id TEXT,original_exercise_id TEXT NULL,sequence_no INTEGER,
  planned_sets INTEGER,rep_min INTEGER,rep_max INTEGER,target_rir_min REAL NULL,target_rir_max REAL NULL,rest_seconds INTEGER,
- planned_weight_kg REAL NULL,warmup_sets INTEGER,method_type TEXT,group_id TEXT NULL,instructions TEXT NULL,
+ planned_weight_kg REAL NULL,planned_weight_value REAL NULL,planned_weight_unit TEXT NOT NULL DEFAULT 'kg',warmup_sets INTEGER,method_type TEXT,group_id TEXT NULL,instructions TEXT NULL,
  substitution_reason TEXT NULL,substituted_at TEXT NULL,version INTEGER,created_at TEXT,UNIQUE(workout_plan_id,sequence_no)
 );
 CREATE TABLE workout_sessions(
@@ -84,13 +85,13 @@ CREATE TABLE readiness_logs(
 );
 CREATE TABLE session_exercises(
  id INTEGER PRIMARY KEY AUTOINCREMENT,workout_session_id INTEGER,workout_exercise_id INTEGER,original_exercise_id TEXT,
- actual_exercise_id TEXT,status TEXT,skip_reason TEXT NULL,substitution_reason TEXT NULL,substituted_at TEXT NULL,
+ actual_exercise_id TEXT,weight_unit TEXT NOT NULL DEFAULT 'kg',status TEXT,skip_reason TEXT NULL,substitution_reason TEXT NULL,substituted_at TEXT NULL,
  exercise_rating TEXT NULL,comment TEXT NULL,completed_at TEXT NULL,version INTEGER,created_at TEXT,updated_at TEXT,
  UNIQUE(workout_session_id,workout_exercise_id)
 );
 CREATE TABLE exercise_sets(
  id INTEGER PRIMARY KEY AUTOINCREMENT,public_id TEXT,user_id INTEGER,workout_session_id INTEGER,session_exercise_id INTEGER,
- set_number INTEGER,set_type TEXT,method_type TEXT,group_id TEXT NULL,sequence_no INTEGER,performed_weight_kg REAL NULL,
+ set_number INTEGER,set_type TEXT,method_type TEXT,group_id TEXT NULL,sequence_no INTEGER,performed_weight_kg REAL NULL,weight_value REAL NULL,weight_unit TEXT NOT NULL DEFAULT 'kg',
  reps INTEGER NULL,rir REAL NULL,duration_seconds INTEGER NULL,distance_m INTEGER NULL,completed_at TEXT,
  client_action_id TEXT NULL,version INTEGER,edited_at TEXT NULL,deleted_at TEXT NULL
 );
@@ -137,7 +138,7 @@ INSERT INTO workout_plans VALUES
  (4,1,'workout-active',1,1,'Активная','strength','2026-08-31',NULL,60,NULL,NULL,'{}','1.0','in_progress',2,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL),
  (5,1,'workout-finished-session',1,1,'История','strength','2026-08-19',NULL,60,NULL,NULL,'{}','1.0','completed',3,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL),
  (6,2,'workout-private-active',2,2,'Чужая активная','strength','2026-08-31',NULL,60,NULL,NULL,'{}','1.0','in_progress',2,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL);
-INSERT INTO workout_exercises VALUES
+INSERT INTO workout_exercises (id,workout_plan_id,exercise_id,original_exercise_id,sequence_no,planned_sets,rep_min,rep_max,target_rir_min,target_rir_max,rest_seconds,planned_weight_kg,warmup_sets,method_type,group_id,instructions,substitution_reason,substituted_at,version,created_at) VALUES
  (1,1,'bench','bench',1,3,8,10,1,3,120,60,1,'normal',NULL,'Техника',NULL,NULL,1,CURRENT_TIMESTAMP),
  (2,2,'secret','secret',1,3,8,10,1,3,120,60,1,'normal',NULL,NULL,NULL,NULL,1,CURRENT_TIMESTAMP),
  (3,3,'bench','bench',1,3,8,10,1,3,120,60,1,'normal',NULL,NULL,NULL,NULL,1,CURRENT_TIMESTAMP),
@@ -148,7 +149,7 @@ INSERT INTO workout_sessions VALUES
  (1,'session-active',1,4,'strength','in_progress','2026-08-31 10:00:00',NULL,NULL,NULL,NULL,3,0,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL),
  (2,'session-completed',1,5,'strength','completed','2026-08-19 10:00:00','2026-08-19 11:00:00',8,4,NULL,5,0,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL),
  (3,'session-private',2,6,'strength','in_progress','2026-08-31 11:00:00',NULL,NULL,NULL,NULL,2,0,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL);
-INSERT INTO session_exercises VALUES
+INSERT INTO session_exercises (id,workout_session_id,workout_exercise_id,original_exercise_id,actual_exercise_id,status,skip_reason,substitution_reason,substituted_at,exercise_rating,comment,completed_at,version,created_at,updated_at) VALUES
  (1,1,4,'row','row','pending',NULL,NULL,NULL,NULL,NULL,NULL,2,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),
  (2,2,5,'bench','bench','completed',NULL,NULL,NULL,'normal',NULL,'2026-08-19 10:50:00',2,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),
  (3,3,6,'secret','secret','pending',NULL,NULL,NULL,NULL,NULL,NULL,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP);

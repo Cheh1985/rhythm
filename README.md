@@ -17,8 +17,9 @@
 - просмотр следующего плана, быстрый readiness и продолжение незавершённой сессии;
 - глобальный и пользовательский справочник упражнений со статусом и шагом прогрессии;
 - неизменяемые версии программ с родителями, причинами и шаблонами тренировок;
-- строгий контракт `training-plan` v1.0, серверный upload, preview и подтверждение неизвестных упражнений;
+- строгий контракт `training-plan` v1.1 (совместим с v1.0), серверный upload, preview и подтверждение неизвестных упражнений;
 - транзакционный импорт с защитой от дубликата `plan_id` и мобильный просмотр сохранённого плана.
+- исходные кг/lb в планах, подходах и истории; личная единица упражнения, точный ввод и нормализованные метрики в кг;
 - быстрый ввод подхода `вес → повторы → RIR`, раздельные warmup/working и online autosave;
 - статусы упражнений, занятое оборудование, пропуск, замена, дискомфорт и оценка сложности;
 - optimistic locking для нескольких вкладок, audit log редактирования и timestamp-таймер отдыха;
@@ -28,7 +29,7 @@
 - идемпотентная последовательная синхронизация всех workout mutations с Web Locks/BroadcastChannel fallback;
 - явные online/offline/pending/synced/error статусы и разрешение HTTP 409 без автоматического отбрасывания локальных данных;
 - отдельный private navigation-cache активной тренировки с очисткой Cache/IndexedDB при logout; API не кешируются.
-- `training-report` v1.0 с раздельными planned/fact/suggestion, UTC timestamps и audit trail;
+- `training-report` v1.1 с раздельными planned/fact/suggestion, UTC timestamps и audit trail;
 - экспорт JSON, Markdown и ZIP с обоими файлами;
 - double progression без автоматического изменения программы, e1RM Epley, PR и сравнение с прошлой тренировкой;
 - редактирование завершённых подходов и итоговых оценок с пересчётом метрик и историей правок.
@@ -36,7 +37,7 @@
 - отдельная модель плавания с блоками/интервалами, дистанцией, fatigue, самочувствием и безопасным редактированием;
 - недельное расписание с defaults «Пн/Ср зал, Чт бассейн» и создание плавания из него;
 - local-first autosave/outbox плавания, общая последовательность и `swimming-report` JSON/Markdown.
-- полная пользовательская backup-копия v1.1 JSON/ZIP с versioned program schedule slots, checksum и строгим preview; restore совместим с v1.0;
+- полная пользовательская backup-копия v1.2 JSON/ZIP с versioned program schedule slots, checksum и строгим preview; restore совместим с v1.0/v1.1;
 - транзакционный restore в безопасном merge-режиме: без перезаписи/удаления, с remap внутренних ID, tenant isolation и идемпотентным receipt;
 - подтверждаемая отмена незавершённой тренировки и soft delete подходов, измерений и плавания с audit trail;
 - темы light/dark/system, safe-area, focus-visible, reduced motion и production security headers;
@@ -72,6 +73,11 @@ php tests/stage17-webmcp-writes.php
 node --preserve-symlinks --preserve-symlinks-main tests/webmcp-writes.js
 php tests/stage18-webmcp-hardening.php
 php tests/stage19-localization.php
+php tests/weight-units.php
+php tests/weight-history.php
+php tests/weight-plan-import.php
+php tests/weight-backup.php
+node --preserve-symlinks --preserve-symlinks-main tests/weight-units.js
 php tests/webmcp-e2e.php
 php -l public/index.php
 php bin/cleanup.php
@@ -84,7 +90,7 @@ ChatGPT Site tools доступны только на authenticated `/assistant`
 
 ## Цикл с ChatGPT
 
-1. Попросите ChatGPT подготовить `training-plan` v1.0 по схеме `docs/training-plan-v1.0.schema.json` и примеру `tests/fixtures/training-plan/full-body-a.json`.
+1. Попросите ChatGPT подготовить `training-plan` v1.1 (совместим с v1.0) по схеме `docs/training-plan-v1.1.schema.json` и примеру `tests/fixtures/training-plan/mixed-units-v1.1.json`.
 2. Загрузите JSON на `/plans/import`, изучите preview и отдельно подтвердите создание неизвестных упражнений.
 3. Проведите тренировку; после каждого действия приложение сохраняет данные локально и синхронизирует их с сервером.
 4. На итоговом экране скачайте JSON или Markdown `training-report` (для плавания — `swimming-report`).

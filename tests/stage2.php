@@ -41,6 +41,7 @@ CREATE TABLE users (
 CREATE TABLE login_attempts (
     id INTEGER PRIMARY KEY AUTOINCREMENT, attempt_key TEXT NOT NULL, ip_address TEXT NOT NULL, successful INTEGER NOT NULL, attempted_at TEXT NOT NULL
 );
+CREATE TABLE exercise_weight_preferences (user_id INTEGER NOT NULL,exercise_id TEXT NOT NULL,weight_unit TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(user_id,exercise_id));
 CREATE TABLE exercises (
     exercise_id TEXT PRIMARY KEY, owner_user_id INTEGER NULL, name TEXT NOT NULL, category TEXT NULL,
     muscle_groups TEXT NULL, exercise_type TEXT NOT NULL, equipment TEXT NULL, progression_increment REAL NOT NULL,
@@ -72,7 +73,7 @@ CREATE TABLE workout_plans (
 CREATE TABLE workout_exercises (
     id INTEGER PRIMARY KEY AUTOINCREMENT, workout_plan_id INTEGER NOT NULL, exercise_id TEXT NOT NULL, sequence_no INTEGER NOT NULL,
     planned_sets INTEGER NOT NULL, rep_min INTEGER NOT NULL, rep_max INTEGER NOT NULL, target_rir_min REAL NULL, target_rir_max REAL NULL,
-    rest_seconds INTEGER NOT NULL, planned_weight_kg REAL NULL, warmup_sets INTEGER NOT NULL, method_type TEXT NOT NULL,
+    rest_seconds INTEGER NOT NULL, planned_weight_kg REAL NULL,planned_weight_value REAL NULL,planned_weight_unit TEXT NOT NULL DEFAULT 'kg', warmup_sets INTEGER NOT NULL, method_type TEXT NOT NULL,
     group_id TEXT NULL, instructions TEXT NULL, created_at TEXT NOT NULL, UNIQUE(workout_plan_id, sequence_no)
 );
 CREATE TABLE audit_logs (

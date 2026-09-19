@@ -224,7 +224,7 @@ SQL);
         $query = $this->pdo()->prepare(<<<'SQL'
 SELECT we.exercise_id,COALESCE(we.original_exercise_id,we.exercise_id) original_exercise_id,
        e.name,original.name original_name,e.exercise_type,e.category,e.muscle_groups,e.equipment,we.sequence_no,we.planned_sets,
-       we.rep_min,we.rep_max,we.target_rir_min,we.target_rir_max,we.rest_seconds,we.planned_weight_kg,we.warmup_sets,
+       we.rep_min,we.rep_max,we.target_rir_min,we.target_rir_max,we.rest_seconds,we.planned_weight_kg,we.planned_weight_value,we.planned_weight_unit,we.warmup_sets,
        we.method_type,we.instructions,we.substitution_reason,we.substituted_at,we.version
 FROM workout_exercises we
 JOIN workout_plans p ON p.id=we.workout_plan_id
@@ -255,7 +255,7 @@ SQL);
         $query = $this->pdo()->prepare(<<<'SQL'
 SELECT se.id internal_session_exercise_id,se.original_exercise_id,se.actual_exercise_id,se.status,se.skip_reason,
        se.substitution_reason,se.substituted_at,se.exercise_rating,se.completed_at,se.version,we.sequence_no,we.planned_sets,
-       we.rep_min,we.rep_max,we.target_rir_min,we.target_rir_max,we.rest_seconds,we.planned_weight_kg,we.method_type,
+       we.rep_min,we.rep_max,we.target_rir_min,we.target_rir_max,we.rest_seconds,we.planned_weight_kg,we.planned_weight_value,we.planned_weight_unit,we.method_type,
        original.name original_name,actual.name actual_name,actual.exercise_type,actual.category,actual.muscle_groups
 FROM session_exercises se
 JOIN workout_sessions s ON s.id=se.workout_session_id
@@ -273,7 +273,7 @@ SQL);
     {
         $query = $this->pdo()->prepare(<<<'SQL'
 SELECT es.session_exercise_id internal_session_exercise_id,es.public_id,es.set_number,es.set_type,es.method_type,
-       es.performed_weight_kg,es.reps,es.rir,es.duration_seconds,es.distance_m,es.completed_at,es.version,es.edited_at
+       es.performed_weight_kg,es.weight_value,es.weight_unit,es.reps,es.rir,es.duration_seconds,es.distance_m,es.completed_at,es.version,es.edited_at
 FROM exercise_sets es
 JOIN workout_sessions s ON s.id=es.workout_session_id AND s.user_id=es.user_id
 WHERE es.user_id=? AND es.workout_session_id=? AND s.user_id=? AND es.deleted_at IS NULL
@@ -320,7 +320,7 @@ SQL;
             return [];
         }
         $placeholders = implode(',', array_fill(0, count($internalIds), '?'));
-        $query = $this->pdo()->prepare("SELECT es.session_exercise_id internal_session_exercise_id,es.public_id,es.set_number,es.set_type,es.method_type,es.performed_weight_kg,es.reps,es.rir,es.duration_seconds,es.distance_m,es.completed_at FROM exercise_sets es JOIN workout_sessions ws ON ws.id=es.workout_session_id AND ws.user_id=es.user_id WHERE es.user_id=? AND ws.user_id=? AND es.session_exercise_id IN ({$placeholders}) AND es.deleted_at IS NULL ORDER BY es.session_exercise_id,es.completed_at,es.set_number,es.sequence_no");
+        $query = $this->pdo()->prepare("SELECT es.session_exercise_id internal_session_exercise_id,es.public_id,es.set_number,es.set_type,es.method_type,es.performed_weight_kg,es.weight_value,es.weight_unit,es.reps,es.rir,es.duration_seconds,es.distance_m,es.completed_at FROM exercise_sets es JOIN workout_sessions ws ON ws.id=es.workout_session_id AND ws.user_id=es.user_id WHERE es.user_id=? AND ws.user_id=? AND es.session_exercise_id IN ({$placeholders}) AND es.deleted_at IS NULL ORDER BY es.session_exercise_id,es.completed_at,es.set_number,es.sequence_no");
         $query->execute([$userId, $userId, ...$internalIds]);
         return $query->fetchAll();
     }
@@ -342,7 +342,7 @@ SQL);
     {
         $query = $this->pdo()->prepare(<<<'SQL'
 SELECT ws.id internal_session_id,ws.public_id,se.id internal_session_exercise_id,se.actual_exercise_id,e.name exercise_name,e.category,e.muscle_groups,
-       es.set_type,es.performed_weight_kg,es.reps,es.rir,we.rep_min,we.rep_max,se.status,
+       es.set_type,es.performed_weight_kg,es.weight_value,es.weight_unit,es.reps,es.rir,we.rep_min,we.rep_max,se.status,
        CASE WHEN se.original_exercise_id<>se.actual_exercise_id THEN 1 ELSE 0 END substituted
 FROM workout_sessions ws
 JOIN session_exercises se ON se.workout_session_id=ws.id

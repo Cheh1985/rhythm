@@ -454,7 +454,7 @@ final class WebController
             $this->training->updateSet((int) $id, (int) $user['id'], [
                 'version' => (int) ($_POST['version'] ?? 0),
                 'session_version' => (int) ($_POST['session_version'] ?? 0),
-                'weight_kg' => (float) ($_POST['weight_kg'] ?? -1),
+                ...(array_key_exists('weight_value', $_POST) ? ['weight_value' => filter_var($_POST['weight_value'], FILTER_VALIDATE_FLOAT), 'weight_unit' => $_POST['weight_unit'] ?? null] : ['weight_kg' => (float) ($_POST['weight_kg'] ?? -1)]),
                 'reps' => (int) ($_POST['reps'] ?? 0),
                 'rir' => (float) ($_POST['rir'] ?? -1),
             ]);
@@ -474,9 +474,12 @@ final class WebController
             \redirect('/sessions/' . $sessionId);
         }
         try {
-            $accepted = trim((string) ($_POST['accepted_weight_kg'] ?? ''));
+            $accepted = trim((string) ($_POST['accepted_weight_value'] ?? $_POST['accepted_weight_kg'] ?? ''));
             $data = ['status' => $_POST['status'] ?? ''];
-            if ($accepted !== '') {
+            if (isset($_POST['accepted_weight_value']) && $accepted !== '') {
+                $data['accepted_weight_value'] = filter_var($accepted, FILTER_VALIDATE_FLOAT);
+                $data['weight_unit'] = $_POST['weight_unit'] ?? null;
+            } elseif ($accepted !== '') {
                 $data['accepted_weight_kg'] = (float) $accepted;
             }
             $this->training->resolveProgression((int) $id, (int) $user['id'], $data);
@@ -599,7 +602,7 @@ final class WebController
     {
         $user = Auth::requireUser();
         $backup = (new BackupService())->export((int) $user['id']);
-        $json=json_encode($backup,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
+        $json=json_encode($backup,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_PRESERVE_ZERO_FRACTION|JSON_THROW_ON_ERROR);
         if(($_GET['format']??'json')==='zip'&&class_exists(\ZipArchive::class)){
             $tmp=tempnam(sys_get_temp_dir(),'rhythm-backup-');$zip=new \ZipArchive();$zip->open($tmp,\ZipArchive::OVERWRITE);$zip->addFromString('training-diary-backup-'.gmdate('Y-m-d').'.json',$json);$zip->close();
             header('Content-Type: application/zip');header('Content-Disposition: attachment; filename="training-diary-backup-'.gmdate('Y-m-d').'.zip"');header('Cache-Control: no-store');readfile($tmp);unlink($tmp);exit;

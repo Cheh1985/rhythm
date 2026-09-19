@@ -17,7 +17,7 @@
     <?php else: ?>
         <div class="hero-meta"><span class="tag">СЛЕДУЮЩИЙ ШАГ</span></div>
         <h2>Добавьте первый план</h2>
-        <p>Импортируйте training-plan v1.0: сначала проверим файл и покажем безопасное превью.</p>
+        <p>Импортируйте training-plan v1.1 / v1.0: сначала проверим файл и покажем безопасное превью.</p>
         <a class="button button-light button-wide" href="<?= e(url('/plans/import')) ?>">Импортировать JSON <span>→</span></a>
     <?php endif; ?>
 </section>

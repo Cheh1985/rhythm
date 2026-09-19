@@ -72,6 +72,7 @@ if ($currentUser) {
 <div class="sw-update" id="sw-update" hidden><strong>Доступно обновление</strong><span>Локальные изменения уже сохранены.</span><button class="button button-primary" type="button">Обновить приложение</button></div>
 <script src="<?= e(url('/assets/i18n.js')) ?>" defer></script>
 <script src="<?= e(url('/assets/offline-queue.js')) ?>" defer></script>
+<script src="<?= e(url('/assets/weight.js')) ?>" defer></script>
 <script src="<?= e(url('/assets/workout.js')) ?>" defer></script>
 <script src="<?= e(url('/assets/swimming.js')) ?>" defer></script>
 <?php if ($webMcpAdapter ?? false): ?>

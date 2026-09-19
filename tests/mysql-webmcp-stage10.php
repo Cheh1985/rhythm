@@ -103,6 +103,23 @@ SQL);
     $check((int) $migration->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('assistant_tool_calls','assistant_write_receipts','program_schedule_slots')")->fetchColumn() === 3, '009-012 migrations create all WebMCP tables');
     $check((int) $migration->query("SELECT COUNT(*) FROM information_schema.table_constraints WHERE constraint_schema=DATABASE() AND constraint_name IN ('fk_programs_active_version','fk_program_slots_template_version','fk_workout_exercises_original')")->fetchColumn() === 3, '009-012 migrations create cross-entity constraints');
 
+    // Exercise 015 against legacy DECIMAL values, including NULL and the schema limit.
+    $migration->exec("ALTER TABLE workout_exercises ADD planned_weight_kg DECIMAL(7,2) NULL");
+    $migration->exec("CREATE TABLE exercise_sets (id BIGINT UNSIGNED PRIMARY KEY,performed_weight_kg DECIMAL(7,2) NULL) ENGINE=InnoDB");
+    $migration->exec("CREATE TABLE session_exercises (id BIGINT UNSIGNED PRIMARY KEY) ENGINE=InnoDB");
+    $migration->exec("CREATE TABLE progression_suggestions (id BIGINT UNSIGNED PRIMARY KEY,current_weight_kg DECIMAL(7,2) NULL,suggested_next_weight_kg DECIMAL(7,2) NULL,accepted_next_weight_kg DECIMAL(7,2) NULL) ENGINE=InnoDB");
+    $migration->exec("INSERT INTO exercises (exercise_id) VALUES ('legacy-units')");
+    $migration->exec("INSERT INTO exercise_sets VALUES (1,100.25),(2,NULL),(3,99999.99)");
+    $migration->exec("INSERT INTO workout_exercises (exercise_id,planned_weight_kg) VALUES ('legacy-units',50.25),('legacy-units',NULL)");
+    $migration->exec("INSERT INTO session_exercises VALUES (1)");
+    $execFile($migration, $root . '/database/migrations/015_weight_units.sql');
+    $check((int)$migration->query('SELECT COUNT(*) FROM exercise_sets')->fetchColumn() === 3, '015 preserves row counts');
+    $check((int)$migration->query("SELECT COUNT(*) FROM exercise_sets WHERE weight_value <=> performed_weight_kg AND weight_unit='kg'")->fetchColumn() === 3, '015 preserves original kg including NULL and range limit');
+    $check((int)$migration->query("SELECT COUNT(*) FROM workout_exercises WHERE planned_weight_value <=> planned_weight_kg AND planned_weight_unit='kg'")->fetchColumn() === 2, '015 preserves planned kg and NULL');
+    $check($migration->query('SELECT weight_unit FROM session_exercises WHERE id=1')->fetchColumn() === 'kg', '015 initializes active unit');
+    $migration->exec("UPDATE exercise_sets SET weight_value=100,weight_unit='lb',performed_weight_kg=45.359237 WHERE id=1");
+    $check($migration->query('SELECT performed_weight_kg FROM exercise_sets WHERE id=1')->fetchColumn() === '45.35923700', '015 stores eight kg decimal places');
+
     $insertUser = $fresh->prepare("INSERT INTO users (login,email,password_hash,role,timezone,theme,created_at,updated_at) VALUES (?,?,?,'user','Europe/Moscow','system',UTC_TIMESTAMP(),UTC_TIMESTAMP())");
     foreach ([1,2,3] as $number) $insertUser->execute(["stage10-{$number}", "stage10-{$number}@example.test", password_hash('stage10-password', PASSWORD_DEFAULT)]);
     $userIds = $fresh->query("SELECT id FROM users WHERE login LIKE 'stage10-%' ORDER BY id")->fetchAll(PDO::FETCH_COLUMN);
@@ -121,11 +138,11 @@ SQL);
     $v11 = $backupService->export($sourceUser);
     $backupService->validate(json_encode($v11, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
     $resultV11 = $backupService->restore($v11, $restoreV11User);
-    $check(($resultV11['idempotent'] ?? null) === false, 'backup v1.1 restores on MySQL');
+    $check(($resultV11['idempotent'] ?? null) === false, 'backup v1.2 restores on MySQL');
 
     $v10 = $v11;
     $v10['schema_version'] = '1.0';
-    unset($v10['data']['program_schedule_slots']);
+    unset($v10['data']['program_schedule_slots'], $v10['data']['exercise_weight_preferences']);
     $v10['backup_id'] = 'backup-' . bin2hex(random_bytes(16));
     $v10['checksum_sha256'] = hash('sha256', $canonical($v10['data']));
     $backupService->validate(json_encode($v10, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/app/Domain/Weight.php';
+
 require dirname(__DIR__) . '/app/Core/VersionConflictException.php';
 require dirname(__DIR__) . '/app/Repository/TrainingRepository.php';
 

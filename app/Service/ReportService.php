@@ -65,7 +65,7 @@ final class ReportService
         foreach ($session['exercises'] as $exercise) {
             $sets = array_map(fn (array $set): array => [
                 'set_id' => $set['public_id'], 'set_number' => (int) $set['set_number'], 'type' => $set['set_type'], 'method' => $set['method_type'],
-                'weight_kg' => $set['weight_kg'] !== null ? (float) $set['weight_kg'] : null,
+                ...\App\Domain\Weight::fields($set),
                 'reps' => $set['reps'] !== null ? (int) $set['reps'] : null, 'rir' => $set['rir'] !== null ? (float) $set['rir'] : null,
                 'performed_at_utc' => $this->utc($set['completed_at']), 'edited_at_utc' => $this->utc($set['edited_at'] ?? null),
             ], $exercise['sets']);
@@ -85,6 +85,8 @@ final class ReportService
                     'rep_range' => ['min' => (int) $exercise['rep_min'], 'max' => (int) $exercise['rep_max']],
                     'target_rir' => ['min' => $exercise['target_rir_min'] !== null ? (float) $exercise['target_rir_min'] : null, 'max' => $exercise['target_rir_max'] !== null ? (float) $exercise['target_rir_max'] : null],
                     'rest_seconds' => (int) $exercise['rest_seconds'], 'weight_kg' => $exercise['planned_weight_kg'] !== null ? (float) $exercise['planned_weight_kg'] : null,
+                    'weight_value' => isset($exercise['planned_weight_value']) ? (float) $exercise['planned_weight_value'] : ($exercise['planned_weight_kg'] !== null ? (float) $exercise['planned_weight_kg'] : null),
+                    'weight_unit' => $exercise['planned_weight_unit'] ?? 'kg',
                     'method' => $exercise['method_type'], 'instructions' => $exercise['instructions'],
                 ],
                 'fact' => [
@@ -117,7 +119,7 @@ final class ReportService
         ] : null;
 
         return [
-            'schema' => 'training-report', 'schema_version' => '1.0', 'generated_at_utc' => gmdate('Y-m-d\TH:i:s\Z'),
+            'schema' => 'training-report', 'schema_version' => '1.1', 'generated_at_utc' => gmdate('Y-m-d\TH:i:s\Z'),
             'plan' => ['plan_id' => $session['external_plan_id'], 'name' => $session['name'], 'date' => $session['scheduled_date'], 'type' => $session['workout_type'], 'goal' => $session['goal'], 'trainer_notes' => $session['trainer_notes']],
             'session' => [
                 'session_id' => $session['public_id'], 'status' => $session['status'], 'started_at_utc' => $this->utc($session['started_at']),
@@ -162,6 +164,7 @@ final class ReportService
             $planned = $exercise['planned']; $fact = $exercise['fact'];
             $lines[] = '## ' . $exercise['name']; $lines[] = '';
             $lines[] = '**План:** ' . $planned['sets'] . ' × ' . $planned['rep_range']['min'] . '–' . $planned['rep_range']['max'] . '; RIR ' . ($planned['target_rir']['min'] ?? '—') . '–' . ($planned['target_rir']['max'] ?? '—') . '; отдых ' . $planned['rest_seconds'] . ' сек.';
+            if (isset($planned['weight_value'])) $lines[] = '- ' . \App\Domain\Weight::text($planned);
             if ($fact['substitution']) $lines[] = '**Замена:** `' . $fact['substitution']['original_exercise_id'] . '` → `' . $fact['substitution']['actual_exercise_id'] . '`. Причина: ' . ($fact['substitution']['reason'] ?: 'не указана') . '.';
             if ($fact['skip']) {
                 $lines[] = '**Факт:** упражнение пропущено. Причина: `' . $fact['skip']['reason'] . '`.';
@@ -169,7 +172,7 @@ final class ReportService
                 $lines[] = '**Факт:**';
                 foreach ($fact['sets'] as $set) {
                     $label = $set['type'] === 'warmup' ? 'Разминка ' . $set['set_number'] : 'Рабочий ' . $set['set_number'];
-                    $lines[] = '- ' . $label . ': ' . $set['weight_kg'] . ' кг × ' . $set['reps'] . '; RIR ' . $set['rir'];
+                    $lines[] = '- ' . $label . ': ' . \App\Domain\Weight::text($set) . ' × ' . $set['reps'] . '; RIR ' . $set['rir'];
                 }
                 $lines[] = '- Объём упражнения: ' . $fact['tonnage_kg'] . ' кг; средний RIR: ' . ($fact['average_rir'] ?? 'нет данных') . '.';
                 if ($fact['best_e1rm']) $lines[] = '- Лучший e1RM по Epley: ' . $fact['best_e1rm']['e1rm_kg'] . ' кг (оценка, не фактический максимум).';
@@ -208,12 +211,13 @@ final class ReportService
         foreach ($report['exercises'] as $exercise) {
             $planned = $exercise['planned']; $fact = $exercise['fact'];
             array_push($lines, '## ' . $exercise['name'], '', '**Plan:** ' . $planned['sets'] . ' × ' . $planned['rep_range']['min'] . '–' . $planned['rep_range']['max'] . '; RIR ' . ($planned['target_rir']['min'] ?? '—') . '–' . ($planned['target_rir']['max'] ?? '—') . '; rest ' . $planned['rest_seconds'] . ' sec.');
+            if (isset($planned['weight_value'])) $lines[] = '- ' . \App\Domain\Weight::text($planned);
             if ($fact['substitution']) $lines[] = '**Substitution:** `' . $fact['substitution']['original_exercise_id'] . '` → `' . $fact['substitution']['actual_exercise_id'] . '`. Reason: ' . ($fact['substitution']['reason'] ?: $missing) . '.';
             if ($fact['skip']) {
                 $lines[] = '**Result:** exercise skipped. Reason: `' . $fact['skip']['reason'] . '`.';
             } else {
                 $lines[] = '**Result:**';
-                foreach ($fact['sets'] as $set) $lines[] = '- ' . ($set['type'] === 'warmup' ? 'Warm-up ' : 'Working ') . $set['set_number'] . ': ' . $set['weight_kg'] . ' kg × ' . $set['reps'] . '; RIR ' . $set['rir'];
+                foreach ($fact['sets'] as $set) $lines[] = '- ' . ($set['type'] === 'warmup' ? 'Warm-up ' : 'Working ') . $set['set_number'] . ': ' . \App\Domain\Weight::text($set) . ' × ' . $set['reps'] . '; RIR ' . $set['rir'];
                 $lines[] = '- Exercise volume: ' . $fact['tonnage_kg'] . ' kg; average RIR: ' . ($fact['average_rir'] ?? 'no data') . '.';
                 if ($fact['best_e1rm']) $lines[] = '- Best Epley e1RM: ' . $fact['best_e1rm']['e1rm_kg'] . ' kg (estimate, not an actual maximum).';
             }

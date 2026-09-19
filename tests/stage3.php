@@ -31,6 +31,7 @@ $pdo->sqliteCreateFunction('UTC_TIMESTAMP', static fn (): string => gmdate('Y-m-
 $pdo->exec(<<<'SQL'
 CREATE TABLE users (id INTEGER PRIMARY KEY, login TEXT NOT NULL, email TEXT NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL, timezone TEXT NOT NULL, theme TEXT NOT NULL, deleted_at TEXT NULL);
 CREATE TABLE login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, attempt_key TEXT NOT NULL, ip_address TEXT NOT NULL, successful INTEGER NOT NULL, attempted_at TEXT NOT NULL);
+CREATE TABLE exercise_weight_preferences (user_id INTEGER NOT NULL,exercise_id TEXT NOT NULL,weight_unit TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(user_id,exercise_id));
 CREATE TABLE exercises (
     exercise_id TEXT PRIMARY KEY, owner_user_id INTEGER NULL, name TEXT NOT NULL, progression_increment REAL NOT NULL DEFAULT 2.5,
     progression_mode TEXT NOT NULL DEFAULT 'absolute', status TEXT NOT NULL DEFAULT 'active', deleted_at TEXT NULL
@@ -45,7 +46,7 @@ CREATE TABLE workout_plans (
 CREATE TABLE workout_exercises (
     id INTEGER PRIMARY KEY AUTOINCREMENT, workout_plan_id INTEGER NOT NULL, exercise_id TEXT NOT NULL, sequence_no INTEGER NOT NULL,
     planned_sets INTEGER NOT NULL, rep_min INTEGER NOT NULL, rep_max INTEGER NOT NULL, target_rir_min REAL NULL, target_rir_max REAL NULL,
-    rest_seconds INTEGER NOT NULL, planned_weight_kg REAL NULL, warmup_sets INTEGER NOT NULL DEFAULT 0,
+    rest_seconds INTEGER NOT NULL, planned_weight_kg REAL NULL,planned_weight_value REAL NULL,planned_weight_unit TEXT NOT NULL DEFAULT 'kg', warmup_sets INTEGER NOT NULL DEFAULT 0,
     method_type TEXT NOT NULL DEFAULT 'normal', instructions TEXT NULL, UNIQUE(workout_plan_id, sequence_no)
 );
 CREATE TABLE workout_sessions (
@@ -60,14 +61,14 @@ CREATE TABLE readiness_logs (
 );
 CREATE TABLE session_exercises (
     id INTEGER PRIMARY KEY AUTOINCREMENT, workout_session_id INTEGER NOT NULL, workout_exercise_id INTEGER NOT NULL,
-    original_exercise_id TEXT NOT NULL, actual_exercise_id TEXT NOT NULL, status TEXT NOT NULL, skip_reason TEXT NULL,
+    original_exercise_id TEXT NOT NULL, actual_exercise_id TEXT NOT NULL,weight_unit TEXT NOT NULL DEFAULT 'kg', status TEXT NOT NULL, skip_reason TEXT NULL,
     substitution_reason TEXT NULL, substituted_at TEXT NULL, exercise_rating TEXT NULL, comment TEXT NULL, completed_at TEXT NULL,
     version INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );
 CREATE TABLE exercise_sets (
     id INTEGER PRIMARY KEY AUTOINCREMENT, public_id TEXT NOT NULL UNIQUE, user_id INTEGER NOT NULL, workout_session_id INTEGER NOT NULL,
     session_exercise_id INTEGER NOT NULL, set_number INTEGER NOT NULL, set_type TEXT NOT NULL, method_type TEXT NOT NULL,
-    sequence_no INTEGER NOT NULL, performed_weight_kg REAL NULL, reps INTEGER NULL, rir REAL NULL, completed_at TEXT NOT NULL,
+    sequence_no INTEGER NOT NULL, performed_weight_kg REAL NULL,weight_value REAL NULL,weight_unit TEXT NOT NULL DEFAULT 'kg', reps INTEGER NULL, rir REAL NULL, completed_at TEXT NOT NULL,
     client_action_id TEXT NULL, version INTEGER NOT NULL DEFAULT 1, edited_at TEXT NULL, deleted_at TEXT NULL,
     UNIQUE(session_exercise_id, set_number, set_type, sequence_no), UNIQUE(user_id, client_action_id)
 );

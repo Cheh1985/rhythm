@@ -70,6 +70,14 @@ final class ApiController
         catch (InvalidArgumentException $e) { \json_response(['error' => $e->getMessage()], 422); }
     }
 
+    public function changeWeightUnit(string $id): never
+    {
+        $user = Auth::requireUser(true);
+        try { \json_response(['data' => $this->training->changeWeightUnit((int) $id, (int) $user['id'], $this->input(true))]); }
+        catch (VersionConflictException $e) { \json_response(['error' => $e->getMessage(), 'conflict' => true], 409); }
+        catch (InvalidArgumentException $e) { \json_response(['error' => $e->getMessage()], 422); }
+    }
+
     public function replaceExercise(string $id): never
     {
         $user = Auth::requireUser(true);

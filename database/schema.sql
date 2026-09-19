@@ -176,7 +176,9 @@ CREATE TABLE workout_exercises (
     target_rir_min DECIMAL(3,1) NULL,
     target_rir_max DECIMAL(3,1) NULL,
     rest_seconds SMALLINT UNSIGNED NOT NULL DEFAULT 120,
-    planned_weight_kg DECIMAL(7,2) NULL,
+    planned_weight_kg DECIMAL(13,8) NULL,
+    planned_weight_value DECIMAL(7,2) NULL,
+    planned_weight_unit ENUM('kg','lb') NOT NULL DEFAULT 'kg',
     warmup_sets TINYINT(1) NOT NULL DEFAULT 0,
     method_type ENUM('normal','superset','dropset','rest_pause','cluster','amrap') NOT NULL DEFAULT 'normal',
     group_id VARCHAR(64) NULL,
@@ -240,6 +242,7 @@ CREATE TABLE session_exercises (
     workout_exercise_id BIGINT UNSIGNED NOT NULL,
     original_exercise_id VARCHAR(80) NOT NULL,
     actual_exercise_id VARCHAR(80) NOT NULL,
+    weight_unit ENUM('kg','lb') NOT NULL DEFAULT 'kg',
     status ENUM('pending','active','completed','skipped','waiting') NOT NULL DEFAULT 'pending',
     skip_reason ENUM('equipment_busy','time','fatigue','discomfort','other') NULL,
     substitution_reason TEXT NULL,
@@ -271,7 +274,9 @@ CREATE TABLE exercise_sets (
     method_type ENUM('normal','superset','dropset','rest_pause','cluster','amrap') NOT NULL DEFAULT 'normal',
     group_id VARCHAR(64) NULL,
     sequence_no SMALLINT UNSIGNED NOT NULL DEFAULT 1,
-    performed_weight_kg DECIMAL(7,2) NULL,
+    performed_weight_kg DECIMAL(13,8) NULL,
+    weight_value DECIMAL(7,2) NULL,
+    weight_unit ENUM('kg','lb') NOT NULL DEFAULT 'kg',
     reps SMALLINT UNSIGNED NULL,
     rir DECIMAL(3,1) NULL,
     duration_seconds SMALLINT UNSIGNED NULL,
@@ -323,9 +328,9 @@ CREATE TABLE progression_suggestions (
     user_id BIGINT UNSIGNED NOT NULL,
     workout_session_id BIGINT UNSIGNED NOT NULL,
     exercise_id VARCHAR(80) NOT NULL,
-    current_weight_kg DECIMAL(7,2) NULL,
-    suggested_next_weight_kg DECIMAL(7,2) NULL,
-    accepted_next_weight_kg DECIMAL(7,2) NULL,
+    current_weight_kg DECIMAL(13,8) NULL,
+    suggested_next_weight_kg DECIMAL(13,8) NULL,
+    accepted_next_weight_kg DECIMAL(13,8) NULL,
     reason TEXT NOT NULL,
     status ENUM('pending','accepted','rejected','exported') NOT NULL DEFAULT 'pending',
     created_at DATETIME NOT NULL,
@@ -500,4 +505,14 @@ CREATE TABLE backup_restores (
     CONSTRAINT fk_backup_restores_user FOREIGN KEY (user_id) REFERENCES users(id),
     UNIQUE KEY uq_backup_restore_checksum (user_id, checksum_sha256),
     INDEX idx_backup_restores_user_time (user_id, restored_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE exercise_weight_preferences (
+    user_id BIGINT UNSIGNED NOT NULL,
+    exercise_id VARCHAR(80) NOT NULL,
+    weight_unit ENUM('kg','lb') NOT NULL DEFAULT 'kg',
+    updated_at DATETIME NOT NULL,
+    PRIMARY KEY (user_id, exercise_id),
+    CONSTRAINT fk_weight_preferences_user FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_weight_preferences_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(exercise_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

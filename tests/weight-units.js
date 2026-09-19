@@ -1,0 +1,18 @@
+'use strict';
+const assert = require('node:assert/strict');
+const weight = require('../public/assets/weight.js');
+const queue = require('../public/assets/offline-queue.js');
+assert.equal(weight.step('lb'), 5);
+assert.equal(weight.step('kg'), 0.5);
+assert.equal(weight.fromKg(45.359237, 'lb'), 100);
+assert.deepEqual(weight.fields({weight_kg: 50}), {value: 50, unit: 'kg'});
+assert.deepEqual(weight.fields({weight_value: 100, weight_unit: 'lb', weight_kg: 45.359237}), {value: 100, unit: 'lb'});
+const unitAction = queue.createAction({id: 'unit:00000001',userId:1,sessionId:1,type:'exercise.weight-unit',path:'/api/sessions/1/weight-unit',method:'PATCH',body:{session_version:1,session_exercise_id:3,exercise_version:1,weight_unit:'lb'},createdAt:1});
+const setAction = queue.createAction({id:'set:00000002',userId:1,sessionId:1,type:'set.create',path:'/api/sessions/1/sets',method:'POST',body:{session_version:1,weight_value:100,weight_unit:'lb'},dependsOn:[unitAction.id],createdAt:2});
+assert.deepEqual(queue.orderActions([setAction,unitAction]).map(a=>a.id), [unitAction.id,setAction.id]);
+const rebased = queue.rebaseAction(setAction,{sessionVersion:8,exerciseVersions:{3:4},setVersions:{}});
+assert.equal(rebased.body.weight_value,100);
+assert.equal(rebased.body.weight_unit,'lb');
+assert.equal(rebased.body.session_version,8);
+assert.equal(setAction.body.session_version,1);
+console.log('Weight conversion and offline payload checks passed.');

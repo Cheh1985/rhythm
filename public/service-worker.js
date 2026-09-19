@@ -1,5 +1,5 @@
 'use strict';
-const SHELL_VERSION = 'rhythm-shell-v9.0';
+const SHELL_VERSION = 'rhythm-shell-v10.3';
 const USER_PAGES = 'rhythm-user-pages-v1';
 const LOCALE_META = 'rhythm-locale-meta-v1';
 const scope = self.registration.scope;
@@ -15,6 +15,7 @@ const APP_SHELL = [
     asset('./assets/offline-queue.js'),
     asset('./assets/i18n.js'),
     asset('./assets/pwa.js'),
+    asset('./assets/weight.js'),
     asset('./assets/workout.js'),
     asset('./assets/swimming.js'),
     asset('./icons/icon.svg'),

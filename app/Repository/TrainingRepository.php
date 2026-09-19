@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
+use App\Domain\Weight;
+
 use App\Domain\Analytics;
 use App\Core\RequestContext;
 use App\Core\Locale;
@@ -302,6 +304,11 @@ SQL . ($forUpdate ? $this->lock() : ''));
                 $snapshot = "INSERT INTO session_exercises (workout_session_id,workout_exercise_id,original_exercise_id,actual_exercise_id,status,version,created_at,updated_at) SELECT ?,id,exercise_id,exercise_id,'pending',1,UTC_TIMESTAMP(),UTC_TIMESTAMP() FROM workout_exercises WHERE workout_plan_id=? ORDER BY sequence_no";
             }
             $pdo->prepare($snapshot)->execute([$sessionId, $planId]);
+            $units = $pdo->prepare('SELECT se.id,se.actual_exercise_id,we.planned_weight_unit FROM session_exercises se JOIN workout_exercises we ON we.id=se.workout_exercise_id WHERE se.workout_session_id=?');
+            $units->execute([$sessionId]);
+            foreach ($units->fetchAll() as $item) {
+                $pdo->prepare('UPDATE session_exercises SET weight_unit=? WHERE id=?')->execute([$this->preferredWeightUnit($userId, $item['actual_exercise_id'], $item['planned_weight_unit']), $item['id']]);
+            }
             $ready = $pdo->prepare('INSERT INTO readiness_logs (user_id,workout_session_id,body_weight_kg,sleep_score,energy_score,readiness_score,comment,logged_at) VALUES (?,?,?,?,?,?,?,UTC_TIMESTAMP())');
             $ready->execute([$userId, $sessionId, $bodyWeight, $sleep, $energy, $readyScore, $comment]);
             $pdo->prepare("UPDATE workout_plans SET status='in_progress',version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?")->execute([$planId, $userId]);
@@ -320,16 +327,16 @@ SQL . ($forUpdate ? $this->lock() : ''));
         if (!$session) {
             return null;
         }
-        $exerciseQuery = $pdo->prepare('SELECT se.*, we.sequence_no,we.planned_sets,we.rep_min,we.rep_max,we.target_rir_min,we.target_rir_max,we.rest_seconds,we.planned_weight_kg,we.warmup_sets,we.instructions,we.method_type,e.name exercise_name,original.name original_exercise_name,e.progression_increment,e.progression_mode FROM session_exercises se JOIN workout_exercises we ON we.id=se.workout_exercise_id JOIN exercises e ON e.exercise_id=se.actual_exercise_id JOIN exercises original ON original.exercise_id=se.original_exercise_id WHERE se.workout_session_id=? ORDER BY we.sequence_no');
+        $exerciseQuery = $pdo->prepare('SELECT se.*, we.sequence_no,we.planned_sets,we.rep_min,we.rep_max,we.target_rir_min,we.target_rir_max,we.rest_seconds,we.planned_weight_kg,we.planned_weight_value,we.planned_weight_unit,we.warmup_sets,we.instructions,we.method_type,e.name exercise_name,original.name original_exercise_name,e.progression_increment,e.progression_mode FROM session_exercises se JOIN workout_exercises we ON we.id=se.workout_exercise_id JOIN exercises e ON e.exercise_id=se.actual_exercise_id JOIN exercises original ON original.exercise_id=se.original_exercise_id WHERE se.workout_session_id=? ORDER BY we.sequence_no');
         $exerciseQuery->execute([$sessionId]);
         $session['exercises'] = $exerciseQuery->fetchAll();
-        $sets = $pdo->prepare('SELECT id,public_id,session_exercise_id,set_number,set_type,method_type,performed_weight_kg weight_kg,reps,rir,completed_at,version,edited_at FROM exercise_sets WHERE workout_session_id=? AND user_id=? AND deleted_at IS NULL ORDER BY session_exercise_id,completed_at,set_number,sequence_no');
+        $sets = $pdo->prepare('SELECT id,public_id,session_exercise_id,set_number,set_type,method_type,performed_weight_kg weight_kg,weight_value,weight_unit,reps,rir,completed_at,version,edited_at FROM exercise_sets WHERE workout_session_id=? AND user_id=? AND deleted_at IS NULL ORDER BY session_exercise_id,completed_at,set_number,sequence_no');
         $sets->execute([$sessionId, $userId]);
         $byExercise = [];
         foreach ($sets->fetchAll() as $set) {
             $byExercise[$set['session_exercise_id']][] = $set;
         }
-        $historyQuery = $pdo->prepare("SELECT es.performed_weight_kg weight_kg,es.reps,es.rir,se.actual_exercise_id FROM exercise_sets es JOIN session_exercises se ON se.id=es.session_exercise_id JOIN workout_sessions ws ON ws.id=es.workout_session_id WHERE ws.user_id=? AND ws.id<>? AND ws.status='completed' AND es.set_type='working' AND es.deleted_at IS NULL ORDER BY ws.finished_at DESC,es.set_number LIMIT 100");
+        $historyQuery = $pdo->prepare("SELECT es.performed_weight_kg weight_kg,es.weight_value,es.weight_unit,es.reps,es.rir,se.actual_exercise_id FROM exercise_sets es JOIN session_exercises se ON se.id=es.session_exercise_id JOIN workout_sessions ws ON ws.id=es.workout_session_id WHERE ws.user_id=? AND ws.id<>? AND ws.status='completed' AND es.set_type='working' AND es.deleted_at IS NULL ORDER BY ws.finished_at DESC,es.set_number LIMIT 100");
         $historyQuery->execute([$userId, $sessionId]);
         $history = [];
         foreach ($historyQuery->fetchAll() as $set) {
@@ -346,6 +353,8 @@ SQL . ($forUpdate ? $this->lock() : ''));
         $available = $pdo->prepare("SELECT exercise_id,name FROM exercises WHERE status='active' AND deleted_at IS NULL AND (owner_user_id IS NULL OR owner_user_id=?) ORDER BY name");
         $available->execute([$userId]);
         $session['available_exercises'] = $available->fetchAll();
+        foreach ($session['available_exercises'] as &$item) $item['weight_unit'] = $this->preferredWeightUnit($userId, $item['exercise_id']);
+        unset($item);
         $session['summary'] = $this->summarize($session);
         return $session;
     }
@@ -365,7 +374,7 @@ SQL . ($forUpdate ? $this->lock() : ''));
             }
             $clientId = $data['client_action_id'] ?? null;
             if ($clientId) {
-                $duplicate = $pdo->prepare('SELECT id,public_id,version,performed_weight_kg weight_kg,reps,rir,set_type,set_number FROM exercise_sets WHERE user_id=? AND workout_session_id=? AND client_action_id=? AND deleted_at IS NULL');
+                $duplicate = $pdo->prepare('SELECT id,public_id,version,performed_weight_kg weight_kg,weight_value,weight_unit,reps,rir,set_type,set_number FROM exercise_sets WHERE user_id=? AND workout_session_id=? AND client_action_id=? AND deleted_at IS NULL');
                 $duplicate->execute([$userId, $sessionId, $clientId]);
                 if ($row = $duplicate->fetch()) {
                     $row['session_version'] = (int) $sessionRow['version'];
@@ -386,7 +395,8 @@ SQL . ($forUpdate ? $this->lock() : ''));
             if (!$exerciseRow) {
                 throw new InvalidArgumentException('Упражнение не принадлежит этой тренировке.');
             }
-            $weight = $data['weight_kg'] ?? null;
+            $weightFields = Weight::input($data);
+            $weight = $weightFields['weight_kg'];
             $reps = $data['reps'] ?? null;
             $rir = $data['rir'] ?? null;
             if ((!is_int($weight) && !is_float($weight)) || $weight < 0 || $weight > 2000 || !is_int($reps) || $reps < 1 || $reps > 1000 || (!is_int($rir) && !is_float($rir)) || $rir < 0 || $rir > 10) {
@@ -398,14 +408,14 @@ SQL . ($forUpdate ? $this->lock() : ''));
                 throw new InvalidArgumentException('Проверьте тип и номер подхода.');
             }
             $publicId = 'set-' . bin2hex(random_bytes(8));
-            $insert = $pdo->prepare("INSERT INTO exercise_sets (public_id,user_id,workout_session_id,session_exercise_id,set_number,set_type,method_type,sequence_no,performed_weight_kg,reps,rir,completed_at,client_action_id,version) VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(),?,1)");
-            $insert->execute([$publicId, $userId, $sessionId, $exerciseId, $setNumber, $setType, $exerciseRow['method_type'], 1, $weight, $reps, $rir, $clientId]);
+            $insert = $pdo->prepare("INSERT INTO exercise_sets (public_id,user_id,workout_session_id,session_exercise_id,set_number,set_type,method_type,sequence_no,performed_weight_kg,weight_value,weight_unit,reps,rir,completed_at,client_action_id,version) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(),?,1)");
+            $insert->execute([$publicId, $userId, $sessionId, $exerciseId, $setNumber, $setType, $exerciseRow['method_type'], 1, $weight, $weightFields['weight_value'], $weightFields['weight_unit'], $reps, $rir, $clientId]);
             $setId = (int) $pdo->lastInsertId();
             $pdo->prepare("UPDATE session_exercises SET status='active',version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND status IN ('pending','waiting')")->execute([$exerciseId]);
             $pdo->prepare('UPDATE workout_sessions SET version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?')->execute([$sessionId, $userId]);
-            $this->audit($pdo, $userId, 'exercise_set', (string) $setId, 'create', null, ['weight_kg' => $weight, 'reps' => $reps, 'rir' => $rir]);
+            $this->audit($pdo, $userId, 'exercise_set', (string) $setId, 'create', null, [...$weightFields, 'reps' => $reps, 'rir' => $rir]);
             $exerciseVersion = (int) $exerciseRow['version'] + (in_array($exerciseRow['status'], ['pending', 'waiting'], true) ? 1 : 0);
-            $result = ['id' => $setId, 'public_id' => $publicId, 'version' => 1, 'weight_kg' => $weight, 'reps' => $reps, 'rir' => $rir, 'set_type' => $setType, 'set_number' => $setNumber, 'session_version' => (int) $sessionRow['version'] + 1, 'exercise_version' => $exerciseVersion];
+            $result = ['id' => $setId, 'public_id' => $publicId, 'version' => 1, ...$weightFields, 'reps' => $reps, 'rir' => $rir, 'set_type' => $setType, 'set_number' => $setNumber, 'session_version' => (int) $sessionRow['version'] + 1, 'exercise_version' => $exerciseVersion];
             $this->completeAction($pdo, $userId, $data, 'set.create', $result);
             return $result;
         });
@@ -413,8 +423,7 @@ SQL . ($forUpdate ? $this->lock() : ''));
 
     public function updateSet(int $setId, int $userId, array $data): array
     {
-        $completedSessionId = null;
-        $result = $this->transaction(function (PDO $pdo) use ($setId, $userId, $data, &$completedSessionId): array {
+        $result = $this->transaction(function (PDO $pdo) use ($setId, $userId, $data): array {
             $receipt = $this->beginAction($pdo, $userId, $data, 'set.update');
             if ($receipt !== null) {
                 return $receipt;
@@ -437,26 +446,24 @@ SQL . ($forUpdate ? $this->lock() : ''));
             if ((isset($data['weight_kg']) && !is_int($data['weight_kg']) && !is_float($data['weight_kg'])) || (isset($data['reps']) && !is_int($data['reps'])) || (isset($data['rir']) && !is_int($data['rir']) && !is_float($data['rir']))) {
                 throw new InvalidArgumentException('Вес, повторы и RIR должны быть числами.');
             }
-            $weight = isset($data['weight_kg']) ? (float) $data['weight_kg'] : (float) $before['performed_weight_kg'];
+            $weightFields = Weight::input($data, $before);
+            $weight = $weightFields['weight_kg'];
             $reps = isset($data['reps']) ? $data['reps'] : (int) $before['reps'];
             $rir = isset($data['rir']) ? (float) $data['rir'] : (float) $before['rir'];
             if ($weight < 0 || $weight > 2000 || $reps < 1 || $reps > 1000 || $rir < 0 || $rir > 10) {
                 throw new InvalidArgumentException('Проверьте данные подхода.');
             }
-            $pdo->prepare('UPDATE exercise_sets SET performed_weight_kg=?,reps=?,rir=?,version=version+1,edited_at=UTC_TIMESTAMP() WHERE id=?')->execute([$weight, $reps, $rir, $setId]);
+            $pdo->prepare('UPDATE exercise_sets SET performed_weight_kg=?,weight_value=?,weight_unit=?,reps=?,rir=?,version=version+1,edited_at=UTC_TIMESTAMP() WHERE id=?')->execute([$weight, $weightFields['weight_value'], $weightFields['weight_unit'], $reps, $rir, $setId]);
             $pdo->prepare("UPDATE workout_sessions SET version=version+1,updated_at=UTC_TIMESTAMP(),edited_after_completion=CASE WHEN status='completed' THEN 1 ELSE edited_after_completion END,edited_at=CASE WHEN status='completed' THEN UTC_TIMESTAMP() ELSE edited_at END WHERE id=? AND user_id=?")->execute([$before['workout_session_id'], $userId]);
-            $after = ['weight_kg' => $weight, 'reps' => $reps, 'rir' => $rir];
+            $after = [...$weightFields, 'reps' => $reps, 'rir' => $rir];
             $this->audit($pdo, $userId, 'exercise_set', (string) $setId, $session['status'] === 'completed' ? 'update_after_completion' : 'update', $before, $after);
             if ($session['status'] === 'completed') {
-                $completedSessionId = (int) $before['workout_session_id'];
+                $this->rebuildHistory($userId, (int)$before['workout_session_id']);
             }
-            $result = ['id' => $setId, 'version' => (int) $before['version'] + 1, 'weight_kg' => $weight, 'reps' => $reps, 'rir' => $rir, 'session_version' => (int) $session['version'] + 1];
+            $result = ['id' => $setId, 'version' => (int) $before['version'] + 1, ...$weightFields, 'reps' => $reps, 'rir' => $rir, 'session_version' => (int) $session['version'] + 1];
             $this->completeAction($pdo, $userId, $data, 'set.update', $result);
             return $result;
         });
-        if ($completedSessionId !== null) {
-            $this->rebuildDerivedData($completedSessionId, $userId);
-        }
         return $result;
     }
 
@@ -544,13 +551,49 @@ SQL . ($forUpdate ? $this->lock() : ''));
             if (!$available->fetchColumn()) {
                 throw new InvalidArgumentException('Упражнение для замены недоступно.');
             }
-            $pdo->prepare("UPDATE session_exercises SET actual_exercise_id=?,substitution_reason=?,substituted_at=UTC_TIMESTAMP(),status=CASE WHEN status='pending' THEN 'active' ELSE status END,version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=?")->execute([$actualId, $reason, $exercise['id']]);
+            $pdo->prepare("UPDATE session_exercises SET actual_exercise_id=?,weight_unit=?,substitution_reason=?,substituted_at=UTC_TIMESTAMP(),status=CASE WHEN status='pending' THEN 'active' ELSE status END,version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=?")->execute([$actualId, $this->preferredWeightUnit($userId, $actualId), $reason, $exercise['id']]);
             $pdo->prepare('UPDATE workout_sessions SET version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?')->execute([$sessionId, $userId]);
             $this->audit($pdo, $userId, 'session_exercise', (string) $exercise['id'], 'replace', $exercise, ['original_exercise_id' => $exercise['original_exercise_id'], 'actual_exercise_id' => $actualId, 'reason' => $reason], $auditSource, $auditSource === null ? null : RequestContext::requestId());
-            $result = ['session_version' => (int) $session['version'] + 1, 'exercise_version' => (int) $exercise['version'] + 1, 'actual_exercise_id' => $actualId];
+            $result = ['session_version' => (int) $session['version'] + 1, 'exercise_version' => (int) $exercise['version'] + 1, 'actual_exercise_id' => $actualId, 'weight_unit' => $this->preferredWeightUnit($userId, $actualId)];
             $this->completeAction($pdo, $userId, $data, 'exercise.replace', $result);
             return $result;
         });
+    }
+
+    public function preferredWeightUnit(int $userId, string $exerciseId, string $fallback = 'kg'): string
+    {
+        $query = $this->pdo()->prepare('SELECT weight_unit FROM exercise_weight_preferences WHERE user_id=? AND exercise_id=?');
+        $query->execute([$userId, $exerciseId]);
+        return $query->fetchColumn() ?: $fallback;
+    }
+
+    public function changeWeightUnit(int $sessionId, int $userId, array $data): array
+    {
+        return $this->transaction(function (PDO $pdo) use ($sessionId, $userId, $data): array {
+            if (($receipt = $this->beginAction($pdo, $userId, $data, 'exercise.weight-unit')) !== null) return $receipt;
+            [$session, $exercise] = $this->lockedExercise($pdo, $sessionId, $userId, $data);
+            $unit = Weight::unit($data['weight_unit'] ?? null);
+            if (($data['actual_exercise_id'] ?? null) !== $exercise['actual_exercise_id']) {
+                throw new VersionConflictException('Упражнение заменено. Обновите тренировку.');
+            }
+            $sql = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite'
+                ? 'INSERT INTO exercise_weight_preferences (user_id,exercise_id,weight_unit,updated_at) VALUES (?,?,?,UTC_TIMESTAMP()) ON CONFLICT(user_id,exercise_id) DO UPDATE SET weight_unit=excluded.weight_unit,updated_at=excluded.updated_at'
+                : 'INSERT INTO exercise_weight_preferences (user_id,exercise_id,weight_unit,updated_at) VALUES (?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE weight_unit=VALUES(weight_unit),updated_at=VALUES(updated_at)';
+            $pdo->prepare($sql)->execute([$userId, $exercise['actual_exercise_id'], $unit]);
+            $pdo->prepare('UPDATE session_exercises SET weight_unit=?,version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=?')->execute([$unit, $exercise['id']]);
+            $pdo->prepare('UPDATE workout_sessions SET version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?')->execute([$sessionId, $userId]);
+            $this->audit($pdo, $userId, 'session_exercise', (string) $exercise['id'], 'weight_unit', ['weight_unit' => $exercise['weight_unit']], ['weight_unit' => $unit]);
+            $result = ['weight_unit' => $unit, 'session_version' => (int) $session['version'] + 1, 'exercise_version' => (int) $exercise['version'] + 1];
+            $this->completeAction($pdo, $userId, $data, 'exercise.weight-unit', $result);
+            return $result;
+        });
+    }
+
+    private function rebuildHistory(int $userId, int $fromSessionId): void
+    {
+        $query = $this->pdo()->prepare("SELECT id FROM workout_sessions WHERE user_id=? AND status='completed' AND deleted_at IS NULL AND (finished_at>(SELECT finished_at FROM workout_sessions WHERE id=?) OR (finished_at=(SELECT finished_at FROM workout_sessions WHERE id=?) AND id>=?)) ORDER BY finished_at,id");
+        $query->execute([$userId, $fromSessionId, $fromSessionId, $fromSessionId]);
+        foreach ($query->fetchAll(PDO::FETCH_COLUMN) as $id) $this->rebuildDerivedData((int) $id, $userId);
     }
 
     public function logDiscomfort(int $sessionId, int $userId, array $data): array
@@ -657,10 +700,16 @@ SQL . ($forUpdate ? $this->lock() : ''));
             $accepted = null;
             if ($status === 'accepted') {
                 $accepted = $data['accepted_weight_kg'] ?? (float) $before['suggested_next_weight_kg'];
+                if (array_key_exists('accepted_weight_value', $data)) {
+                    $parsed = Weight::input(['weight_value' => $data['accepted_weight_value'], 'weight_unit' => $data['weight_unit'] ?? null]);
+                    // Accepting the displayed suggestion preserves its full kg precision.
+                    $suggested = (float) $before['suggested_next_weight_kg'];
+                    $accepted = $parsed['weight_value'] === Weight::fromKg($suggested, $parsed['weight_unit']) ? $suggested : $parsed['weight_kg'];
+                }
                 if ((!is_int($accepted) && !is_float($accepted)) || $accepted <= 0 || $accepted > 2000) {
                     throw new InvalidArgumentException('Принятый вес должен быть числом от 0 до 2000 кг.');
                 }
-                $accepted = round((float) $accepted, 2);
+                $accepted = round((float) $accepted, 8);
             }
             $pdo->prepare('UPDATE progression_suggestions SET accepted_next_weight_kg=?,status=?,resolved_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?')->execute([$accepted, $status, $suggestionId, $userId]);
             $after = ['accepted_next_weight_kg' => $accepted, 'status' => $status];
@@ -696,7 +745,7 @@ SQL . ($forUpdate ? $this->lock() : ''));
                     continue;
                 }
 
-                $priorBest = $pdo->prepare("SELECT MAX(es.performed_weight_kg) max_weight,MAX(es.performed_weight_kg*(1+es.reps/30.0)) best_e1rm FROM exercise_sets es JOIN session_exercises se ON se.id=es.session_exercise_id JOIN workout_sessions ws ON ws.id=es.workout_session_id WHERE es.user_id=? AND ws.user_id=? AND se.actual_exercise_id=? AND ws.status='completed' AND ws.id<>? AND ws.deleted_at IS NULL AND es.set_type='working' AND es.deleted_at IS NULL");
+                $priorBest = $pdo->prepare("SELECT MAX(es.performed_weight_kg) max_weight,MAX(es.performed_weight_kg*(1+es.reps/30.0)) best_e1rm FROM exercise_sets es JOIN session_exercises se ON se.id=es.session_exercise_id JOIN workout_sessions ws ON ws.id=es.workout_session_id WHERE es.user_id=? AND ws.user_id=? AND se.actual_exercise_id=? AND ws.status='completed' AND ws.id<>? AND (ws.finished_at<(SELECT finished_at FROM workout_sessions WHERE id={$sessionId}) OR (ws.finished_at=(SELECT finished_at FROM workout_sessions WHERE id={$sessionId}) AND ws.id<{$sessionId})) AND ws.deleted_at IS NULL AND es.set_type='working' AND es.deleted_at IS NULL");
                 $priorBest->execute([$userId, $userId, $exercise['actual_exercise_id'], $sessionId]);
                 $previous = $priorBest->fetch() ?: ['max_weight' => null, 'best_e1rm' => null];
                 $maxWeight = max(array_map(static fn (array $set): float => (float) $set['weight_kg'], $working));
@@ -713,10 +762,10 @@ SQL . ($forUpdate ? $this->lock() : ''));
                 }
 
                 $tonnage = TrainingMetrics::tonnage($working);
-                $priorTonnage = $pdo->prepare("SELECT MAX(t.total) FROM (SELECT SUM(es.performed_weight_kg*es.reps) total FROM exercise_sets es JOIN session_exercises se ON se.id=es.session_exercise_id JOIN workout_sessions ws ON ws.id=es.workout_session_id WHERE es.user_id=? AND ws.user_id=? AND se.actual_exercise_id=? AND ws.status='completed' AND ws.id<>? AND ws.deleted_at IS NULL AND es.set_type='working' AND es.deleted_at IS NULL GROUP BY es.workout_session_id) t");
+                $priorTonnage = $pdo->prepare("SELECT MAX(t.total) FROM (SELECT SUM(es.performed_weight_kg*es.reps) total FROM exercise_sets es JOIN session_exercises se ON se.id=es.session_exercise_id JOIN workout_sessions ws ON ws.id=es.workout_session_id WHERE es.user_id=? AND ws.user_id=? AND se.actual_exercise_id=? AND ws.status='completed' AND ws.id<>? AND (ws.finished_at<(SELECT finished_at FROM workout_sessions WHERE id={$sessionId}) OR (ws.finished_at=(SELECT finished_at FROM workout_sessions WHERE id={$sessionId}) AND ws.id<{$sessionId})) AND ws.deleted_at IS NULL AND es.set_type='working' AND es.deleted_at IS NULL GROUP BY es.workout_session_id) t");
                 $priorTonnage->execute([$userId, $userId, $exercise['actual_exercise_id'], $sessionId]);
                 $previousTonnage = $priorTonnage->fetchColumn();
-                if ($previousTonnage === false || $previousTonnage === null || $tonnage > (float) $previousTonnage) {
+                if ($previousTonnage === false || $previousTonnage === null || $tonnage > round((float) $previousTonnage, 2)) {
                     $this->insertRecord($pdo, $userId, $sessionId, $exercise['actual_exercise_id'], 'exercise_tonnage', $tonnage, ['previous_kg' => $previousTonnage !== false && $previousTonnage !== null ? (float) $previousTonnage : null]);
                 }
 
@@ -726,8 +775,8 @@ SQL . ($forUpdate ? $this->lock() : ''));
                     $repsByWeight[$key] = max($repsByWeight[$key] ?? 0, (int) $set['reps']);
                 }
                 $weights = array_map('floatval', array_keys($repsByWeight));
-                $placeholders = implode(',', array_fill(0, count($weights), '?'));
-                $priorReps = $pdo->prepare("SELECT es.performed_weight_kg weight_kg,MAX(es.reps) max_reps FROM exercise_sets es JOIN session_exercises se ON se.id=es.session_exercise_id JOIN workout_sessions ws ON ws.id=es.workout_session_id WHERE es.user_id=? AND ws.user_id=? AND se.actual_exercise_id=? AND ws.status='completed' AND ws.id<>? AND ws.deleted_at IS NULL AND es.set_type='working' AND es.deleted_at IS NULL AND es.performed_weight_kg IN ({$placeholders}) GROUP BY es.performed_weight_kg");
+                $placeholders = implode(',', array_fill(0, count($weights), 'CAST(? AS DECIMAL(13,8))'));
+                $priorReps = $pdo->prepare("SELECT ROUND(es.performed_weight_kg,2) weight_kg,MAX(es.reps) max_reps FROM exercise_sets es JOIN session_exercises se ON se.id=es.session_exercise_id JOIN workout_sessions ws ON ws.id=es.workout_session_id WHERE es.user_id=? AND ws.user_id=? AND se.actual_exercise_id=? AND ws.status='completed' AND ws.id<>? AND (ws.finished_at<(SELECT finished_at FROM workout_sessions WHERE id={$sessionId}) OR (ws.finished_at=(SELECT finished_at FROM workout_sessions WHERE id={$sessionId}) AND ws.id<{$sessionId})) AND ws.deleted_at IS NULL AND es.set_type='working' AND es.deleted_at IS NULL AND ROUND(es.performed_weight_kg,2) IN ({$placeholders}) GROUP BY ROUND(es.performed_weight_kg,2)");
                 $priorReps->execute([$userId, $userId, $exercise['actual_exercise_id'], $sessionId, ...$weights]);
                 $improvements = [];
                 foreach ($priorReps->fetchAll() as $row) {
@@ -749,10 +798,10 @@ SQL . ($forUpdate ? $this->lock() : ''));
 
             $sessionTonnage = (float) $session['summary']['tonnage_kg'];
             if ($sessionTonnage > 0) {
-                $priorSession = $pdo->prepare("SELECT MAX(t.total) FROM (SELECT SUM(es.performed_weight_kg*es.reps) total FROM exercise_sets es JOIN workout_sessions ws ON ws.id=es.workout_session_id WHERE es.user_id=? AND ws.user_id=? AND ws.status='completed' AND ws.id<>? AND ws.deleted_at IS NULL AND es.set_type='working' AND es.deleted_at IS NULL GROUP BY es.workout_session_id) t");
+                $priorSession = $pdo->prepare("SELECT MAX(t.total) FROM (SELECT SUM(es.performed_weight_kg*es.reps) total FROM exercise_sets es JOIN workout_sessions ws ON ws.id=es.workout_session_id WHERE es.user_id=? AND ws.user_id=? AND ws.status='completed' AND ws.id<>? AND (ws.finished_at<(SELECT finished_at FROM workout_sessions WHERE id={$sessionId}) OR (ws.finished_at=(SELECT finished_at FROM workout_sessions WHERE id={$sessionId}) AND ws.id<{$sessionId})) AND ws.deleted_at IS NULL AND es.set_type='working' AND es.deleted_at IS NULL GROUP BY es.workout_session_id) t");
                 $priorSession->execute([$userId, $userId, $sessionId]);
                 $previousSessionTonnage = $priorSession->fetchColumn();
-                if ($previousSessionTonnage === false || $previousSessionTonnage === null || $sessionTonnage > (float) $previousSessionTonnage) {
+                if ($previousSessionTonnage === false || $previousSessionTonnage === null || $sessionTonnage > round((float) $previousSessionTonnage, 2)) {
                     $this->insertRecord($pdo, $userId, $sessionId, null, 'session_tonnage', $sessionTonnage, ['previous_kg' => $previousSessionTonnage !== false && $previousSessionTonnage !== null ? (float) $previousSessionTonnage : null]);
                 }
             }
@@ -833,7 +882,7 @@ SQL . ($forUpdate ? $this->lock() : ''));
         if ($sessions !== []) {
             $ids = array_map(static fn (array $row): int => (int) $row['session_exercise_id'], $sessions);
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
-            $setsQuery = $pdo->prepare("SELECT session_exercise_id,performed_weight_kg weight_kg,reps,rir,set_number,completed_at FROM exercise_sets WHERE user_id=? AND set_type='working' AND deleted_at IS NULL AND session_exercise_id IN ({$placeholders}) ORDER BY completed_at,set_number,sequence_no");
+            $setsQuery = $pdo->prepare("SELECT session_exercise_id,performed_weight_kg weight_kg,weight_value,weight_unit,reps,rir,set_number,completed_at FROM exercise_sets WHERE user_id=? AND set_type='working' AND deleted_at IS NULL AND session_exercise_id IN ({$placeholders}) ORDER BY completed_at,set_number,sequence_no");
             $setsQuery->execute([$userId, ...$ids]);
             $setsByExercise = [];
             foreach ($setsQuery->fetchAll() as $set) $setsByExercise[(int) $set['session_exercise_id']][] = $set;
@@ -1300,8 +1349,8 @@ SQL);
 
     private function insertRecord(PDO $pdo, int $userId, int $sessionId, ?string $exerciseId, string $type, float|int $value, array $metadata): void
     {
-        $query = $pdo->prepare('INSERT INTO personal_records (user_id,workout_session_id,exercise_id,record_type,value_decimal,metadata_json,achieved_at) VALUES (?,?,?,?,?,?,UTC_TIMESTAMP())');
-        $query->execute([$userId, $sessionId, $exerciseId, $type, round((float) $value, 2), json_encode($metadata, JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR)]);
+        $query = $pdo->prepare('INSERT INTO personal_records (user_id,workout_session_id,exercise_id,record_type,value_decimal,metadata_json,achieved_at) VALUES (?,?,?,?,?,?,COALESCE((SELECT finished_at FROM workout_sessions WHERE id=? AND user_id=?),UTC_TIMESTAMP()))');
+        $query->execute([$userId, $sessionId, $exerciseId, $type, round((float) $value, 2), json_encode($metadata, JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR), $sessionId, $userId]);
     }
 
     private function userTimezone(PDO $pdo, int $userId): string

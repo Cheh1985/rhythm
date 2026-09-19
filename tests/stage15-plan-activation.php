@@ -31,6 +31,7 @@ $pdo = new PDO('sqlite::memory:', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE
 $pdo->exec('PRAGMA foreign_keys=ON');
 $pdo->exec(<<<'SQL'
 CREATE TABLE users(id INTEGER PRIMARY KEY,login TEXT);
+CREATE TABLE exercise_weight_preferences (user_id INTEGER NOT NULL,exercise_id TEXT NOT NULL,weight_unit TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(user_id,exercise_id));
 CREATE TABLE exercises(exercise_id TEXT PRIMARY KEY,owner_user_id INTEGER NULL,name TEXT,status TEXT,deleted_at TEXT NULL);
 CREATE TABLE training_programs(
  id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL,external_program_id TEXT NOT NULL,name TEXT NOT NULL,description TEXT NULL,
@@ -63,7 +64,7 @@ CREATE TABLE workout_plans(
 CREATE TABLE workout_exercises(
  id INTEGER PRIMARY KEY AUTOINCREMENT,workout_plan_id INTEGER NOT NULL,exercise_id TEXT NOT NULL,sequence_no INTEGER NOT NULL,planned_sets INTEGER NOT NULL,
  rep_min INTEGER NOT NULL,rep_max INTEGER NOT NULL,target_rir_min REAL NULL,target_rir_max REAL NULL,rest_seconds INTEGER NOT NULL,
- planned_weight_kg REAL NULL,warmup_sets INTEGER NOT NULL,method_type TEXT NOT NULL,group_id TEXT NULL,instructions TEXT NULL,created_at TEXT NOT NULL,
+ planned_weight_kg REAL NULL,planned_weight_value REAL NULL,planned_weight_unit TEXT NOT NULL DEFAULT 'kg',warmup_sets INTEGER NOT NULL,method_type TEXT NOT NULL,group_id TEXT NULL,instructions TEXT NULL,created_at TEXT NOT NULL,
  UNIQUE(workout_plan_id,sequence_no),FOREIGN KEY(workout_plan_id) REFERENCES workout_plans(id)
 );
 CREATE TABLE workout_sessions(
@@ -88,7 +89,7 @@ $pdo->exec("INSERT INTO exercises(exercise_id,owner_user_id,name,status) VALUES 
 
 $exercise = static fn (string $id, string $name, int $order): array => [
     'exercise_id'=>$id,'name'=>$name,'order'=>$order,'sets'=>3,'rep_range'=>['min'=>6,'max'=>10],
-    'target_rir'=>['min'=>2,'max'=>3],'rest_seconds'=>120,
+    'target_rir'=>['min'=>2,'max'=>3],'rest_seconds'=>120,'weight'=>100,'weight_unit'=>'lb',
 ];
 $template = static fn (string $id, string $name): array => [
     'template_id'=>$id,'name'=>$name,'type'=>'strength','goal'=>'Работа','exercises'=>[$exercise('bench_press_001','Bench',1)],
@@ -158,6 +159,8 @@ $now = 2000;
 $prepared = $store->prepare(1, $binding, $supersede, 30);
 $confirmed = $store->consume(1, $prepared['confirmation_token']);
 $result = $activation->activate($confirmed);
+$unitPlan = $pdo->query("SELECT planned_weight_value,planned_weight_unit,planned_weight_kg FROM workout_exercises WHERE workout_plan_id IN (SELECT id FROM workout_plans WHERE program_version_id={$v2['draft_id']})")->fetch();
+$check($unitPlan && $unitPlan['planned_weight_unit'] === 'lb' && (float)$unitPlan['planned_weight_value'] === 100.0 && (float)$unitPlan['planned_weight_kg'] === 45.359237, 'activation сохраняет исходные lb и нормализованные кг');
 $check($result['lifecycle_status'] === 'published' && count($result['created_workouts']) === 1 && count($result['superseded_workout_ids']) === 1, 'confirm публикует draft и применяет показанный impact');
 $base = $pdo->query("SELECT status,active_version_id FROM training_programs WHERE id={$baseProgramId}")->fetch();
 $check($base['status'] === 'active' && (int) $base['active_version_id'] === $v2['draft_id'], 'new version становится active pointer');

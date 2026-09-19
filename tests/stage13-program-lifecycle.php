@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/app/Domain/Weight.php';
+
 require dirname(__DIR__) . '/app/Service/ProgramVersionReconciliationService.php';
 require dirname(__DIR__) . '/app/Service/BackupService.php';
 require dirname(__DIR__) . '/app/Repository/TrainingRepository.php';
@@ -63,6 +65,7 @@ SQL);
 };
 $createBackupSupport = static function (PDO $connection): void {
     $connection->exec(<<<'SQL'
+CREATE TABLE exercise_weight_preferences(user_id INTEGER,exercise_id TEXT,weight_unit TEXT,updated_at TEXT,PRIMARY KEY(user_id,exercise_id));
 CREATE TABLE exercises(exercise_id TEXT PRIMARY KEY,owner_user_id INTEGER NULL,name TEXT NULL);
 CREATE TABLE workout_plans(id INTEGER PRIMARY KEY,user_id INTEGER,external_plan_id TEXT,workout_plan_id INTEGER,program_version_id INTEGER,workout_template_id INTEGER,name TEXT,status TEXT,deleted_at TEXT);
 CREATE TABLE workout_exercises(id INTEGER PRIMARY KEY,workout_plan_id INTEGER,exercise_id TEXT,original_exercise_id TEXT NULL,sequence_no INTEGER,substitution_reason TEXT NULL,substituted_at TEXT NULL,version INTEGER NOT NULL DEFAULT 1);
@@ -116,7 +119,7 @@ $source->exec("INSERT INTO exercises(exercise_id,owner_user_id,name) VALUES ('cu
 $source->exec("INSERT INTO workout_plans(id,user_id,external_plan_id,program_version_id,workout_template_id,name,status) VALUES (50,1,'instance-roundtrip',20,30,'Instance','planned')");
 $source->exec("INSERT INTO workout_exercises(id,workout_plan_id,exercise_id,original_exercise_id,sequence_no,substitution_reason,substituted_at,version) VALUES (60,50,'custom-actual','custom-original',1,'Оборудование занято','2026-08-27 09:00:00',2)");
 $export = (new BackupService($source))->export(1);
-$check($export['schema_version'] === '1.1' && count($export['data']['program_schedule_slots']) === 1 && !array_key_exists('assistant_tool_calls',$export['data']), 'export v1.1 включает slots и исключает technical audit');
+$check($export['schema_version'] === '1.2' && count($export['data']['program_schedule_slots']) === 1 && !array_key_exists('assistant_tool_calls',$export['data']), 'export v1.2 включает slots и исключает technical audit');
 $check(($export['data']['workout_exercises'][0]['original_exercise_id'] ?? null) === 'custom-original' && ($export['data']['workout_exercises'][0]['substitution_reason'] ?? null) === 'Оборудование занято', 'backup переносит provenance planned replacement');
 $validated = (new BackupService($source))->validate(json_encode($export, JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
 $target = $pdo();$createLifecycleSchema($target);$createBackupSupport($target);

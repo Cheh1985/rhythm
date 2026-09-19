@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/app/Domain/Weight.php';
+
 require dirname(__DIR__) . '/app/WebMcp/ToolCatalog.php';
 
 use App\WebMcp\ToolCatalog;

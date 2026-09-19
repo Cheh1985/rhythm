@@ -103,6 +103,17 @@
         } else saveState.textContent = 'Синхронизировано';
     }
 
+    function showConflict(action) {
+        let detail = 'Локальное действие сохранено. Свежая серверная версия загружена; выберите явно, как продолжить.';
+        const current = sessionSnapshot?.exercises?.find((item) => Number(item.id) === Number(action.body.session_exercise_id));
+        if (action.type === 'exercise.weight-unit' && current && current.actual_exercise_id !== action.body.actual_exercise_id) {
+            detail = 'Упражнение заменено на «' + current.exercise_name + '». Повтор применит выбранную единицу к этому упражнению. Число в форме сохранится.';
+        }
+        conflictBanner.querySelector('span').textContent = detail;
+        conflictBanner.hidden = false;
+        paintSync('conflict');
+    }
+
     function setSessionVersion(value) {
         if (!Number.isFinite(Number(value)) || Number(value) < 1) return;
         sessionVersion = Number(value);
@@ -122,13 +133,15 @@
         if (set.id) row.dataset.setId = String(set.id);
         if (actionId) row.dataset.actionId = actionId;
         row.dataset.setVersion = String(set.version || row.dataset.setVersion || 1);
-        row.dataset.weight = String(set.weight_kg);
+        const weight = RhythmWeight.fields(set);
+        row.dataset.weight = String(weight.value);
+        row.dataset.weightUnit = weight.unit;
         row.dataset.reps = String(set.reps);
         row.dataset.rir = String(set.rir);
         row.dataset.setType = set.set_type || row.dataset.setType || 'working';
         row.classList.toggle('pending-sync', pending);
         row.querySelector('span').textContent = (row.dataset.setType === 'warmup' ? 'Р' : 'П') + set.set_number;
-        row.querySelector('strong').textContent = set.weight_kg + ' кг × ' + set.reps;
+        row.querySelector('strong').textContent = weight.value + ' ' + RhythmWeight.label(weight.unit) + ' × ' + set.reps;
         row.querySelector('small').textContent = 'RIR ' + set.rir;
         return row;
     }
@@ -179,9 +192,14 @@
             const row = page.querySelector('.saved-set[data-set-id="' + setId + '"]');
             if (row) renderSet(row.closest('.exercise-card'), {...body, id: setId, set_type: row.dataset.setType, set_number: row.querySelector('span').textContent.slice(1)}, action.id, true);
         } else if (action.type === 'exercise.status' && card) setCardStatus(card, body.status);
+        else if (action.type === 'exercise.weight-unit' && card) {
+            setWeightUnit(card, body.weight_unit);
+            const option = replacementOptions().find((item) => item.value === body.actual_exercise_id);
+            if (option) option.dataset.weightUnit = body.weight_unit;
+        }
         else if (action.type === 'exercise.replace' && card) {
-            const option = [...document.querySelectorAll('#replace-fields option')].find((item) => item.value === String(body.actual_exercise_id));
-            if (option) card.querySelector('h2').textContent = option.textContent;
+            const option = replacementOptions().find((item) => item.value === String(body.actual_exercise_id));
+            if (option) { card.querySelector('h2').textContent = option.textContent; card.dataset.actualExerciseId = body.actual_exercise_id; setWeightUnit(card, option.dataset.weightUnit || 'kg'); }
             appendLocalNote(card, 'Замена ожидает синхронизации');
         } else if (action.type === 'discomfort.create' && card) appendLocalNote(card, 'Дискомфорт записан локально');
         else if (action.type === 'session.finish') {
@@ -191,7 +209,13 @@
         }
     }
 
-    async function queueMutation(type, path, method, body) {
+    let enqueueChain = Promise.resolve();
+    function queueMutation(type, path, method, body) {
+        const queued = enqueueChain.then(() => enqueueMutation(type, path, method, body));
+        enqueueChain = queued.catch(() => {});
+        return queued;
+    }
+    async function enqueueMutation(type, path, method, body) {
         const existing = await RhythmOffline.listActions(userId, sessionId);
         const action = RhythmOffline.createAction({userId, sessionId, type, path, method, body, dependsOn: existing.length ? [existing[existing.length - 1].id] : []});
         if (!sessionSnapshot) sessionSnapshot = {id: Number(sessionId), version: sessionVersion, exercises: []};
@@ -219,13 +243,17 @@
             const row = page.querySelector('.saved-set[data-set-id="' + data.id + '"]');
             row?.classList.remove('pending-sync');
             if (row) renderSet(row.closest('.exercise-card'), {...data, set_type: row.dataset.setType, set_number: row.querySelector('span').textContent.slice(1)});
-        } else if (action.type === 'exercise.status') {
+        } else if (action.type === 'exercise.status' || action.type === 'exercise.weight-unit') {
             const card = page.querySelector('.exercise-card[data-exercise-id="' + action.body.session_exercise_id + '"]');
             if (card) card.dataset.exerciseVersion = String(data.exercise_version);
         } else if (action.type === 'exercise.replace' || action.type === 'discomfort.create') {
             const card = page.querySelector('.exercise-card[data-exercise-id="' + action.body.session_exercise_id + '"]');
             card?.querySelectorAll('.local-note').forEach((note) => note.remove());
             if (data.exercise_version && card) card.dataset.exerciseVersion = String(data.exercise_version);
+            if (action.type === 'exercise.replace' && card) {
+                card.dataset.actualExerciseId = data.actual_exercise_id;
+                setWeightUnit(card, data.weight_unit || 'kg');
+            }
         }
     }
 
@@ -234,17 +262,21 @@
         if (!actions.length) return paintSync('synced');
         if (!navigator.onLine) return paintSync('pending', actions.length);
         paintSync('syncing', actions.length);
-        for (const original of actions) {
-            if (original.status === 'conflict' && !manual) {
-                paintSync('conflict', actions.length);
-                conflictBanner.hidden = false;
+        for (const queued of actions) {
+            // Claim the latest payload atomically with respect to edits in every tab.
+            const action = await RhythmOffline.updateAction(queued.key, (current) => {
+                if (current.status === 'conflict' && !manual) return current;
+                const next = RhythmOffline.rebaseAction(current, versions);
+                next.status = 'syncing';
+                next.attempts += 1;
+                next.error = null;
+                return next;
+            });
+            if (!action) continue;
+            if (action.status === 'conflict') {
+                showConflict(action);
                 return;
             }
-            const action = RhythmOffline.rebaseAction(original, versions);
-            action.status = 'syncing';
-            action.attempts += 1;
-            action.error = null;
-            await RhythmOffline.putAction(action);
             try {
                 const payload = await request(action.path, {method: action.method, body: JSON.stringify(action.body)});
                 const data = payload.data || payload;
@@ -255,19 +287,22 @@
                 action.status = error.conflict ? 'conflict' : (error.network ? 'pending' : 'error');
                 action.error = {message: error.message, status: error.status || 0, at: Date.now()};
                 await RhythmOffline.putAction(action);
-                if (error.conflict) { await refreshSnapshot(true); conflictBanner.hidden = false; paintSync('conflict'); }
+                if (error.conflict) { await refreshSnapshot(true); showConflict(action); }
                 else if (error.network) paintSync('pending', actions.length);
                 else paintSync('error', actions.length, error.message);
                 return;
             }
         }
         await refreshSnapshot(false);
-        paintSync('synced');
+        const remaining = await RhythmOffline.listActions(userId, sessionId);
+        remaining.forEach(applyOptimistic);
+        paintSync(remaining.length ? 'pending' : 'synced', remaining.length);
         if (actions.some((action) => action.type === 'session.finish')) location.assign(base + '/sessions/' + sessionId);
     }
 
+    let syncRequested = false;
     async function syncOutbox(manual = false) {
-        if (syncRunning) return;
+        if (syncRunning) { syncRequested = true; return; }
         syncRunning = true;
         try {
             const lockName = 'rhythm-sync-' + userId + '-' + sessionId;
@@ -276,7 +311,10 @@
             } else if (acquireLease(lockName)) {
                 try { await performSync(manual); } finally { releaseLease(lockName); }
             }
-        } finally { syncRunning = false; }
+        } finally {
+            syncRunning = false;
+            if (syncRequested) { syncRequested = false; syncOutbox(); }
+        }
     }
     function acquireLease(name) {
         const key = 'rhythm-lease-' + name, now = Date.now();
@@ -305,10 +343,17 @@
     function restoreSnapshot(snapshot) {
         if (!snapshot) return;
         setSessionVersion(snapshot.version);
+        for (const item of snapshot.available_exercises || []) {
+            const option = replacementOptions().find((option) => option.value === item.exercise_id);
+            if (option) option.dataset.weightUnit = item.weight_unit || 'kg';
+        }
         for (const exercise of snapshot.exercises || []) {
             const card = page.querySelector('.exercise-card[data-exercise-id="' + exercise.id + '"]');
             if (!card) continue;
             card.dataset.exerciseVersion = String(exercise.version);
+            card.dataset.actualExerciseId = exercise.actual_exercise_id;
+            // A refresh must not overwrite an unsaved form or a queued unit selection.
+            if (!card.querySelector('.set-entry')) card.dataset.weightUnit = exercise.weight_unit || 'kg';
             card.querySelector('h2').textContent = exercise.exercise_name;
             setCardStatus(card, exercise.status);
             for (const set of exercise.sets || []) renderSet(card, set);
@@ -322,11 +367,44 @@
         }
     }
 
+    function replacementOptions() {
+        return [...document.querySelector('#replace-fields').content.querySelectorAll('option')];
+    }
+
+    function setWeightUnit(card, unit) {
+        card.dataset.weightUnit = unit;
+        const select = card.querySelector('.weight-unit');
+        if (select) select.value = unit;
+        card.querySelectorAll('[data-weight-direction]').forEach((button) => {
+            const delta = RhythmWeight.step(unit) * Number(button.dataset.weightDirection);
+            button.dataset.delta = String(delta);
+            button.textContent = (delta > 0 ? '+' : '−') + Math.abs(delta);
+        });
+        const planned = card.querySelector('[data-planned-weight]');
+        if (planned && card.dataset.plannedKg !== '') planned.textContent = RhythmWeight.fromKg(Number(card.dataset.plannedKg), unit) + ' ' + RhythmWeight.label(unit);
+    }
+    page.addEventListener('change', async (event) => {
+        if (!event.target.matches('.weight-unit')) return;
+        const card = event.target.closest('.exercise-card');
+        const before = card.dataset.weightUnit || 'kg';
+        const unit = event.target.value;
+        setWeightUnit(card, unit);
+        try {
+            await queueMutation('exercise.weight-unit', '/api/sessions/' + sessionId + '/weight-unit', 'PATCH', {
+                session_version: sessionVersion, session_exercise_id: Number(card.dataset.exerciseId),
+                exercise_version: Number(card.dataset.exerciseVersion), actual_exercise_id: card.dataset.actualExerciseId, weight_unit: unit,
+            });
+        } catch (error) {
+            setWeightUnit(card, before);
+            paintSync('error', 0, error.message);
+        }
+    });
+
     function captureDraft() {
         const forms = {};
         page.querySelectorAll('.exercise-card').forEach((card) => {
             const form = card.querySelector('.set-entry');
-            if (form) forms[card.dataset.exerciseId] = {weight: form.querySelector('.weight-input').value, reps: form.querySelector('.reps-input').value, rir: form.querySelector('.rir-input').value, type: form.querySelector('[data-type].active')?.dataset.type || 'working', workingNext: form.dataset.workingNext, warmupNext: form.dataset.warmupNext};
+            if (form) forms[card.dataset.exerciseId] = {weight: form.querySelector('.weight-input').value, weightUnit: form.querySelector('.weight-unit').value, actualExerciseId: card.dataset.actualExerciseId, reps: form.querySelector('.reps-input').value, rir: form.querySelector('.rir-input').value, type: form.querySelector('[data-type].active')?.dataset.type || 'working', workingNext: form.dataset.workingNext, warmupNext: form.dataset.warmupNext};
         });
         return {forms, finish: {rpe: page.querySelector('#session-rpe').value, wellbeing: page.querySelector('#session-wellbeing').value, comment: page.querySelector('#session-comment').value}};
     }
@@ -336,6 +414,8 @@
             const form = page.querySelector('.exercise-card[data-exercise-id="' + exerciseId + '"] .set-entry');
             if (!form) continue;
             form.querySelector('.weight-input').value = values.weight;
+            setWeightUnit(form.closest('.exercise-card'), values.weightUnit || 'kg');
+            if (values.actualExerciseId) form.closest('.exercise-card').dataset.actualExerciseId = values.actualExerciseId;
             form.querySelector('.reps-input').value = values.reps;
             form.querySelector('.rir-input').value = values.rir;
             form.dataset.workingNext = values.workingNext;
@@ -374,7 +454,7 @@
             form.querySelector('.rir-input').value = button.dataset.rir;
         } else if (button.dataset.delta !== undefined && form) {
             const input = button.classList.contains('reps-delta') ? form.querySelector('.reps-input') : form.querySelector('.weight-input');
-            input.value = String(Math.max(Number(input.min || 0), Number(input.value || 0) + Number(button.dataset.delta)));
+            input.value = String(Math.round(Math.min(Number(input.max || 2000), Math.max(Number(input.min || 0), Number(input.value || 0) + Number(button.dataset.delta))) * 100) / 100);
         }
     });
 
@@ -386,7 +466,7 @@
         const card = form.closest('.exercise-card'), type = form.querySelector('[data-type].active').dataset.type;
         const nextKey = type === 'working' ? 'workingNext' : 'warmupNext', submit = form.querySelector('[type="submit"]');
         submit.disabled = true;
-        await queueMutation('set.create', '/api/sessions/' + sessionId + '/sets', 'POST', {session_version: sessionVersion, session_exercise_id: Number(card.dataset.exerciseId), set_number: Number(form.dataset[nextKey]), set_type: type, weight_kg: Number(form.querySelector('.weight-input').value), reps: Number(form.querySelector('.reps-input').value), rir: Number(rir.value)});
+        await queueMutation('set.create', '/api/sessions/' + sessionId + '/sets', 'POST', {session_version: sessionVersion, session_exercise_id: Number(card.dataset.exerciseId), set_number: Number(form.dataset[nextKey]), set_type: type, weight_value: Number(form.querySelector('.weight-input').value), weight_unit: form.querySelector('.weight-unit').value, reps: Number(form.querySelector('.reps-input').value), rir: Number(rir.value)});
         rir.value = '';
         form.querySelectorAll('[data-rir]').forEach((item) => item.classList.remove('active'));
         startTimer(Number(card.dataset.rest));
@@ -405,7 +485,7 @@
         dialog.querySelector('[data-dialog-title]').textContent = dialogTitles[type];
         dialogFields.replaceChildren(document.querySelector('#' + type + '-fields').content.cloneNode(true));
         dialogForm.querySelector('.form-message').hidden = true;
-        if (type === 'edit') { dialogForm.elements.weight_kg.value = setRow.dataset.weight; dialogForm.elements.reps.value = setRow.dataset.reps; dialogForm.elements.rir.value = setRow.dataset.rir; }
+        if (type === 'edit') { dialogForm.elements.weight_value.value = setRow.dataset.weight; dialogForm.elements.weight_unit.value = setRow.dataset.weightUnit || 'kg'; dialogForm.elements.reps.value = setRow.dataset.reps; dialogForm.elements.rir.value = setRow.dataset.rir; }
         dialog.showModal();
     }
     page.addEventListener('click', async (event) => {
@@ -426,9 +506,21 @@
             else if (type === 'replace') await queueMutation('exercise.replace', '/api/sessions/' + sessionId + '/replace-exercise', 'PATCH', {session_version: sessionVersion, session_exercise_id: Number(card.dataset.exerciseId), exercise_version: Number(card.dataset.exerciseVersion), ...data});
             else if (type === 'discomfort') await queueMutation('discomfort.create', '/api/sessions/' + sessionId + '/discomfort', 'POST', {session_version: sessionVersion, session_exercise_id: Number(card.dataset.exerciseId), exercise_version: Number(card.dataset.exerciseVersion), body_area: data.body_area, intensity: Number(data.intensity), comment: data.comment});
             else if (type === 'edit' && setRow.dataset.actionId && setRow.classList.contains('pending-sync')) {
-                const action = (await RhythmOffline.listActions(userId, sessionId)).find((item) => item.id === setRow.dataset.actionId && item.type === 'set.create');
-                if (action) { Object.assign(action.body, {weight_kg: Number(data.weight_kg), reps: Number(data.reps), rir: Number(data.rir)}); await RhythmOffline.putAction(action); renderSet(card, {...action.body, version: 1}, action.id, true); }
-            } else if (type === 'edit') await queueMutation('set.update', '/api/sets/' + setRow.dataset.setId, 'PATCH', {session_version: sessionVersion, version: Number(setRow.dataset.setVersion), weight_kg: Number(data.weight_kg), reps: Number(data.reps), rir: Number(data.rir)});
+                const key = 'user:' + userId + ':action:' + setRow.dataset.actionId;
+                const action = await RhythmOffline.updateAction(key, (current) => {
+                    if (current.status === 'syncing') throw new Error('Подход синхронизируется. Повторите сохранение через несколько секунд.');
+                    if (!['set.create', 'set.update'].includes(current.type)) throw new Error('Обновите тренировку, сохранив очередь.');
+                    delete current.body.weight_kg;
+                    Object.assign(current.body, {weight_value: Number(data.weight_value), weight_unit: data.weight_unit, reps: Number(data.reps), rir: Number(data.rir)});
+                    return current;
+                });
+                if (action) {
+                    renderSet(card, {...action.body, id: setRow.dataset.setId, set_type: setRow.dataset.setType, set_number: setRow.querySelector('span').textContent.slice(1)}, action.id, true);
+                    syncOutbox();
+                } else if (setRow.dataset.setId) {
+                    await queueMutation('set.update', '/api/sets/' + setRow.dataset.setId, 'PATCH', {session_version: sessionVersion, version: Number(setRow.dataset.setVersion), weight_value: Number(data.weight_value), weight_unit: data.weight_unit, reps: Number(data.reps), rir: Number(data.rir)});
+                } else throw new Error('Обновите тренировку, сохранив очередь.');
+            } else if (type === 'edit') await queueMutation('set.update', '/api/sets/' + setRow.dataset.setId, 'PATCH', {session_version: sessionVersion, version: Number(setRow.dataset.setVersion), weight_value: Number(data.weight_value), weight_unit: data.weight_unit, reps: Number(data.reps), rir: Number(data.rir)});
             dialog.close();
         } catch (error) {
             const message = dialogForm.querySelector('.form-message'); message.textContent = error.message; message.hidden = false;
@@ -441,7 +533,10 @@
         if (navigator.onLine && !(await RhythmOffline.listActions(userId, sessionId)).length) location.assign(base + '/sessions/' + sessionId);
     });
     retryButton.addEventListener('click', async () => {
-        for (const action of await RhythmOffline.listActions(userId, sessionId)) if (action.status === 'error') { action.status = 'pending'; action.error = null; await RhythmOffline.putAction(action); }
+        const actions = await RhythmOffline.listActions(userId, sessionId);
+        const conflict = actions.find((action) => action.status === 'conflict');
+        if (conflict) { await refreshSnapshot(true); showConflict(conflict); return; }
+        for (const action of actions) if (action.status === 'error') { action.status = 'pending'; action.error = null; await RhythmOffline.putAction(action); }
         syncOutbox(true);
     });
     conflictBanner.querySelector('[data-conflict-refresh]').addEventListener('click', () => location.reload());
@@ -449,13 +544,20 @@
         const conflict = (await RhythmOffline.listActions(userId, sessionId)).find((item) => item.status === 'conflict');
         if (!conflict) return;
         const rebased = RhythmOffline.rebaseAction(conflict, versions); rebased.status = 'pending'; rebased.error = null;
+        if (rebased.type === 'exercise.weight-unit') {
+            const current = sessionSnapshot?.exercises?.find((item) => Number(item.id) === Number(rebased.body.session_exercise_id));
+            if (current) rebased.body.actual_exercise_id = current.actual_exercise_id;
+        }
         await RhythmOffline.putAction(rebased); conflictBanner.hidden = true; syncOutbox(true);
     });
     window.addEventListener('online', () => syncOutbox());
     window.addEventListener('offline', async () => paintSync('pending', (await RhythmOffline.listActions(userId, sessionId)).length));
     channel?.addEventListener('message', async (event) => {
         if (event.data?.type === 'synced' && event.data.versions) { versions = event.data.versions; setSessionVersion(versions.sessionVersion); }
-        const actions = await RhythmOffline.listActions(userId, sessionId); paintSync(actions.length ? 'pending' : 'synced', actions.length);
+        const actions = await RhythmOffline.listActions(userId, sessionId);
+        const conflict = actions.find((action) => action.status === 'conflict');
+        if (conflict) showConflict(conflict);
+        else paintSync(actions.length ? 'pending' : 'synced', actions.length);
     });
 
     const timer = page.querySelector('#rest-timer'), timerDisplay = timer.querySelector('strong'), timerKey = 'rhythm-rest-' + userId + '-' + sessionId;
@@ -494,6 +596,8 @@
         const actions = await RhythmOffline.listActions(userId, sessionId);
         actions.forEach(applyOptimistic);
         paintSync(actions.length ? 'pending' : 'synced', actions.length);
-        if (navigator.onLine && !actions.some((item) => item.status === 'conflict')) { if (!actions.length) await refreshSnapshot(false); syncOutbox(); }
+        const conflict = actions.find((item) => item.status === 'conflict');
+        if (conflict) { if (navigator.onLine) await refreshSnapshot(true); showConflict(conflict); }
+        else if (navigator.onLine) { if (!actions.length) await refreshSnapshot(false); syncOutbox(); }
     })().catch((error) => paintSync('error', 0, error.message));
 })();

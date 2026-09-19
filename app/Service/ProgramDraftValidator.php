@@ -10,7 +10,7 @@ use JsonException;
 final class ProgramDraftValidator
 {
     public const SCHEMA = 'training-program-draft';
-    public const VERSION = '1.0';
+    public const VERSION = '1.1';
 
     private readonly TrainingPlanContractValidator $trainingPlan;
 
@@ -43,7 +43,7 @@ final class ProgramDraftValidator
         if ($aggregate['schema'] !== self::SCHEMA) {
             throw new InvalidArgumentException('schema должно иметь значение ' . self::SCHEMA . '.');
         }
-        if ($aggregate['schema_version'] !== self::VERSION) {
+        if (!in_array($aggregate['schema_version'], ['1.0', self::VERSION], true)) {
             throw new InvalidArgumentException('schema_version должна иметь значение ' . self::VERSION . '.');
         }
         if (!is_string($aggregate['source']) || !in_array($aggregate['source'], ['manual', 'webmcp'], true)) {
@@ -108,7 +108,7 @@ final class ProgramDraftValidator
                     $this->nullableText($text, $path . '.pre_workout.' . $key, 2000);
                 }
             }
-            $this->trainingPlan->validateExercises($template['exercises'], $path . '.exercises');
+            $this->trainingPlan->validateExercises($template['exercises'], $path . '.exercises', $aggregate['schema_version']);
         }
 
         if (!is_array($aggregate['schedule_slots']) || !array_is_list($aggregate['schedule_slots']) || count($aggregate['schedule_slots']) > 7) {

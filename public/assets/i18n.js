@@ -2,6 +2,11 @@
     'use strict';
     const locale = document.documentElement.lang === 'en' ? 'en' : 'ru';
     const en = {
+        'Подход синхронизируется. Повторите сохранение через несколько секунд.': 'The set is syncing. Try saving again in a few seconds.',
+        'Обновите тренировку, сохранив очередь.': 'Reload the workout while preserving the queue.',
+        'Упражнение заменено на «': 'The exercise was replaced with “',
+        '». Повтор применит выбранную единицу к этому упражнению. Число в форме сохранится.': '”. Retry will apply the selected unit to this exercise. The number in the form will stay unchanged.',
+        'Локальное действие сохранено. Свежая серверная версия загружена; выберите явно, как продолжить.': 'Your local action is saved. The latest server version is loaded; choose how to proceed.',
         'Проверяем синхронизацию…': 'Checking sync…',
         'Сохранено локально': 'Saved locally',
         'Все изменения синхронизированы': 'All changes are synced',

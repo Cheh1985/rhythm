@@ -62,6 +62,7 @@ final class PlanImportService
             'exercise_count' => count($data['exercises']),
             'exercises' => array_map(static fn (array $exercise): array => [
                 'exercise_id' => $exercise['exercise_id'], 'name' => $exercise['name'], 'sets' => $exercise['sets'],
+                'weight_value' => $exercise['weight'] ?? null, 'weight_unit' => $exercise['weight_unit'] ?? 'kg',
                 'rep_min' => $exercise['rep_range']['min'], 'rep_max' => $exercise['rep_range']['max'],
             ], $data['exercises']),
             'unknown_exercises' => $unknown,
@@ -189,11 +190,11 @@ SQL);
                 $this->json($data['pre_workout'] ?? []), $this->canonicalJson($data), $data['schema_version'],
             ]);
             $planId = (int) $pdo->lastInsertId();
-            $insertItem = $pdo->prepare("INSERT INTO workout_exercises (workout_plan_id, exercise_id, sequence_no, planned_sets, rep_min, rep_max, target_rir_min, target_rir_max, rest_seconds, planned_weight_kg, warmup_sets, method_type, group_id, instructions, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)");
+            $insertItem = $pdo->prepare("INSERT INTO workout_exercises (workout_plan_id, exercise_id, sequence_no, planned_sets, rep_min, rep_max, target_rir_min, target_rir_max, rest_seconds, planned_weight_kg, planned_weight_value, planned_weight_unit, warmup_sets, method_type, group_id, instructions, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)");
             foreach ($data['exercises'] as $exercise) {
                 $insertItem->execute([
                     $planId, $exercise['exercise_id'], $exercise['order'], $exercise['sets'], $exercise['rep_range']['min'], $exercise['rep_range']['max'],
-                    $exercise['target_rir']['min'], $exercise['target_rir']['max'], $exercise['rest_seconds'], $exercise['weight'] ?? null,
+                    $exercise['target_rir']['min'], $exercise['target_rir']['max'], $exercise['rest_seconds'], \App\Domain\Weight::toKg(isset($exercise['weight']) ? (float) $exercise['weight'] : null, $exercise['weight_unit'] ?? 'kg'), $exercise['weight'] ?? null, $exercise['weight_unit'] ?? 'kg',
                     !empty($exercise['warmup_sets']) ? 1 : 0, $exercise['set_type'] ?? 'normal', $exercise['group_id'] ?? null, $exercise['instructions'] ?? null,
                 ]);
             }

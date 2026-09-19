@@ -36,7 +36,7 @@ final class ProgressionService
         }
         return [
             'current_weight_kg' => $current,
-            'suggested_weight_kg' => round($suggested, 2),
+            'suggested_weight_kg' => round($suggested, 8),
             'reason' => "Верхняя граница {$repMax} повторений достигнута во всех рабочих подходах при допустимом RIR.",
         ];
     }

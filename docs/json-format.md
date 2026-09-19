@@ -1,21 +1,23 @@
 # JSON-формат плана тренировки
 
-## Контракт training-plan v1.0
+## Контракт training-plan v1.1
 
 Импорт принимает один UTF-8 JSON-объект с точными маркерами:
 
 ```json
-{"schema":"training-plan","schema_version":"1.0"}
+{"schema":"training-plan","schema_version":"1.1"}
 ```
 
-Машиночитаемый контракт находится в `docs/training-plan-v1.0.schema.json`, полный рабочий пример — в `tests/fixtures/training-plan/full-body-a.json`. Серверная проверка является источником истины: лишние поля, неявное преобразование строк в числа и неподдерживаемые версии отклоняются. Формат расширяется новой `schema_version`, а не изменением смысла существующих полей.
+Машиночитаемый контракт находится в `docs/training-plan-v1.1.schema.json`, полный рабочий пример — в `tests/fixtures/training-plan/mixed-units-v1.1.json`. Серверная проверка является источником истины: лишние поля, неявное преобразование строк в числа и неподдерживаемые версии отклоняются. Формат расширяется новой `schema_version`, а не изменением смысла существующих полей.
+
+Документы v1.0 продолжают читаться как килограммы; поле `weight_unit` вводится только в v1.1. Исходный вес и единица определяют нормализованный вес: `100 lb = 45.359237 kg`. Старые JSON-снимки и их хеши не переписываются. Единица входит в хеш нового документа.
 
 ## Корневой объект
 
 | Поле | Тип | Обязательное | Назначение |
 |---|---|---:|---|
 | `schema` | string | да | Ровно `training-plan` |
-| `schema_version` | string | да | Ровно `1.0` |
+| `schema_version` | string | да | `1.0` или `1.1` |
 | `plan_id` | stable ID | да | Идемпотентный внешний ID конкретного плана; уникален в пределах пользователя |
 | `program` | object | да | Идентичность и версия программы |
 | `workout` | object | да | Шаблон, дата и тип тренировки |
@@ -67,7 +69,7 @@ Stable ID имеет длину 3–190 символов (`exercise_id` и `temp
 
 - справочник: `category`, `muscles`, `exercise_type`, `equipment`;
 - прогрессия: `progression_increment` от 0.01 до 1000, `progression_mode` — `absolute` или `percent`;
-- план: `weight` (0–2000 или null), `warmup_sets` (boolean), `instructions`;
+- план: `weight` (0–2000 или null, до двух знаков после запятой), `weight_unit` (`kg` или `lb`, по умолчанию `kg`), `warmup_sets` (boolean), `instructions`;
 - методы подходов: `set_type` — `normal`, `superset`, `dropset`, `rest_pause`, `cluster`, `amrap`; `group_id` связывает элементы группы.
 
 Одинаковые `exercise_id` и `order` в одном плане запрещены. Поля `name` и настройки справочника используются только при подтверждённом создании неизвестного упражнения; существующая запись по `exercise_id` не перезаписывается импортом.
@@ -95,19 +97,19 @@ Stable ID имеет длину 3–190 символов (`exercise_id` и `temp
 
 # JSON-формат черновика программы
 
-## Контракт training-program-draft v1.0
+## Контракт training-program-draft v1.1
 
 Mutable workflow программы использует отдельный корень:
 
 ```json
-{"schema":"training-program-draft","schema_version":"1.0"}
+{"schema":"training-program-draft","schema_version":"1.1"}
 ```
 
-Он не заменяет и не расширяет корень legacy `training-plan` v1.0. Машиночитаемый контракт находится в `docs/training-program-draft-v1.0.schema.json`, а серверным источником истины остаётся `ProgramDraftValidator`.
+Это отдельный контракт программы с несколькими шаблонами. Также принимается v1.0 с весами в кг; редактирование изменяемого черновика переводит его в v1.1. Машиночитаемый контракт находится в `docs/training-program-draft-v1.1.schema.json`, а серверным источником истины остаётся `ProgramDraftValidator`.
 
 Корень содержит `source`, `program`, `templates[]` и `schedule_slots[]`. `source` принимает `manual` или `webmcp`, но application service не зависит от WebMCP. В `program` сервер назначает `version`; клиент задаёт обязательную `change_reason`, но не номер версии. Для клона обязательная provenance-пара `parent_version` + `parent_aggregate_hash` указывает точную исходную immutable version; у первой версии новой программы оба поля равны `null`.
 
-Каждый template имеет стабильный `template_id`, имя, тип и непустой `exercises[]`; дополнительные `goal`, duration, trainer notes и pre-workout context остаются внутри шаблона. Упражнения проходят те же server-side exercise/range rules, что и `training-plan` v1.0, включая уникальные `exercise_id`/`order`, границы sets/reps/RIR/rest и методы подходов. Сервис дополнительно разрешает только global или принадлежащие текущему пользователю active exercise IDs.
+Каждый template имеет стабильный `template_id`, имя, тип и непустой `exercises[]`; дополнительные `goal`, duration, trainer notes и pre-workout context остаются внутри шаблона. Упражнения проходят те же server-side exercise/range rules, что и `training-plan` v1.1, включая уникальные `exercise_id`/`order`, границы sets/reps/RIR/rest и методы подходов. Сервис дополнительно разрешает только global или принадлежащие текущему пользователю active exercise IDs.
 
 `schedule_slots[]` содержит пары `weekday` 1–7 → `template_id`: weekday уникален, а template обязан существовать в том же агрегате. Семантические массивы канонически сортируются по template ID, exercise order и weekday; SHA-256 всего канонического агрегата хранится как `aggregate_hash`.
 
@@ -115,17 +117,17 @@ Mutable workflow программы использует отдельный ко
 
 # JSON-формат отчёта тренировки
 
-## Контракт training-report v1.0
+## Контракт training-report v1.1
 
 Экспорт завершённой тренировки возвращает UTF-8 JSON с маркерами:
 
 ```json
-{"schema":"training-report","schema_version":"1.0"}
+{"schema":"training-report","schema_version":"1.1"}
 ```
 
-Машиночитаемый корневой контракт находится в `docs/training-report-v1.0.schema.json`; серверный `ReportService` остаётся источником фактической сериализации.
+Машиночитаемый корневой контракт находится в `docs/training-report-v1.1.schema.json`; серверный `ReportService` остаётся источником фактической сериализации.
 
-Версия `1.0` неизменяема по смыслу: несовместимое расширение получает новую `schema_version`. Все поля времени событий имеют суффикс `_utc` и формат RFC 3339 с `Z`. План, факт и рекомендация никогда не объединяются и не перезаписывают друг друга.
+Версия `1.1` неизменяема по смыслу: несовместимое расширение получает новую `schema_version`. Все поля времени событий имеют суффикс `_utc` и формат RFC 3339 с `Z`. План, факт и рекомендация никогда не объединяются и не перезаписывают друг друга.
 
 ## Корневой объект отчёта
 
@@ -150,7 +152,9 @@ Mutable workflow программы использует отдельный ко
 - `fact`: фактический ID/название, статус, структурированный пропуск, замена, подходы, метрики, оценка, комментарий, дискомфорт и PR;
 - `suggestion`: `null` либо отдельное предложение double progression с `current_weight_kg`, `suggested_weight_kg`, `accepted_weight_kg`, статусом, причиной и временем решения.
 
-`suggestion.program_changed` в v1.0 всегда `false`: принятие предложения фиксирует решение пользователя, но не меняет `workout_plans`, `workout_exercises`, программу или её версию. Новая программа создаётся отдельным будущим действием.
+`suggestion.program_changed` в v1.1 всегда `false`: принятие предложения фиксирует решение пользователя, но не меняет `workout_plans`, `workout_exercises`, программу или её версию. Новая программа создаётся отдельным будущим действием.
+
+В `planned` и каждом `fact.sets[]` передаются `weight_value`, `weight_unit` и нормализованный `weight_kg`. Markdown показывает исходные единицы; итоговые метрики и предложения с суффиксом `_kg` остаются в кг. JSON и Markdown внутри ZIP построены из одного отчёта.
 
 Фактический подход содержит:
 
@@ -160,7 +164,9 @@ Mutable workflow программы использует отдельный ко
   "set_number": 1,
   "type": "working",
   "method": "normal",
-  "weight_kg": 60.0,
+  "weight_value": 100.0,
+  "weight_unit": "lb",
+  "weight_kg": 45.359237,
   "reps": 10,
   "rir": 2.0,
   "performed_at_utc": "2026-08-24T10:00:00Z",
@@ -185,7 +191,7 @@ Mutable workflow программы использует отдельный ко
 
 ## Редактирование и audit trail
 
-После правки завершённой тренировки `session.edited_after_completion=true`, `edited_at_utc` получает время последней правки, а `edits` содержит `entity_type`, `entity_id`, `action`, снимки `before`/`after` и `at_utc`. После изменения подхода метрики, ожидающие предложения прогрессии и PR пересчитываются; исходный план остаётся неизменным.
+После правки завершённой тренировки `session.edited_after_completion=true`, `edited_at_utc` получает время последней правки, а `edits` содержит `entity_type`, `entity_id`, `action`, снимки `before`/`after` и `at_utc`. После изменения подхода метрики, ожидающие предложения прогрессии и PR пересчитываются; исходный план остаётся неизменным. Пересчитываются также последующие рекорды и сравнения; принятые решения по прогрессии сохраняются.
 
 ## Markdown и оба файла
 
@@ -211,18 +217,18 @@ Mutable workflow программы использует отдельный ко
 
 `training_sequence` содержит последние силовые и плавательные события пользователя с типом, стабильным ID, UTC-временем, подписью и дистанцией для плавания. Поле `interpretation` в v1.0 всегда `null`: экспорт показывает последовательность для будущего внешнего анализа, но не формирует физиологических или медицинских выводов. Markdown доступен по `/export/swimming/{id}.md`.
 
-Backup v1.1 включает `swimming_sessions`, `swimming_intervals`, `schedules` и вычисленную `training_sequence`; после restore последовательность всё равно заново вычисляется из фактических записей. Все выборки ограничены текущим `user_id`.
+Backup v1.2 включает `swimming_sessions`, `swimming_intervals`, `schedules` и вычисленную `training_sequence`; после restore последовательность всё равно заново вычисляется из фактических записей. Все выборки ограничены текущим `user_id`.
 
 # JSON-формат резервной копии
 
-## Контракт training-diary-backup v1.1
+## Контракт training-diary-backup v1.2
 
 Корень содержит ровно шесть полей:
 
 ```json
 {
   "schema": "training-diary-backup",
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "backup_id": "backup-0123456789abcdef0123456789abcdef",
   "exported_at_utc": "2026-08-24T10:00:00Z",
   "checksum_sha256": "sha256 канонического объекта data",
@@ -230,7 +236,9 @@ Backup v1.1 включает `swimming_sessions`, `swimming_intervals`, `schedul
 }
 ```
 
-`data` обязан содержать все секции v1.1: пользовательские упражнения, программы/версии/шаблоны/versioned schedule slots/планы, плановые и фактические упражнения, сессии/readiness/подходы/дискомфорт/прогрессию/PR, измерения, обычное расписание, плавание/интервалы и audit. В `training_programs` переносится `active_version_id`, в `program_versions` — lifecycle/lock/hash/timestamps, а отдельная секция `program_schedule_slots` хранит weekday → template внутри версии. Пароль, login attempts, cookie/session, offline receipts и technical `assistant_tool_calls` не экспортируются.
+`data` обязан содержать все секции v1.2: пользовательские упражнения, программы/версии/шаблоны/versioned schedule slots/планы, плановые и фактические упражнения, сессии/readiness/подходы/дискомфорт/прогрессию/PR, измерения, обычное расписание, плавание/интервалы и audit. В `training_programs` переносится `active_version_id`, в `program_versions` — lifecycle/lock/hash/timestamps, а отдельная секция `program_schedule_slots` хранит weekday → template внутри версии. Пароль, login attempts, cookie/session, offline receipts и technical `assistant_tool_calls` не экспортируются.
+
+В v1.2 добавлены `exercise_weight_preferences`, исходные пары веса у плановых упражнений и подходов, а также единица ввода `session_exercises.weight_unit`. При merge уже существующие предпочтения сохраняются. Новые исходные пары проверяются на согласованность с кг. Restore принимает v1.0/v1.1, трактуя их веса как кг; исходные JSON-снимки программ и хеши сохраняются.
 
 Restore также принимает точный legacy-контракт v1.0 без `program_schedule_slots` и новых lifecycle-полей. Такие версии восстанавливаются как `published` с `aggregate_hash=snapshot_hash`; pointer выставляется автоматически только при одной версии. Если legacy-программа содержит несколько версий, `active_version_id` остаётся `NULL` до явного reconciliation.
 

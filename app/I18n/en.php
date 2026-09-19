@@ -3,6 +3,13 @@
 declare(strict_types=1);
 
 return [
+    'Подход синхронизируется. Повторите сохранение через несколько секунд.' => 'The set is syncing. Try saving again in a few seconds.',
+    'Обновите тренировку, сохранив очередь.' => 'Reload the workout while preserving the queue.',
+    'Единица веса' => 'Weight unit',
+    'Единица веса должна быть kg или lb.' => 'Weight unit must be kg or lb.',
+    'Передайте weight_value и weight_unit вместе, без weight_kg.' => 'Provide weight_value and weight_unit together, without weight_kg.',
+    'Вес должен быть числом от 0 до 2000 с точностью до двух знаков.' => 'Weight must be a number from 0 to 2000 with at most two decimal places.',
+    'Упражнение заменено. Обновите тренировку.' => 'The exercise has been replaced. Refresh the workout.',
     'Ритм — дневник тренировок' => 'Rhythm — Training Diary',
     'Ритм — мобильный дневник тренировок' => 'Rhythm — a mobile training diary',
     'Ритм' => 'Rhythm',
@@ -454,7 +461,7 @@ return [
     'Вернуться на Dashboard' => 'Return to dashboard',
     'Есть незавершённая тренировка' => 'You have an unfinished workout', 'Продолжить' => 'Continue', 'упражнений' => 'exercises',
     'Открыть тренировку' => 'Open workout', 'СЛЕДУЮЩИЙ ШАГ' => 'NEXT STEP', 'Добавьте первый план' => 'Add your first plan',
-    'Импортируйте training-plan v1.0: сначала проверим файл и покажем безопасное превью.' => 'Import training-plan v1.0: the file will be validated before a safe preview is shown.',
+    'Импортируйте training-plan v1.1 / v1.0: сначала проверим файл и покажем безопасное превью.' => 'Import training-plan v1.1 / v1.0: the file will be validated before a safe preview is shown.',
     'Импортировать JSON' => 'Import JSON', 'Коротко' => 'At a glance', 'Текущий ритм' => 'Current rhythm', 'За неделю' => 'This week',
     'тренировок' => 'workouts', 'В движении' => 'Time active', 'Последняя' => 'Latest', 'Простая инструкция по шагам' => 'A simple step-by-step guide',
     'JSON v1.0 и безопасное превью' => 'JSON v1.0 and safe preview', 'История тренировок' => 'Workout history', 'Фильтры, подходы и объём' => 'Filters, sets and volume',
@@ -484,7 +491,7 @@ return [
     'У программы пока нет версий.' => 'The program has no versions yet.', 'активна' => 'active', 'Основана на v' => 'Based on v', 'шабл.' => 'templates', 'план.' => 'plans',
     'Повторяющаяся неделя' => 'Recurring week', 'По умолчанию: понедельник и среда — зал, четверг — бассейн.' => 'Default: Monday and Wednesday are gym days; Thursday is a pool day.',
     'Сохранить неделю' => 'Save week', 'К плаванию' => 'Go to swimming',
-    'Экспорт v1.1 содержит полную историю текущего пользователя, версии программ и их расписание — без пароля, сессий входа и technical assistant audit. JSON подписан SHA-256 checksum; restore также читает v1.0.' => 'Export v1.1 contains the current user’s complete history, program versions and schedules—without passwords, login sessions or technical assistant audit. JSON includes a SHA-256 checksum; restore also reads v1.0.',
+    'Экспорт v1.2 содержит полную историю текущего пользователя, версии программ и их расписание — без пароля, сессий входа и technical assistant audit. JSON подписан SHA-256 checksum; restore также читает v1.0/v1.1.' => 'Export v1.2 contains the current user’s complete history, program versions and schedules—without passwords, login sessions or technical assistant audit. JSON includes a SHA-256 checksum; restore also reads v1.0/v1.1.',
     'Сначала файл строго проверяется и показывается превью. Restore работает транзакционно: только merge, без перезаписи и удаления существующих данных; внутренние ID переназначаются.' => 'The file is strictly validated before a preview is shown. Restore is transactional and merge-only: existing data is not overwritten or deleted, and internal IDs are remapped.',
     'Backup JSON или ZIP' => 'Backup JSON or ZIP', 'Экспорт:' => 'Exported:', '· записей:' => '· entries:',
     'Режим: merge · повтор:' => 'Mode: merge · repeat:', ': добавлено' => ': inserted', ', пропущено' => ', skipped',
