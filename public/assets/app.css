@@ -29,7 +29,7 @@ body { min-height: 100%; margin: 0; color: var(--ink); background: radial-gradie
 button, input, textarea, select { font: inherit; }
 a { color: inherit; }
 :focus-visible { outline: 3px solid var(--coral); outline-offset: 3px; }
-.app-shell { width: min(100%, 48rem); min-height: 100vh; margin: 0 auto; background: rgba(245, 244, 238, .72); }
+.app-shell { --topbar-sticky-offset: calc(3.7rem + 1px + env(safe-area-inset-top)); width: min(100%, 48rem); min-height: 100vh; margin: 0 auto; background: rgba(245, 244, 238, .72); }
 .main { padding: 1.2rem 1rem calc(7rem + env(safe-area-inset-bottom)); }
 .auth-main { min-height: 100vh; display: grid; place-items: center; padding-bottom: 2rem; }
 .topbar { position: sticky; z-index: 10; top: 0; display: flex; align-items: center; justify-content: space-between; padding: calc(.75rem + env(safe-area-inset-top)) 1rem .75rem; background: rgba(245,244,238,.88); backdrop-filter: blur(18px); border-bottom: 1px solid rgba(222,223,216,.7); }

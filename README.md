@@ -78,6 +78,7 @@ php tests/weight-history.php
 php tests/weight-plan-import.php
 php tests/weight-backup.php
 node --preserve-symlinks --preserve-symlinks-main tests/weight-units.js
+php tests/workout-progress.php
 php tests/webmcp-e2e.php
 php -l public/index.php
 php bin/cleanup.php

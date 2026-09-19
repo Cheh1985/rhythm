@@ -69,6 +69,15 @@
     const retryButton = page.querySelector('[data-sync-retry]');
     const conflictBanner = page.querySelector('#conflict-banner');
     const channel = 'BroadcastChannel' in window ? new BroadcastChannel('rhythm-session-' + userId + '-' + sessionId) : null;
+    const topbar = document.querySelector('.topbar');
+
+    function syncStickyOffset() {
+        if (!topbar) return;
+        page.style.setProperty('--topbar-sticky-offset', Math.ceil(topbar.getBoundingClientRect().height) + 'px');
+    }
+    syncStickyOffset();
+    if (topbar && 'ResizeObserver' in window) new ResizeObserver(syncStickyOffset).observe(topbar);
+    else if (topbar) window.addEventListener('resize', syncStickyOffset);
 
     function collectDomVersions() {
         const exerciseVersions = {}, setVersions = {};
@@ -148,9 +157,15 @@
 
     function updateProgress() {
         const completed = page.querySelectorAll('.exercise-card.completed').length;
-        const total = Number(page.querySelector('#total-count').textContent);
-        page.querySelector('#completed-count').textContent = completed;
-        page.querySelector('.progress-line span').style.width = (total ? completed / total * 100 : 0) + '%';
+        const completedCount = page.querySelector('#completed-count');
+        const totalCount = page.querySelector('#total-count');
+        const progress = page.querySelector('.progress-line');
+        const total = Number(totalCount.textContent);
+        completedCount.textContent = completed;
+        progress.querySelector('span').style.width = (total ? completed / total * 100 : 0) + '%';
+        progress.setAttribute('aria-valuemax', String(total));
+        progress.setAttribute('aria-valuenow', String(completed));
+        progress.setAttribute('aria-valuetext', completed + ' из ' + total + ' упражнений');
     }
     function setCardStatus(card, status) {
         card.classList.remove('pending', 'active', 'waiting', 'completed', 'skipped');

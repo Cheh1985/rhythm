@@ -6,8 +6,13 @@ $statusLabels = array_map('t', ['pending' => 'Ожидает', 'active' => 'В �
     <div><p class="eyebrow"><?= e(local_date($session['scheduled_date'])) ?></p><h1><?= e($session['name']) ?></h1><small class="autosave-state" role="status">Проверяем синхронизацию…</small><div class="sync-strip"><span data-network-state>Онлайн</span><button type="button" data-sync-retry hidden>Повторить</button></div></div>
     <div class="elapsed"><span>Время</span><strong data-started-at="<?= e(gmdate('c', strtotime($session['started_at'] . ' UTC'))) ?>">00:00</strong></div>
 </section>
-<div class="progress-line"><span style="width:<?= $session['summary']['total_exercises'] ? round($session['summary']['completed_exercises']/$session['summary']['total_exercises']*100) : 0 ?>%"></span></div>
-<p class="progress-copy"><strong id="completed-count"><?= (int) $session['summary']['completed_exercises'] ?></strong> из <span id="total-count"><?= (int) $session['summary']['total_exercises'] ?></span> упражнений</p>
+<section class="workout-progress" aria-label="Общий прогресс тренировки">
+    <div class="workout-progress-copy">
+        <span>Прогресс</span>
+        <p class="progress-copy" aria-live="polite" aria-atomic="true"><strong id="completed-count"><?= (int) $session['summary']['completed_exercises'] ?></strong> из <span id="total-count"><?= (int) $session['summary']['total_exercises'] ?></span> упражнений</p>
+    </div>
+    <div class="progress-line" role="progressbar" aria-label="Завершено упражнений" aria-valuemin="0" aria-valuemax="<?= (int) $session['summary']['total_exercises'] ?>" aria-valuenow="<?= (int) $session['summary']['completed_exercises'] ?>" aria-valuetext="<?= (int) $session['summary']['completed_exercises'] ?> из <?= (int) $session['summary']['total_exercises'] ?> упражнений"><span style="width:<?= $session['summary']['total_exercises'] ? round($session['summary']['completed_exercises']/$session['summary']['total_exercises']*100) : 0 ?>%"></span></div>
+</section>
 
 <div class="exercise-stack">
 <?php foreach ($session['exercises'] as $exercise):
