@@ -76,7 +76,7 @@ CREATE TABLE workout_exercises(
 );
 CREATE TABLE workout_sessions(
  id INTEGER PRIMARY KEY AUTOINCREMENT,public_id TEXT UNIQUE,user_id INTEGER,workout_plan_id INTEGER,workout_type TEXT,status TEXT,
- started_at TEXT,finished_at TEXT NULL,session_rpe INTEGER NULL,wellbeing INTEGER NULL,user_comment TEXT NULL,version INTEGER,
+ started_at TEXT,finished_at TEXT NULL,active_duration_seconds INTEGER NOT NULL DEFAULT 0,active_segment_started_at TEXT NULL,session_rpe INTEGER NULL,wellbeing INTEGER NULL,user_comment TEXT NULL,version INTEGER,
  edited_after_completion INTEGER,edited_at TEXT NULL,created_at TEXT,updated_at TEXT,deleted_at TEXT NULL
 );
 CREATE TABLE readiness_logs(
@@ -146,9 +146,9 @@ INSERT INTO workout_exercises (id,workout_plan_id,exercise_id,original_exercise_
  (5,5,'bench','bench',1,3,8,10,1,3,120,60,1,'normal',NULL,NULL,NULL,NULL,1,CURRENT_TIMESTAMP),
  (6,6,'secret','secret',1,3,8,10,1,3,120,60,1,'normal',NULL,NULL,NULL,NULL,1,CURRENT_TIMESTAMP);
 INSERT INTO workout_sessions VALUES
- (1,'session-active',1,4,'strength','in_progress','2026-08-31 10:00:00',NULL,NULL,NULL,NULL,3,0,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL),
- (2,'session-completed',1,5,'strength','completed','2026-08-19 10:00:00','2026-08-19 11:00:00',8,4,NULL,5,0,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL),
- (3,'session-private',2,6,'strength','in_progress','2026-08-31 11:00:00',NULL,NULL,NULL,NULL,2,0,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL);
+ (1,'session-active',1,4,'strength','in_progress','2026-08-31 10:00:00',NULL,0,'2026-08-31 10:00:00',NULL,NULL,NULL,3,0,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL),
+ (2,'session-completed',1,5,'strength','completed','2026-08-19 10:00:00','2026-08-19 11:00:00',3600,NULL,8,4,NULL,5,0,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL),
+ (3,'session-private',2,6,'strength','in_progress','2026-08-31 11:00:00',NULL,0,'2026-08-31 11:00:00',NULL,NULL,NULL,2,0,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL);
 INSERT INTO session_exercises (id,workout_session_id,workout_exercise_id,original_exercise_id,actual_exercise_id,status,skip_reason,substitution_reason,substituted_at,exercise_rating,comment,completed_at,version,created_at,updated_at) VALUES
  (1,1,4,'row','row','pending',NULL,NULL,NULL,NULL,NULL,NULL,2,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),
  (2,2,5,'bench','bench','completed',NULL,NULL,NULL,'normal',NULL,'2026-08-19 10:50:00',2,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),

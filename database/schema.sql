@@ -204,6 +204,8 @@ CREATE TABLE workout_sessions (
     status ENUM('in_progress','completed','cancelled') NOT NULL DEFAULT 'in_progress',
     started_at DATETIME NOT NULL,
     finished_at DATETIME NULL,
+    active_duration_seconds INT UNSIGNED NOT NULL DEFAULT 0,
+    active_segment_started_at DATETIME NULL,
     session_rpe TINYINT UNSIGNED NULL,
     wellbeing TINYINT UNSIGNED NULL,
     user_comment TEXT NULL,

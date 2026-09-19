@@ -34,7 +34,7 @@ CREATE TABLE workout_plans (
 );
 CREATE TABLE workout_sessions (
     id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, workout_plan_id INTEGER NOT NULL,
-    status TEXT NOT NULL, deleted_at TEXT NULL
+    status TEXT NOT NULL, started_at TEXT NULL, finished_at TEXT NULL, active_duration_seconds INTEGER NOT NULL DEFAULT 0, active_segment_started_at TEXT NULL, deleted_at TEXT NULL
 );
 CREATE TABLE audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, entity_type TEXT NOT NULL,
@@ -47,7 +47,7 @@ $pdo->exec("INSERT INTO workout_plans VALUES
     (2,2,'plan-other','2026-08-24','planned',1,'2026-08-24',NULL),
     (3,1,'plan-started','2026-08-24','planned',1,'2026-08-24',NULL),
     (4,1,'plan-completed','2026-08-24','completed',1,'2026-08-24',NULL);
-    INSERT INTO workout_sessions VALUES (1,1,3,'in_progress',NULL)");
+    INSERT INTO workout_sessions (id,user_id,workout_plan_id,status,deleted_at) VALUES (1,1,3,'in_progress',NULL)");
 
 $repository = new TrainingRepository($pdo);
 $repository->reschedulePlan(1, 1, '2026-08-27', 1);

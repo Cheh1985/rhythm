@@ -69,7 +69,7 @@ CREATE TABLE workout_exercises(
 );
 CREATE TABLE workout_sessions(
  id INTEGER PRIMARY KEY AUTOINCREMENT,public_id TEXT NOT NULL,user_id INTEGER NOT NULL,workout_plan_id INTEGER NOT NULL,workout_type TEXT NOT NULL,
- status TEXT NOT NULL,started_at TEXT NOT NULL,finished_at TEXT NULL,version INTEGER NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,deleted_at TEXT NULL
+ status TEXT NOT NULL,started_at TEXT NOT NULL,finished_at TEXT NULL,active_duration_seconds INTEGER NOT NULL DEFAULT 0,active_segment_started_at TEXT NULL,version INTEGER NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,deleted_at TEXT NULL
 );
 CREATE TABLE audit_logs(
  id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL,entity_type TEXT NOT NULL,entity_id TEXT NOT NULL,action TEXT NOT NULL,source TEXT NULL,

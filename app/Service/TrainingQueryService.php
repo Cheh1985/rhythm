@@ -332,7 +332,7 @@ final class TrainingQueryService
                     'average_rir' => $row['average_rir'] !== null ? round((float) $row['average_rir'], 1) : null,
                     'completed_exercises' => (int) $row['completed_exercises'], 'skipped_exercises' => (int) $row['skipped_exercises'],
                     'pending_exercises' => (int) $row['pending_exercises'], 'substitutions' => (int) $row['substitutions'],
-                    'duration_minutes' => TrainingMetrics::durationMinutes($row['started_at'], $row['finished_at']),
+                    'duration_minutes' => TrainingMetrics::durationMinutes($row['started_at'], $row['finished_at'], $row['active_duration_seconds'], $row['active_segment_started_at']),
                     'session_rpe' => $row['session_rpe'] !== null ? (int) $row['session_rpe'] : null,
                 ],
             ];
@@ -414,7 +414,7 @@ final class TrainingQueryService
             'edited_after_completion' => (bool) $session['edited_after_completion'],
             'metrics' => [
                 ...TrainingMetrics::summarizeSets($allSets), ...$statuses,
-                'duration_minutes' => TrainingMetrics::durationMinutes($session['started_at'], $session['finished_at']),
+                'duration_minutes' => TrainingMetrics::durationMinutes($session['started_at'], $session['finished_at'], $session['active_duration_seconds'], $session['active_segment_started_at']),
             ],
             'exercises' => $exercises,
             'data_quality' => $this->quality(array_values($issues), [
@@ -453,7 +453,7 @@ final class TrainingQueryService
             $items[] = [
                 'session_id' => (string) $row['session_key'], 'workout_id' => (string) $row['external_plan_id'],
                 'workout_name' => (string) $row['workout_name'], 'started_at_utc' => self::utc($row['started_at']),
-                'duration_minutes' => TrainingMetrics::durationMinutes($row['started_at'], $row['finished_at']),
+                'duration_minutes' => TrainingMetrics::durationMinutes($row['started_at'], $row['finished_at'], $row['active_duration_seconds'], $row['active_segment_started_at']),
                 'session_rpe' => $row['session_rpe'] !== null ? (int) $row['session_rpe'] : null,
                 'status' => (string) $row['status'], 'substituted_into' => $row['original_exercise_id'] !== $row['actual_exercise_id'],
                 'planned' => ['sets' => (int) $row['planned_sets'], 'rep_range' => ['min' => (int) $row['rep_min'], 'max' => (int) $row['rep_max']]],
@@ -512,11 +512,12 @@ final class TrainingQueryService
             $sets = $setsBySession[(int) $session['internal_session_id']] ?? [];
             $metrics = TrainingMetrics::summarizeSets($sets);
             $allSets = [...$allSets, ...$sets];
-            $minutes = TrainingMetrics::durationMinutes($session['started_at'], $session['finished_at']) ?? 0;
+            $minutes = TrainingMetrics::durationMinutes($session['started_at'], $session['finished_at'], $session['active_duration_seconds'], $session['active_segment_started_at']) ?? 0;
             $duration += $minutes;
             if ($session['session_rpe'] !== null) $rpe[] = (int) $session['session_rpe'];
             $analyticsRows[] = [
                 'started_at' => $session['started_at'], 'finished_at' => $session['finished_at'],
+                'active_duration_seconds' => $session['active_duration_seconds'], 'active_segment_started_at' => $session['active_segment_started_at'],
                 'working_sets' => $metrics['working_sets'], 'tonnage' => $metrics['tonnage_kg'],
                 'average_rir' => $metrics['average_rir'], 'rir_count' => $metrics['rir_observations'],
             ];

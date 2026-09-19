@@ -204,7 +204,12 @@ final class WebController
             unset($_SESSION['flash_error'], $_SESSION['flash_success']);
             return;
         }
-        \render('sessions/workout', ['session' => $session], $session['name']);
+        \render('sessions/workout', [
+            'session' => $session,
+            'error' => $_SESSION['flash_error'] ?? null,
+            'success' => $_SESSION['flash_success'] ?? null,
+        ], $session['name']);
+        unset($_SESSION['flash_error'], $_SESSION['flash_success']);
     }
 
     public function history(): void
@@ -436,6 +441,22 @@ final class WebController
                 'comment' => $_POST['comment'] ?? null,
             ]);
             $_SESSION['flash_success'] = 'Итог тренировки обновлён; правка добавлена в audit trail.';
+        } catch (\Throwable $exception) {
+            $_SESSION['flash_error'] = $exception->getMessage();
+        }
+        \redirect('/sessions/' . $id);
+    }
+
+    public function resumeCompletedSession(string $id): never
+    {
+        $user = Auth::requireUser();
+        if (!Csrf::validate($_POST['_csrf'] ?? null)) {
+            $_SESSION['flash_error'] = 'Сессия формы истекла.';
+            \redirect('/sessions/' . $id);
+        }
+        try {
+            $this->training->resumeSession((int) $id, (int) $user['id'], (int) ($_POST['session_version'] ?? 0));
+            $_SESSION['flash_success'] = 'Тренировка возобновлена. Время перерыва не учитывается.';
         } catch (\Throwable $exception) {
             $_SESSION['flash_error'] = $exception->getMessage();
         }

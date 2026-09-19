@@ -1,10 +1,12 @@
 <?php
 $statusLabels = array_map('t', ['pending' => 'Ожидает', 'active' => 'В работе', 'waiting' => 'Оборудование занято', 'completed' => 'Готово', 'skipped' => 'Пропущено']);
 ?>
+<?php if ($error ?? null): ?><div class="alert alert-error"><?= te($error) ?></div><?php endif; ?>
+<?php if ($success ?? null): ?><div class="alert alert-success"><?= te($success) ?></div><?php endif; ?>
 <div class="workout-page" data-session-id="<?= (int) $session['id'] ?>" data-session-version="<?= (int) $session['version'] ?>">
 <section class="workout-head">
     <div><p class="eyebrow"><?= e(local_date($session['scheduled_date'])) ?></p><h1><?= e($session['name']) ?></h1><small class="autosave-state" role="status">Проверяем синхронизацию…</small><div class="sync-strip"><span data-network-state>Онлайн</span><button type="button" data-sync-retry hidden>Повторить</button></div></div>
-    <div class="elapsed"><span>Время</span><strong data-started-at="<?= e(gmdate('c', strtotime($session['started_at'] . ' UTC'))) ?>">00:00</strong></div>
+    <div class="elapsed"><span>Время</span><strong data-active-seconds="<?= (int) ($session['active_duration_seconds'] ?? 0) ?>" data-segment-started-at="<?= e(gmdate('c', strtotime(($session['active_segment_started_at'] ?? $session['started_at']) . ' UTC'))) ?>">00:00</strong></div>
 </section>
 <section class="workout-progress" aria-label="Общий прогресс тренировки">
     <div class="workout-progress-copy">
@@ -51,7 +53,7 @@ $statusLabels = array_map('t', ['pending' => 'Ожидает', 'active' => 'В �
 <?php endforeach; ?>
 </div>
 
-<section class="finish-card"><p class="eyebrow">Когда всё готово</p><h2>Завершить тренировку</h2><div class="field-row"><label>Общая тяжесть 1–10<input id="session-rpe" type="number" inputmode="numeric" min="1" max="10" value="7"></label><label>Самочувствие 1–5<input id="session-wellbeing" type="number" inputmode="numeric" min="1" max="5" value="4"></label></div><label>Комментарий<textarea id="session-comment" rows="3" maxlength="5000" placeholder="Что важно учесть в следующий раз?"></textarea></label><button id="finish-workout" class="button button-danger button-wide">Завершить и показать итоги</button></section>
+<section class="finish-card"><p class="eyebrow">Когда всё готово</p><h2>Завершить тренировку</h2><div class="field-row"><label>Общая тяжесть 1–10<input id="session-rpe" type="number" inputmode="numeric" min="1" max="10" value="<?= (int) ($session['session_rpe'] ?? 7) ?>"></label><label>Самочувствие 1–5<input id="session-wellbeing" type="number" inputmode="numeric" min="1" max="5" value="<?= (int) ($session['wellbeing'] ?? 4) ?>"></label></div><label>Комментарий<textarea id="session-comment" rows="3" maxlength="5000" placeholder="Что важно учесть в следующий раз?"><?= e($session['user_comment'] ?? '') ?></textarea></label><button id="finish-workout" class="button button-danger button-wide">Завершить и показать итоги</button></section>
 <details class="card danger-zone"><summary>Отменить незавершённую тренировку</summary><p class="muted">Подходы останутся в audit/backup, сессия получит статус «отменена», а план снова станет доступен.</p><form method="post" action="<?= e(url('/sessions/'.$session['id'].'/cancel')) ?>" class="stack-form"><input type="hidden" name="_csrf" value="<?= e(\App\Core\Csrf::token()) ?>"><input type="hidden" name="version" value="<?= (int)$session['version'] ?>"><label class="check-row"><input type="checkbox" name="confirm_cancel" value="1" required><span>Подтверждаю отмену</span></label><button class="button button-danger">Отменить тренировку</button></form></details>
 
 <aside class="rest-timer" id="rest-timer" hidden><div><small>Отдых</small><strong>02:00</strong><span>Таймер продолжит считать по времени окончания</span></div><div class="timer-actions"><button data-timer="pause">Пауза</button><button data-timer="reset">Сброс</button><button data-timer="add">+30 сек</button><button data-timer="stop">Закончить раньше</button></div></aside>

@@ -453,9 +453,11 @@
     page.addEventListener('change', () => { clearTimeout(draftTimer); draftTimer = setTimeout(() => saveDraft().catch(() => {}), 50); });
     window.addEventListener('rhythm-before-update', () => saveDraft().catch(() => {}));
 
-    const elapsed = page.querySelector('[data-started-at]');
+    const elapsed = page.querySelector('[data-active-seconds]');
     const updateElapsed = () => {
-        const seconds = Math.max(0, Math.floor((Date.now() - Date.parse(elapsed.dataset.startedAt)) / 1000));
+        const stored = Math.max(0, Number(elapsed.dataset.activeSeconds || 0));
+        const segment = Math.max(0, Math.floor((Date.now() - Date.parse(elapsed.dataset.segmentStartedAt)) / 1000));
+        const seconds = stored + segment;
         elapsed.textContent = String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0');
     };
     updateElapsed(); setInterval(updateElapsed, 1000);

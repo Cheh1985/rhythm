@@ -51,7 +51,7 @@ CREATE TABLE workout_exercises (
 );
 CREATE TABLE workout_sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT, public_id TEXT NOT NULL UNIQUE, user_id INTEGER NOT NULL, workout_plan_id INTEGER NOT NULL,
-    workout_type TEXT NOT NULL, status TEXT NOT NULL, started_at TEXT NOT NULL, finished_at TEXT NULL, session_rpe INTEGER NULL,
+    workout_type TEXT NOT NULL, status TEXT NOT NULL, started_at TEXT NOT NULL, finished_at TEXT NULL, active_duration_seconds INTEGER NOT NULL DEFAULT 0, active_segment_started_at TEXT NULL, session_rpe INTEGER NULL,
     wellbeing INTEGER NULL, user_comment TEXT NULL, version INTEGER NOT NULL DEFAULT 1, edited_after_completion INTEGER NOT NULL DEFAULT 0,
     edited_at TEXT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT NULL
 );
@@ -162,6 +162,32 @@ $check($finished['status'] === 'completed' && $finished['summary']['working_sets
 $check((float) $finished['summary']['tonnage_kg'] === 562.5, 'в tonnage входит только working, не warmup');
 $check((float) $pdo->query('SELECT planned_weight_kg FROM workout_exercises WHERE id=1')->fetchColumn() === 60.0, 'факт не перезаписывает план');
 $check((int) $pdo->query("SELECT COUNT(*) FROM audit_logs WHERE user_id=1")->fetchColumn() >= 8, 'существенные действия принадлежат пользователю в audit log');
+
+$pdo->exec("UPDATE workout_sessions SET active_duration_seconds=600 WHERE id={$sessionId}");
+$throws(fn () => $repository->resumeSession($sessionId, 2, 10), 'Завершённая', 'чужая завершённая тренировка не возобновляется');
+$throws(fn () => $repository->resumeSession($sessionId, 1, 9), 'другой вкладке', 'устаревшее возобновление отклоняется');
+$pdo->exec("INSERT INTO workout_sessions (public_id,user_id,workout_plan_id,workout_type,status,started_at,active_duration_seconds,active_segment_started_at,version,created_at,updated_at) VALUES ('another-active',1,1,'strength','in_progress',UTC_TIMESTAMP(),0,UTC_TIMESTAMP(),1,UTC_TIMESTAMP(),UTC_TIMESTAMP())");
+$throws(fn () => $repository->resumeSession($sessionId, 1, 10), 'другую активную', 'возобновление блокируется другой активной тренировкой');
+$pdo->exec("DELETE FROM workout_sessions WHERE public_id='another-active'");
+$resumed = $repository->resumeSession($sessionId, 1, 10);
+$check((int) $resumed['id'] === $sessionId && $resumed['status'] === 'in_progress' && $resumed['finished_at'] === null, 'возобновляется та же сессия без копии');
+$check((int) $resumed['active_duration_seconds'] === 600 && (int) $resumed['session_rpe'] === 7 && $resumed['user_comment'] === 'Хорошо', 'время и введённые итоги сохраняются');
+$check($resumed['exercises'][0]['status'] === 'completed' && count($resumed['exercises'][0]['sets']) === 2, 'статусы упражнений и подходы сохраняются');
+$check((int) $pdo->query("SELECT COUNT(*) FROM personal_records WHERE workout_session_id={$sessionId}")->fetchColumn() === 0 && (int) $pdo->query("SELECT COUNT(*) FROM progression_suggestions WHERE workout_session_id={$sessionId}")->fetchColumn() === 0, 'промежуточные PR и прогрессия аннулируются');
+$planAfterResume = $pdo->query("SELECT status,version FROM workout_plans WHERE id=1")->fetch();
+$check($planAfterResume['status'] === 'in_progress' && (int) $planAfterResume['version'] === 3 && (int) $resumed['version'] === 11 && (int) $pdo->query("SELECT COUNT(*) FROM audit_logs WHERE entity_type='workout_session' AND entity_id='{$sessionId}' AND action='resume'")->fetchColumn() === 1, 'версии, план и audit отражают возобновление');
+$throws(fn () => $repository->resumeSession($sessionId, 1, 11), 'Завершённая', 'повторное возобновление активной сессии отклоняется');
+$pdo->exec("UPDATE workout_sessions SET active_segment_started_at=datetime('now','-5 minutes') WHERE id={$sessionId}");
+$refinished = $repository->finish($sessionId, 1, ['session_version' => 11, 'session_rpe' => 8, 'wellbeing' => 5, 'comment' => 'Финальный итог']);
+$check($refinished['status'] === 'completed' && (int) $refinished['active_duration_seconds'] >= 900 && $refinished['summary']['duration_minutes'] === 15, 'повторное завершение суммирует только активные отрезки');
+$check((int) $pdo->query("SELECT COUNT(*) FROM personal_records WHERE workout_session_id={$sessionId} AND record_type='session_tonnage'")->fetchColumn() <= 1, 'повторное завершение не дублирует итоговые рекорды');
+$resumedAgain = $repository->resumeSession($sessionId, 1, 12);
+$pdo->exec("UPDATE workout_sessions SET active_segment_started_at=datetime('now','-2 minutes') WHERE id={$sessionId}");
+$refinishedAgain = $repository->finish($sessionId, 1, ['session_version' => 13, 'session_rpe' => 8, 'wellbeing' => 5, 'comment' => 'Финальный итог']);
+$check((int) $resumedAgain['id'] === $sessionId && (int) $refinishedAgain['active_duration_seconds'] >= 1020 && $refinishedAgain['summary']['duration_minutes'] === 17, 'несколько циклов суммируют только активные интервалы');
+$pdo->exec("INSERT INTO workout_sessions (public_id,user_id,workout_plan_id,workout_type,status,started_at,finished_at,active_duration_seconds,version,created_at,updated_at) VALUES ('cancelled-session',1,1,'strength','cancelled',UTC_TIMESTAMP(),UTC_TIMESTAMP(),0,1,UTC_TIMESTAMP(),UTC_TIMESTAMP())");
+$cancelledId = (int) $pdo->lastInsertId();
+$throws(fn () => $repository->resumeSession($cancelledId, 1, 1), 'Завершённая', 'отменённая тренировка не возобновляется');
 
 if ($failures !== []) {
     fwrite(STDERR, "Stage 3 checks failed:\n- " . implode("\n- ", $failures) . "\n");

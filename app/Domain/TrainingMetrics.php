@@ -60,17 +60,45 @@ final class TrainingMetrics
         ));
     }
 
-    public static function durationMinutes(mixed $startedAt, mixed $finishedAt): ?int
+    public static function activeDurationSeconds(
+        mixed $startedAt,
+        mixed $finishedAt,
+        mixed $storedSeconds = null,
+        mixed $activeSegmentStartedAt = null,
+        ?int $now = null
+    ): ?int
     {
-        if (!is_string($startedAt) || $startedAt === '' || !is_string($finishedAt) || $finishedAt === '') {
-            return null;
+        if (is_numeric($storedSeconds)) {
+            $seconds = max(0, (int) $storedSeconds);
+            if (is_string($activeSegmentStartedAt) && $activeSegmentStartedAt !== '') {
+                $segmentStarted = strtotime($activeSegmentStartedAt . (str_contains($activeSegmentStartedAt, 'T') || str_contains($activeSegmentStartedAt, '+') || str_ends_with($activeSegmentStartedAt, 'Z') ? '' : ' UTC'));
+                if ($segmentStarted === false) {
+                    return null;
+                }
+                $seconds += max(0, ($now ?? time()) - $segmentStarted);
+            }
+            return $seconds;
         }
+
+        if (!is_string($startedAt) || $startedAt === '') return null;
         $started = strtotime($startedAt . (str_contains($startedAt, 'T') || str_contains($startedAt, '+') || str_ends_with($startedAt, 'Z') ? '' : ' UTC'));
-        $finished = strtotime($finishedAt . (str_contains($finishedAt, 'T') || str_contains($finishedAt, '+') || str_ends_with($finishedAt, 'Z') ? '' : ' UTC'));
-        if ($started === false || $finished === false || $finished < $started) {
-            return null;
+        if ($started === false) return null;
+        if (is_string($finishedAt) && $finishedAt !== '') {
+            $finished = strtotime($finishedAt . (str_contains($finishedAt, 'T') || str_contains($finishedAt, '+') || str_ends_with($finishedAt, 'Z') ? '' : ' UTC'));
+            return $finished === false || $finished < $started ? null : $finished - $started;
         }
-        return (int) round(($finished - $started) / 60);
+        return max(0, ($now ?? time()) - $started);
+    }
+
+    public static function durationMinutes(
+        mixed $startedAt,
+        mixed $finishedAt,
+        mixed $storedSeconds = null,
+        mixed $activeSegmentStartedAt = null,
+        ?int $now = null
+    ): ?int {
+        $seconds = self::activeDurationSeconds($startedAt, $finishedAt, $storedSeconds, $activeSegmentStartedAt, $now);
+        return $seconds === null ? null : (int) round($seconds / 60);
     }
 
     public static function targetCompliance(array $sets, ?int $repMin, ?int $repMax): array

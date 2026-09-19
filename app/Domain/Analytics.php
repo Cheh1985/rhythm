@@ -82,10 +82,13 @@ final class Analytics
             $buckets[$key]['workouts']++;
             $buckets[$key]['working_sets'] += $sets;
             $buckets[$key]['tonnage'] += (float) ($session['tonnage'] ?? 0);
-            $finished = self::utc((string) ($session['finished_at'] ?? ''));
-            if ($finished) {
-                $buckets[$key]['duration_minutes'] += max(0, (int) round(($finished->getTimestamp() - $started->getTimestamp()) / 60));
-            }
+            $minutes = TrainingMetrics::durationMinutes(
+                $session['started_at'] ?? null,
+                $session['finished_at'] ?? null,
+                $session['active_duration_seconds'] ?? null,
+                $session['active_segment_started_at'] ?? null
+            );
+            if ($minutes !== null) $buckets[$key]['duration_minutes'] += max(0, $minutes);
             if (($session['average_rir'] ?? null) !== null && $sets > 0) {
                 $count = (int) ($session['rir_count'] ?? $sets);
                 $buckets[$key]['_rir_sum'] += (float) $session['average_rir'] * $count;

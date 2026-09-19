@@ -69,7 +69,7 @@ CREATE TABLE exercise_weight_preferences(user_id INTEGER,exercise_id TEXT,weight
 CREATE TABLE exercises(exercise_id TEXT PRIMARY KEY,owner_user_id INTEGER NULL,name TEXT NULL);
 CREATE TABLE workout_plans(id INTEGER PRIMARY KEY,user_id INTEGER,external_plan_id TEXT,workout_plan_id INTEGER,program_version_id INTEGER,workout_template_id INTEGER,name TEXT,status TEXT,deleted_at TEXT);
 CREATE TABLE workout_exercises(id INTEGER PRIMARY KEY,workout_plan_id INTEGER,exercise_id TEXT,original_exercise_id TEXT NULL,sequence_no INTEGER,substitution_reason TEXT NULL,substituted_at TEXT NULL,version INTEGER NOT NULL DEFAULT 1);
-CREATE TABLE workout_sessions(id INTEGER PRIMARY KEY,user_id INTEGER,public_id TEXT,workout_plan_id INTEGER,status TEXT,deleted_at TEXT,started_at TEXT,workout_type TEXT);
+CREATE TABLE workout_sessions(id INTEGER PRIMARY KEY,user_id INTEGER,public_id TEXT,workout_plan_id INTEGER,status TEXT,deleted_at TEXT,started_at TEXT,finished_at TEXT NULL,active_duration_seconds INTEGER NOT NULL DEFAULT 0,active_segment_started_at TEXT NULL,workout_type TEXT);
 CREATE TABLE readiness_logs(id INTEGER PRIMARY KEY,user_id INTEGER,workout_session_id INTEGER);
 CREATE TABLE session_exercises(id INTEGER PRIMARY KEY,workout_session_id INTEGER,workout_exercise_id INTEGER,original_exercise_id TEXT,actual_exercise_id TEXT);
 CREATE TABLE exercise_sets(id INTEGER PRIMARY KEY,user_id INTEGER,public_id TEXT,workout_session_id INTEGER,session_exercise_id INTEGER);
@@ -119,7 +119,7 @@ $source->exec("INSERT INTO exercises(exercise_id,owner_user_id,name) VALUES ('cu
 $source->exec("INSERT INTO workout_plans(id,user_id,external_plan_id,program_version_id,workout_template_id,name,status) VALUES (50,1,'instance-roundtrip',20,30,'Instance','planned')");
 $source->exec("INSERT INTO workout_exercises(id,workout_plan_id,exercise_id,original_exercise_id,sequence_no,substitution_reason,substituted_at,version) VALUES (60,50,'custom-actual','custom-original',1,'Оборудование занято','2026-08-27 09:00:00',2)");
 $export = (new BackupService($source))->export(1);
-$check($export['schema_version'] === '1.2' && count($export['data']['program_schedule_slots']) === 1 && !array_key_exists('assistant_tool_calls',$export['data']), 'export v1.2 включает slots и исключает technical audit');
+$check($export['schema_version'] === '1.3' && count($export['data']['program_schedule_slots']) === 1 && !array_key_exists('assistant_tool_calls',$export['data']), 'export v1.3 включает slots и исключает technical audit');
 $check(($export['data']['workout_exercises'][0]['original_exercise_id'] ?? null) === 'custom-original' && ($export['data']['workout_exercises'][0]['substitution_reason'] ?? null) === 'Оборудование занято', 'backup переносит provenance planned replacement');
 $validated = (new BackupService($source))->validate(json_encode($export, JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
 $target = $pdo();$createLifecycleSchema($target);$createBackupSupport($target);

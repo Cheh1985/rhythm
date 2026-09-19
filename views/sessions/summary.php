@@ -7,6 +7,14 @@ $statusLabels = array_map('t', ['completed' => 'Выполнено', 'skipped' =
 <?php if ($error): ?><div class="alert alert-error"><?= te($error) ?></div><?php endif; ?>
 <?php if ($success): ?><div class="alert alert-success"><?= te($success) ?></div><?php endif; ?>
 <section class="summary-hero"><span class="summary-check">✓</span><p class="eyebrow">Тренировка завершена</p><h1><?= e($session['name']) ?></h1><p><?= e(local_date($session['scheduled_date'])) ?> · <?= (int) $report['session']['duration_minutes'] ?> <?= e(unit('min')) ?>.</p></section>
+<section class="card resume-workout-card">
+    <div><p class="eyebrow">Нужно продолжить?</p><h2>Возобновить эту тренировку</h2><p class="muted">Упражнения и подходы сохранятся. Время перерыва не войдёт в длительность, а PR и прогрессия будут рассчитаны заново после следующего завершения.</p></div>
+    <form method="post" action="<?= e(url('/sessions/' . $session['id'] . '/resume')) ?>">
+        <input type="hidden" name="_csrf" value="<?= e($csrf) ?>">
+        <input type="hidden" name="session_version" value="<?= (int) $session['version'] ?>">
+        <button class="button button-primary" type="submit">Возобновить тренировку</button>
+    </form>
+</section>
 <div class="summary-grid">
     <article><span>Объём</span><strong><?= e($summary['tonnage_kg']) ?></strong><small>кг, только working</small></article>
     <article><span>Рабочих</span><strong><?= (int) $summary['working_sets'] ?></strong><small>подходов</small></article>

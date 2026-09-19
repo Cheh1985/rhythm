@@ -63,12 +63,12 @@ final class TrainingRepository
         $timezoneQuery->execute([$userId]);
         $timezone = (string) ($timezoneQuery->fetchColumn() ?: 'Europe/Moscow');
         $window = Analytics::weekWindow($timezone, 1);
-        $weekQuery = $pdo->prepare("SELECT started_at,finished_at FROM workout_sessions WHERE user_id=? AND status='completed' AND started_at>=? AND started_at<? AND deleted_at IS NULL");
+        $weekQuery = $pdo->prepare("SELECT started_at,finished_at,active_duration_seconds,active_segment_started_at FROM workout_sessions WHERE user_id=? AND status='completed' AND started_at>=? AND started_at<? AND deleted_at IS NULL");
         $weekQuery->execute([$userId, $window['start_utc'], $window['end_utc']]);
         $weekSessions = $weekQuery->fetchAll();
         $minutes = 0;
         foreach ($weekSessions as $row) {
-            $minutes += max(0, (int) round((strtotime((string) $row['finished_at'] . ' UTC') - strtotime((string) $row['started_at'] . ' UTC')) / 60));
+            $minutes += TrainingMetrics::durationMinutes($row['started_at'], $row['finished_at'], $row['active_duration_seconds'], $row['active_segment_started_at']) ?? 0;
         }
         $stats = ['sessions_week' => count($weekSessions), 'minutes_week' => $minutes];
         $unfinished = $pdo->prepare("SELECT s.id, p.name, s.started_at FROM workout_sessions s JOIN workout_plans p ON p.id=s.workout_plan_id AND p.user_id=s.user_id WHERE s.user_id=? AND s.status='in_progress' AND s.deleted_at IS NULL ORDER BY s.started_at DESC LIMIT 1");
@@ -295,7 +295,7 @@ SQL . ($forUpdate ? $this->lock() : ''));
             }
             $comment = $this->text($readiness['comment'] ?? null, 2000, 'Комментарий');
             $publicId = 'session-' . gmdate('Ymd-His') . '-' . bin2hex(random_bytes(3));
-            $insert = $pdo->prepare("INSERT INTO workout_sessions (public_id,user_id,workout_plan_id,workout_type,status,started_at,created_at,updated_at) VALUES (?,?,?,?,'in_progress',UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())");
+            $insert = $pdo->prepare("INSERT INTO workout_sessions (public_id,user_id,workout_plan_id,workout_type,status,started_at,active_duration_seconds,active_segment_started_at,created_at,updated_at) VALUES (?,?,?,?,'in_progress',UTC_TIMESTAMP(),0,UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())");
             $insert->execute([$publicId, $userId, $planId, $plan['workout_type']]);
             $sessionId = (int) $pdo->lastInsertId();
             if ($this->hasColumn($pdo, 'workout_exercises', 'original_exercise_id')) {
@@ -591,8 +591,17 @@ SQL . ($forUpdate ? $this->lock() : ''));
 
     private function rebuildHistory(int $userId, int $fromSessionId): void
     {
-        $query = $this->pdo()->prepare("SELECT id FROM workout_sessions WHERE user_id=? AND status='completed' AND deleted_at IS NULL AND (finished_at>(SELECT finished_at FROM workout_sessions WHERE id=?) OR (finished_at=(SELECT finished_at FROM workout_sessions WHERE id=?) AND id>=?)) ORDER BY finished_at,id");
-        $query->execute([$userId, $fromSessionId, $fromSessionId, $fromSessionId]);
+        $point = $this->pdo()->prepare('SELECT finished_at FROM workout_sessions WHERE id=? AND user_id=? AND deleted_at IS NULL');
+        $point->execute([$fromSessionId, $userId]);
+        $finishedAt = $point->fetchColumn();
+        if (!is_string($finishedAt) || $finishedAt === '') return;
+        $this->rebuildHistoryAfterPoint($userId, $finishedAt, $fromSessionId);
+    }
+
+    private function rebuildHistoryAfterPoint(int $userId, string $finishedAt, int $fromSessionId): void
+    {
+        $query = $this->pdo()->prepare("SELECT id FROM workout_sessions WHERE user_id=? AND status='completed' AND deleted_at IS NULL AND (finished_at>? OR (finished_at=? AND id>=?)) ORDER BY finished_at,id");
+        $query->execute([$userId, $finishedAt, $finishedAt, $fromSessionId]);
         foreach ($query->fetchAll(PDO::FETCH_COLUMN) as $id) $this->rebuildDerivedData((int) $id, $userId);
     }
 
@@ -643,9 +652,14 @@ SQL . ($forUpdate ? $this->lock() : ''));
                 throw new InvalidArgumentException('Проверьте общую тяжесть и самочувствие.');
             }
             $comment = $this->text($data['comment'] ?? null, 5000, 'Комментарий');
-            $pdo->prepare("UPDATE workout_sessions SET status='completed',finished_at=UTC_TIMESTAMP(),session_rpe=?,wellbeing=?,user_comment=?,version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=?")->execute([$rpe, $wellbeing, $comment, $sessionId]);
+            $finishedAt = gmdate('Y-m-d H:i:s');
+            $segmentStartedAt = (string) ($session['active_segment_started_at'] ?? $session['started_at']);
+            $segmentStarted = strtotime($segmentStartedAt . ' UTC');
+            $finished = strtotime($finishedAt . ' UTC');
+            $durationSeconds = max(0, (int) ($session['active_duration_seconds'] ?? 0)) + max(0, $finished - ($segmentStarted === false ? $finished : $segmentStarted));
+            $pdo->prepare("UPDATE workout_sessions SET status='completed',finished_at=?,active_duration_seconds=?,active_segment_started_at=NULL,session_rpe=?,wellbeing=?,user_comment=?,version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=?")->execute([$finishedAt, $durationSeconds, $rpe, $wellbeing, $comment, $sessionId]);
             $pdo->prepare("UPDATE workout_plans SET status='completed',updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?")->execute([$session['workout_plan_id'], $userId]);
-            $this->audit($pdo, $userId, 'workout_session', (string) $sessionId, 'finish', null, ['session_rpe' => $rpe, 'wellbeing' => $wellbeing]);
+            $this->audit($pdo, $userId, 'workout_session', (string) $sessionId, 'finish', null, ['session_rpe' => $rpe, 'wellbeing' => $wellbeing, 'active_duration_seconds' => $durationSeconds]);
             $this->completeAction($pdo, $userId, $data, 'session.finish', ['session_id' => $sessionId, 'status' => 'completed']);
         });
         $session = $this->session($sessionId, $userId);
@@ -654,6 +668,45 @@ SQL . ($forUpdate ? $this->lock() : ''));
         }
         $this->rebuildDerivedData($sessionId, $userId);
         return $this->session($sessionId, $userId) ?? $session;
+    }
+
+    public function resumeSession(int $sessionId, int $userId, int $sessionVersion): array
+    {
+        $result = $this->transaction(function (PDO $pdo) use ($sessionId, $userId, $sessionVersion): array {
+            $user = $pdo->prepare('SELECT id FROM users WHERE id=?' . $this->lock());
+            $user->execute([$userId]);
+            if (!$user->fetchColumn()) throw new InvalidArgumentException('Пользователь не найден.');
+
+            $query = $pdo->prepare("SELECT * FROM workout_sessions WHERE id=? AND user_id=? AND workout_type='strength' AND status='completed' AND deleted_at IS NULL" . $this->lock());
+            $query->execute([$sessionId, $userId]);
+            $before = $query->fetch();
+            if (!$before) throw new InvalidArgumentException('Завершённая силовая тренировка не найдена.');
+            if ($sessionVersion !== (int) $before['version']) throw new VersionConflictException('Тренировка уже изменена в другой вкладке.');
+
+            $active = $pdo->prepare("SELECT id FROM workout_sessions WHERE user_id=? AND id<>? AND workout_type='strength' AND status='in_progress' AND deleted_at IS NULL LIMIT 1" . $this->lock());
+            $active->execute([$userId, $sessionId]);
+            if ($active->fetchColumn()) throw new InvalidArgumentException('Сначала завершите или отмените другую активную тренировку.');
+
+            $progressionCount = $pdo->prepare('SELECT COUNT(*) FROM progression_suggestions WHERE workout_session_id=? AND user_id=?');
+            $progressionCount->execute([$sessionId, $userId]);
+            $recordCount = $pdo->prepare('SELECT COUNT(*) FROM personal_records WHERE workout_session_id=? AND user_id=?');
+            $recordCount->execute([$sessionId, $userId]);
+            $removed = ['progression_suggestions' => (int) $progressionCount->fetchColumn(), 'personal_records' => (int) $recordCount->fetchColumn()];
+            $pdo->prepare('DELETE FROM progression_suggestions WHERE workout_session_id=? AND user_id=?')->execute([$sessionId, $userId]);
+            $pdo->prepare('DELETE FROM personal_records WHERE workout_session_id=? AND user_id=?')->execute([$sessionId, $userId]);
+
+            $resumedAt = gmdate('Y-m-d H:i:s');
+            $pdo->prepare("UPDATE workout_sessions SET status='in_progress',finished_at=NULL,active_segment_started_at=?,version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?")->execute([$resumedAt, $sessionId, $userId]);
+            $pdo->prepare("UPDATE workout_plans SET status='in_progress',version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?")->execute([$before['workout_plan_id'], $userId]);
+            $after = ['status' => 'in_progress', 'finished_at' => null, 'active_duration_seconds' => (int) ($before['active_duration_seconds'] ?? 0), 'active_segment_started_at' => $resumedAt, 'removed_derived' => $removed];
+            $this->audit($pdo, $userId, 'workout_session', (string) $sessionId, 'resume', $before, $after);
+            return ['previous_finished_at' => (string) $before['finished_at'], 'session_version' => (int) $before['version'] + 1];
+        });
+
+        $this->rebuildHistoryAfterPoint($userId, $result['previous_finished_at'], $sessionId);
+        $session = $this->session($sessionId, $userId);
+        if (!$session) throw new RuntimeException('Не удалось перечитать возобновлённую тренировку.');
+        return $session;
     }
 
     public function updateCompletedSession(int $sessionId, int $userId, array $data): array
@@ -1268,7 +1321,12 @@ SQL);
             $before = $query->fetch();
             if (!$before) throw new InvalidArgumentException('Незавершённая тренировка не найдена.');
             if ($version !== (int) $before['version']) throw new VersionConflictException('Тренировка уже изменена в другой вкладке.');
-            $pdo->prepare("UPDATE workout_sessions SET status='cancelled',finished_at=UTC_TIMESTAMP(),version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?")->execute([$sessionId, $userId]);
+            $finishedAt = gmdate('Y-m-d H:i:s');
+            $segmentStartedAt = (string) ($before['active_segment_started_at'] ?? $before['started_at']);
+            $segmentStarted = strtotime($segmentStartedAt . ' UTC');
+            $finished = strtotime($finishedAt . ' UTC');
+            $durationSeconds = max(0, (int) ($before['active_duration_seconds'] ?? 0)) + max(0, $finished - ($segmentStarted === false ? $finished : $segmentStarted));
+            $pdo->prepare("UPDATE workout_sessions SET status='cancelled',finished_at=?,active_duration_seconds=?,active_segment_started_at=NULL,version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?")->execute([$finishedAt, $durationSeconds, $sessionId, $userId]);
             $pdo->prepare("UPDATE workout_plans SET status='planned',version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?")->execute([$before['workout_plan_id'], $userId]);
             $this->audit($pdo, $userId, 'workout_session', (string) $sessionId, 'cancel', $before, ['status' => 'cancelled']);
         });
@@ -1326,7 +1384,7 @@ SQL);
         $timezone ??= $this->userTimezone($pdo, $userId);
         $weeks = max(4, min(52, $weeks));
         $window = Analytics::weekWindow($timezone, $weeks);
-        $query = $pdo->prepare("SELECT ws.id,ws.started_at,ws.finished_at,COUNT(es.id) working_sets,COALESCE(SUM(es.performed_weight_kg*es.reps),0) tonnage,AVG(es.rir) average_rir,COUNT(es.rir) rir_count FROM workout_sessions ws LEFT JOIN exercise_sets es ON es.workout_session_id=ws.id AND es.user_id=ws.user_id AND es.set_type='working' AND es.deleted_at IS NULL WHERE ws.user_id=? AND ws.status='completed' AND ws.started_at>=? AND ws.started_at<? AND ws.deleted_at IS NULL GROUP BY ws.id,ws.started_at,ws.finished_at ORDER BY ws.started_at");
+        $query = $pdo->prepare("SELECT ws.id,ws.started_at,ws.finished_at,ws.active_duration_seconds,ws.active_segment_started_at,COUNT(es.id) working_sets,COALESCE(SUM(es.performed_weight_kg*es.reps),0) tonnage,AVG(es.rir) average_rir,COUNT(es.rir) rir_count FROM workout_sessions ws LEFT JOIN exercise_sets es ON es.workout_session_id=ws.id AND es.user_id=ws.user_id AND es.set_type='working' AND es.deleted_at IS NULL WHERE ws.user_id=? AND ws.status='completed' AND ws.started_at>=? AND ws.started_at<? AND ws.deleted_at IS NULL GROUP BY ws.id,ws.started_at,ws.finished_at,ws.active_duration_seconds,ws.active_segment_started_at ORDER BY ws.started_at");
         $query->execute([$userId, $window['start_utc'], $window['end_utc']]);
         $weekly = Analytics::weekly($query->fetchAll(), $timezone, $weeks);
         $current = $weekly[array_key_last($weekly)] ?? ['workouts' => 0, 'working_sets' => 0, 'tonnage' => 0, 'average_rir' => null, 'duration_minutes' => 0];
@@ -1462,6 +1520,13 @@ SQL);
             $completed += $exercise['status'] === 'completed' ? 1 : 0;
             $skipped += $exercise['status'] === 'skipped' ? 1 : 0;
         }
+        $durationSeconds = TrainingMetrics::activeDurationSeconds(
+            $session['started_at'] ?? null,
+            $session['finished_at'] ?? null,
+            $session['active_duration_seconds'] ?? null,
+            $session['active_segment_started_at'] ?? null
+        );
+        $durationMinutes = $durationSeconds === null ? 0 : ($session['finished_at'] ? max(1, (int) round($durationSeconds / 60)) : max(0, (int) floor($durationSeconds / 60)));
         return [
             'completed_exercises' => $completed,
             'skipped_exercises' => $skipped,
@@ -1469,7 +1534,7 @@ SQL);
             'working_sets' => count(array_filter($sets, static fn (array $set): bool => $set['set_type'] === 'working')),
             'tonnage_kg' => TrainingMetrics::tonnage($sets),
             'average_rir' => TrainingMetrics::averageRir($sets),
-            'duration_minutes' => $session['finished_at'] ? max(1, (int) round((strtotime($session['finished_at']) - strtotime($session['started_at'])) / 60)) : max(0, (int) floor((time() - strtotime($session['started_at'] . ' UTC')) / 60)),
+            'duration_minutes' => $durationMinutes,
         ];
     }
 

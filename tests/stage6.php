@@ -46,9 +46,9 @@ SQL);
 for ($index = 1; $index <= 23; $index++) {
     $id = 100 + $index;
     $day = str_pad((string) (($index % 20) + 1), 2, '0', STR_PAD_LEFT);
-    $pdo->exec("INSERT INTO workout_sessions (id,public_id,user_id,workout_plan_id,workout_type,status,started_at,finished_at,version,created_at,updated_at) VALUES ({$id},'history-{$id}',1,1,'strength','completed','2026-07-{$day} 09:00:00','2026-07-{$day} 10:00:00',1,UTC_TIMESTAMP(),UTC_TIMESTAMP())");
+    $pdo->exec("INSERT INTO workout_sessions (id,public_id,user_id,workout_plan_id,workout_type,status,started_at,finished_at,active_duration_seconds,version,created_at,updated_at) VALUES ({$id},'history-{$id}',1,1,'strength','completed','2026-07-{$day} 09:00:00','2026-07-{$day} 10:00:00',3600,1,UTC_TIMESTAMP(),UTC_TIMESTAMP())");
 }
-$pdo->exec("INSERT INTO workout_sessions (id,public_id,user_id,workout_plan_id,workout_type,status,started_at,finished_at,version,created_at,updated_at) VALUES (199,'history-other',2,2,'strength','completed','2026-07-15 09:00:00','2026-07-15 10:00:00',1,UTC_TIMESTAMP(),UTC_TIMESTAMP())");
+$pdo->exec("INSERT INTO workout_sessions (id,public_id,user_id,workout_plan_id,workout_type,status,started_at,finished_at,active_duration_seconds,version,created_at,updated_at) VALUES (199,'history-other',2,2,'strength','completed','2026-07-15 09:00:00','2026-07-15 10:00:00',3600,1,UTC_TIMESTAMP(),UTC_TIMESTAMP())");
 
 $historyPage1 = $repository->history(1, 1, ['status' => 'completed'], 'Europe/Moscow');
 $historyPage2 = $repository->history(1, 2, ['status' => 'completed'], 'Europe/Moscow');

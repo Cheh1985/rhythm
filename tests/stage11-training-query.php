@@ -64,7 +64,7 @@ CREATE TABLE workout_exercises (
 );
 CREATE TABLE workout_sessions (
  id INTEGER PRIMARY KEY,public_id TEXT NOT NULL,user_id INTEGER NOT NULL,workout_plan_id INTEGER NOT NULL,workout_type TEXT NOT NULL,
- status TEXT NOT NULL,started_at TEXT NOT NULL,finished_at TEXT NULL,session_rpe INTEGER NULL,wellbeing INTEGER NULL,user_comment TEXT NULL,
+ status TEXT NOT NULL,started_at TEXT NOT NULL,finished_at TEXT NULL,active_duration_seconds INTEGER NOT NULL DEFAULT 0,active_segment_started_at TEXT NULL,session_rpe INTEGER NULL,wellbeing INTEGER NULL,user_comment TEXT NULL,
  version INTEGER NOT NULL,edited_after_completion INTEGER NOT NULL,edited_at TEXT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,deleted_at TEXT NULL
 );
 CREATE TABLE session_exercises (
@@ -125,8 +125,8 @@ INSERT INTO workout_exercises (id,workout_plan_id,exercise_id,original_exercise_
  (5,3,'secret','secret',1,1,5,8,1,2,120,100,0,'normal',NULL,NULL,NULL,NULL,1,'2026-08-01 00:00:00'),
  (6,4,'bench','bench',1,2,8,10,2,3,120,55,1,'normal',NULL,NULL,NULL,NULL,1,'2026-08-20 00:00:00');
 INSERT INTO workout_sessions VALUES
- (1,'session-public',1,1,'strength','completed','2026-08-23 21:30:00','2026-08-23 22:30:00',8,4,NULL,5,0,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL),
- (2,'session-private',2,3,'strength','completed','2026-08-24 09:00:00','2026-08-24 10:00:00',9,3,'private',2,0,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL);
+ (1,'session-public',1,1,'strength','completed','2026-08-23 21:30:00','2026-08-23 22:30:00',3600,NULL,8,4,NULL,5,0,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL),
+ (2,'session-private',2,3,'strength','completed','2026-08-24 09:00:00','2026-08-24 10:00:00',3600,NULL,9,3,'private',2,0,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL);
 INSERT INTO session_exercises (id,workout_session_id,workout_exercise_id,original_exercise_id,actual_exercise_id,status,skip_reason,substitution_reason,substituted_at,exercise_rating,comment,completed_at,version,created_at,updated_at) VALUES
  (1,1,1,'bench','row','completed',NULL,'Скамья занята','2026-08-23 21:35:00','normal',NULL,'2026-08-23 22:00:00',3,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),
  (2,1,2,'row','row','skipped','time',NULL,NULL,NULL,NULL,'2026-08-23 22:00:00',2,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),

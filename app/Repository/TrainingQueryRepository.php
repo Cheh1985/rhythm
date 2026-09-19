@@ -150,7 +150,7 @@ SQL);
 SELECT * FROM (
     SELECT 'strength' source_kind,p.external_plan_id item_key,p.scheduled_date local_date,p.name,p.workout_type,
            p.status planned_status,p.version plan_version,s.public_id session_key,s.status session_status,
-           s.started_at,s.finished_at,s.session_rpe,s.wellbeing,
+           s.started_at,s.finished_at,s.active_duration_seconds,s.active_segment_started_at,s.session_rpe,s.wellbeing,
            COALESCE(sa.working_sets,0) working_sets,COALESCE(sa.tonnage_kg,0) tonnage_kg,sa.average_rir,
            COALESCE(sa.completed_exercises,0) completed_exercises,COALESCE(sa.skipped_exercises,0) skipped_exercises,
            COALESCE(sa.pending_exercises,0) pending_exercises,COALESCE(sa.substitutions,0) substitutions,
@@ -178,7 +178,7 @@ SELECT * FROM (
     WHERE p.user_id=? AND p.deleted_at IS NULL
     UNION ALL
     SELECT 'swimming',sw.public_id,sw.swim_date,'Плавание','swimming','completed',sw.version,NULL,'completed',
-           sw.occurred_at,sw.occurred_at,NULL,sw.wellbeing,0,0,NULL,0,0,0,0,
+           sw.occurred_at,sw.occurred_at,NULL,NULL,NULL,sw.wellbeing,0,0,NULL,0,0,0,0,
            sw.duration_minutes,sw.total_distance_m,sw.primary_style,sw.intensity
     FROM swimming_sessions sw
     WHERE sw.user_id=? AND sw.deleted_at IS NULL
@@ -240,7 +240,7 @@ SQL);
     public function sessionRow(int $userId, string $sessionId): ?array
     {
         $query = $this->pdo()->prepare(<<<'SQL'
-SELECT s.id internal_session_id,s.public_id,s.status,s.workout_type,s.started_at,s.finished_at,s.session_rpe,s.wellbeing,
+SELECT s.id internal_session_id,s.public_id,s.status,s.workout_type,s.started_at,s.finished_at,s.active_duration_seconds,s.active_segment_started_at,s.session_rpe,s.wellbeing,
        s.version,s.edited_after_completion,s.edited_at,p.external_plan_id,p.name,p.scheduled_date,p.goal,p.estimated_duration_min
 FROM workout_sessions s
 JOIN workout_plans p ON p.id=s.workout_plan_id AND p.user_id=s.user_id
@@ -293,7 +293,7 @@ SQL);
     public function exerciseHistoryRows(int $userId, string $exerciseId, string $fromUtc, string $toUtc, ?array $cursor, int $limit): array
     {
         $sql = <<<'SQL'
-SELECT se.id internal_session_exercise_id,ws.public_id session_key,ws.started_at,ws.finished_at,ws.session_rpe,
+SELECT se.id internal_session_exercise_id,ws.public_id session_key,ws.started_at,ws.finished_at,ws.active_duration_seconds,ws.active_segment_started_at,ws.session_rpe,
        p.external_plan_id,p.name workout_name,se.status,se.original_exercise_id,se.actual_exercise_id,
        we.sequence_no,we.planned_sets,we.rep_min,we.rep_max,we.target_rir_min,we.target_rir_max
 FROM session_exercises se
@@ -328,7 +328,7 @@ SQL;
     public function completedSessionRows(int $userId, string $fromUtc, string $toUtc): array
     {
         $query = $this->pdo()->prepare(<<<'SQL'
-SELECT ws.id internal_session_id,ws.public_id,ws.started_at,ws.finished_at,ws.session_rpe,ws.wellbeing,p.external_plan_id,p.name
+SELECT ws.id internal_session_id,ws.public_id,ws.started_at,ws.finished_at,ws.active_duration_seconds,ws.active_segment_started_at,ws.session_rpe,ws.wellbeing,p.external_plan_id,p.name
 FROM workout_sessions ws
 JOIN workout_plans p ON p.id=ws.workout_plan_id AND p.user_id=ws.user_id
 WHERE ws.user_id=? AND ws.workout_type='strength' AND ws.status='completed' AND ws.started_at>=? AND ws.started_at<? AND ws.deleted_at IS NULL
