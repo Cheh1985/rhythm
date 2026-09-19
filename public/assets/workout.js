@@ -56,7 +56,7 @@
     }
 
     const page = document.querySelector('.workout-page');
-    if (!page || !window.RhythmOffline || !userId) return;
+    if (!page || !window.RhythmOffline || !window.RhythmRestTimer || !userId) return;
     const sessionId = String(page.dataset.sessionId);
     let sessionVersion = Number(page.dataset.sessionVersion);
     let versions = {sessionVersion, exerciseVersions: {}, setVersions: {}};
@@ -225,14 +225,16 @@
     }
 
     let enqueueChain = Promise.resolve();
-    function queueMutation(type, path, method, body) {
-        const queued = enqueueChain.then(() => enqueueMutation(type, path, method, body));
+    function queueMutation(type, path, method, body, actionId = null) {
+        const queued = enqueueChain.then(() => enqueueMutation(type, path, method, body, actionId));
         enqueueChain = queued.catch(() => {});
         return queued;
     }
-    async function enqueueMutation(type, path, method, body) {
+    async function enqueueMutation(type, path, method, body, actionId = null) {
         const existing = await RhythmOffline.listActions(userId, sessionId);
-        const action = RhythmOffline.createAction({userId, sessionId, type, path, method, body, dependsOn: existing.length ? [existing[existing.length - 1].id] : []});
+        const duplicate = actionId ? existing.find((item) => item.id === actionId) : null;
+        if (duplicate) { syncOutbox(); return duplicate; }
+        const action = RhythmOffline.createAction({id: actionId || undefined, userId, sessionId, type, path, method, body, dependsOn: existing.length ? [existing[existing.length - 1].id] : []});
         if (!sessionSnapshot) sessionSnapshot = {id: Number(sessionId), version: sessionVersion, exercises: []};
         const sessionRecord = {key: 'user:' + userId + ':session:' + sessionId, userId: String(userId), sessionId: String(sessionId), snapshot: sessionSnapshot, draft: captureDraft(), updatedAt: Date.now()};
         await RhythmOffline.enqueue(action, sessionRecord);
@@ -483,10 +485,10 @@
         const card = form.closest('.exercise-card'), type = form.querySelector('[data-type].active').dataset.type;
         const nextKey = type === 'working' ? 'workingNext' : 'warmupNext', submit = form.querySelector('[type="submit"]');
         submit.disabled = true;
-        await queueMutation('set.create', '/api/sessions/' + sessionId + '/sets', 'POST', {session_version: sessionVersion, session_exercise_id: Number(card.dataset.exerciseId), set_number: Number(form.dataset[nextKey]), set_type: type, weight_value: Number(form.querySelector('.weight-input').value), weight_unit: form.querySelector('.weight-unit').value, reps: Number(form.querySelector('.reps-input').value), rir: Number(rir.value)});
+        const setAction = await queueMutation('set.create', '/api/sessions/' + sessionId + '/sets', 'POST', {session_version: sessionVersion, session_exercise_id: Number(card.dataset.exerciseId), set_number: Number(form.dataset[nextKey]), set_type: type, weight_value: Number(form.querySelector('.weight-input').value), weight_unit: form.querySelector('.weight-unit').value, reps: Number(form.querySelector('.reps-input').value), rir: Number(rir.value)});
         rir.value = '';
         form.querySelectorAll('[data-rir]').forEach((item) => item.classList.remove('active'));
-        startTimer(Number(card.dataset.rest));
+        await startTimer(Number(card.dataset.rest), setAction.id, Number(card.dataset.exerciseId));
         submit.disabled = false;
     }));
 
@@ -546,8 +548,14 @@
 
     page.querySelector('#finish-workout').addEventListener('click', async (event) => {
         const button = event.currentTarget; button.disabled = true;
-        await queueMutation('session.finish', '/api/sessions/' + sessionId + '/finish', 'POST', {session_version: sessionVersion, session_rpe: Number(page.querySelector('#session-rpe').value), wellbeing: Number(page.querySelector('#session-wellbeing').value), comment: page.querySelector('#session-comment').value});
-        if (navigator.onLine && !(await RhythmOffline.listActions(userId, sessionId)).length) location.assign(base + '/sessions/' + sessionId);
+        try {
+            if (timerState) await finalizeTimer(Date.now(), 'workout_finished');
+            await queueMutation('session.finish', '/api/sessions/' + sessionId + '/finish', 'POST', {session_version: sessionVersion, session_rpe: Number(page.querySelector('#session-rpe').value), wellbeing: Number(page.querySelector('#session-wellbeing').value), comment: page.querySelector('#session-comment').value});
+            if (navigator.onLine && !(await RhythmOffline.listActions(userId, sessionId)).length) location.assign(base + '/sessions/' + sessionId);
+        } catch (error) {
+            paintSync('error', (await RhythmOffline.listActions(userId, sessionId)).length, error.message);
+            button.disabled = false;
+        }
     });
     retryButton.addEventListener('click', async () => {
         const actions = await RhythmOffline.listActions(userId, sessionId);
@@ -577,34 +585,85 @@
         else paintSync(actions.length ? 'pending' : 'synced', actions.length);
     });
 
-    const timer = page.querySelector('#rest-timer'), timerDisplay = timer.querySelector('strong'), timerKey = 'rhythm-rest-' + userId + '-' + sessionId;
-    let timerState = null, timerInterval = null;
+    const timer = page.querySelector('#rest-timer'), timerDisplay = timer.querySelector('strong'), timerStatus = timer.querySelector('[data-timer-status]'), timerKey = 'rhythm-rest-' + userId + '-' + sessionId;
+    let timerState = null, timerInterval = null, timerEventPromise = null;
     function persistTimer() { if (timerState) localStorage.setItem(timerKey, JSON.stringify(timerState)); else localStorage.removeItem(timerKey); }
-    function startTimer(seconds) { timerState = {duration: seconds, remaining: seconds, endAt: Date.now() + seconds * 1000, paused: false, signaled: false}; timer.hidden = false; timer.classList.remove('expired'); persistTimer(); runTimer(); }
-    function remainingSeconds() { return timerState.paused ? timerState.remaining : Math.max(0, Math.ceil((timerState.endAt - Date.now()) / 1000)); }
+    async function startTimer(seconds, sourceSetActionId, sessionExerciseId) {
+        if (timerState && !RhythmRestTimer.isTerminal(timerState)) await finalizeTimer(Date.now(), 'next_set');
+        else if (timerState) await enqueueRestEvent();
+        if (!Number.isInteger(seconds) || seconds < 1) { dismissTimer(); return; }
+        timerState = RhythmRestTimer.create({id: RhythmOffline.uuid('rest'), duration: seconds, sourceSetActionId, sessionExerciseId});
+        timer.hidden = false;
+        persistTimer();
+        runTimer();
+    }
+    function remainingSeconds() { return RhythmRestTimer.remainingSeconds(timerState); }
+    function notifyTimerCompletion() {
+        if (!timerState || timerState.notified) return;
+        timerState = {...timerState, notified: true};
+        if (navigator.vibrate) navigator.vibrate([180, 100, 180]);
+        try { const context = new (window.AudioContext || window.webkitAudioContext)(), oscillator = context.createOscillator(); oscillator.connect(context.destination); oscillator.frequency.value = 740; oscillator.start(); oscillator.stop(context.currentTime + .18); } catch (_) {}
+        persistTimer();
+    }
+    function enqueueRestEvent() {
+        if (!timerState || !RhythmRestTimer.isTerminal(timerState) || timerState.eventEnqueued || !timerState.sourceSetActionId) return Promise.resolve();
+        if (timerEventPromise) return timerEventPromise;
+        const stateId = timerState.id;
+        timerEventPromise = queueMutation('rest.finish', '/api/sessions/' + sessionId + '/rest-events', 'POST', RhythmRestTimer.eventPayload(timerState), timerState.eventActionId)
+            .then(() => {
+                if (timerState?.id === stateId) { timerState = {...timerState, eventEnqueued: true}; persistTimer(); }
+            })
+            .finally(() => { timerEventPromise = null; });
+        return timerEventPromise;
+    }
+    async function finalizeTimer(now, trigger) {
+        if (!timerState) return;
+        const transition = RhythmRestTimer.finish(timerState, now, trigger);
+        timerState = transition.state;
+        persistTimer();
+        paintTimer();
+        await enqueueRestEvent();
+    }
+    function dismissTimer() {
+        timerState = null;
+        timer.hidden = true;
+        timer.classList.remove('expired');
+        clearInterval(timerInterval);
+        persistTimer();
+    }
     function paintTimer() {
         if (!timerState) return;
+        const checked = RhythmRestTimer.reconcile(timerState);
+        if (checked.finalized) { timerState = checked.state; persistTimer(); enqueueRestEvent().catch((error) => paintSync('error', 0, error.message)); }
         const remaining = remainingSeconds();
         timerDisplay.textContent = String(Math.floor(remaining / 60)).padStart(2, '0') + ':' + String(remaining % 60).padStart(2, '0');
+        const terminal = RhythmRestTimer.isTerminal(timerState), completed = timerState.status === 'completed';
+        timer.classList.toggle('expired', completed);
         timer.querySelector('[data-timer="pause"]').textContent = timerState.paused ? 'Продолжить' : 'Пауза';
-        if (remaining === 0 && !timerState.signaled) {
-            timerState.signaled = true; timer.classList.add('expired'); if (navigator.vibrate) navigator.vibrate([180, 100, 180]);
-            try { const context = new (window.AudioContext || window.webkitAudioContext)(), oscillator = context.createOscillator(); oscillator.connect(context.destination); oscillator.frequency.value = 740; oscillator.start(); oscillator.stop(context.currentTime + .18); } catch (_) {}
-            persistTimer();
-        }
+        timer.querySelector('[data-timer="stop"]').textContent = terminal ? 'Закрыть' : 'Закончить раньше';
+        timerStatus.textContent = completed ? 'Отдых полностью завершён' : 'Таймер продолжит считать по времени окончания';
+        timer.querySelectorAll('[data-timer="pause"],[data-timer="reset"],[data-timer="add"]').forEach((button) => { button.hidden = terminal; });
+        if (completed) notifyTimerCompletion();
     }
     function runTimer() { clearInterval(timerInterval); paintTimer(); timerInterval = setInterval(paintTimer, 250); }
-    timer.addEventListener('click', (event) => {
+    timer.addEventListener('click', async (event) => {
         const action = event.target.closest('[data-timer]')?.dataset.timer;
         if (!action || !timerState) return;
-        if (action === 'pause') { if (timerState.paused) { timerState.endAt = Date.now() + timerState.remaining * 1000; timerState.paused = false; } else { timerState.remaining = remainingSeconds(); timerState.paused = true; } }
-        else if (action === 'reset') { timerState.remaining = timerState.duration; timerState.endAt = Date.now() + timerState.duration * 1000; timerState.paused = false; timerState.signaled = false; timer.classList.remove('expired'); }
-        else if (action === 'add') { if (timerState.paused) timerState.remaining += 30; else timerState.endAt += 30000; timerState.signaled = false; timer.classList.remove('expired'); }
-        else if (action === 'stop') { timerState = null; timer.hidden = true; clearInterval(timerInterval); }
-        persistTimer(); paintTimer();
+        try {
+            let transition = null;
+            if (action === 'pause') transition = timerState.paused ? RhythmRestTimer.resume(timerState) : RhythmRestTimer.pause(timerState);
+            else if (action === 'reset') transition = RhythmRestTimer.reset(timerState);
+            else if (action === 'add') transition = RhythmRestTimer.add(timerState, 30);
+            else if (action === 'stop' && RhythmRestTimer.isTerminal(timerState)) { await enqueueRestEvent(); dismissTimer(); return; }
+            else if (action === 'stop') { await finalizeTimer(Date.now(), 'user'); dismissTimer(); return; }
+            if (transition) timerState = transition.state;
+            persistTimer(); paintTimer();
+            if (transition?.finalized) await enqueueRestEvent();
+        } catch (error) { paintSync('error', 0, error.message); }
     });
-    try { timerState = JSON.parse(localStorage.getItem(timerKey)); } catch (_) { timerState = null; }
-    if (timerState) { timer.hidden = false; runTimer(); }
+    try { timerState = RhythmRestTimer.restore(JSON.parse(localStorage.getItem(timerKey))); } catch (_) { timerState = null; }
+    if (timerState) { timer.hidden = false; runTimer(); if (RhythmRestTimer.isTerminal(timerState)) enqueueRestEvent().catch(() => {}); }
+    else localStorage.removeItem(timerKey);
 
     (async function initialise() {
         const local = await RhythmOffline.getSession(userId, sessionId).catch(() => null);

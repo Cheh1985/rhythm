@@ -217,18 +217,18 @@ Mutable workflow программы использует отдельный ко
 
 `training_sequence` содержит последние силовые и плавательные события пользователя с типом, стабильным ID, UTC-временем, подписью и дистанцией для плавания. Поле `interpretation` в v1.0 всегда `null`: экспорт показывает последовательность для будущего внешнего анализа, но не формирует физиологических или медицинских выводов. Markdown доступен по `/export/swimming/{id}.md`.
 
-Backup v1.3 включает `swimming_sessions`, `swimming_intervals`, `schedules` и вычисленную `training_sequence`; после restore последовательность всё равно заново вычисляется из фактических записей. Все выборки ограничены текущим `user_id`.
+Backup v1.4 включает `swimming_sessions`, `swimming_intervals`, `schedules`, события отдыха и вычисленную `training_sequence`; после restore последовательность всё равно заново вычисляется из фактических записей. Все выборки ограничены текущим `user_id`.
 
 # JSON-формат резервной копии
 
-## Контракт training-diary-backup v1.3
+## Контракт training-diary-backup v1.4
 
 Корень содержит ровно шесть полей:
 
 ```json
 {
   "schema": "training-diary-backup",
-  "schema_version": "1.3",
+  "schema_version": "1.4",
   "backup_id": "backup-0123456789abcdef0123456789abcdef",
   "exported_at_utc": "2026-08-24T10:00:00Z",
   "checksum_sha256": "sha256 канонического объекта data",
@@ -236,9 +236,9 @@ Backup v1.3 включает `swimming_sessions`, `swimming_intervals`, `schedul
 }
 ```
 
-`data` обязан содержать все секции v1.3: пользовательские упражнения, программы/версии/шаблоны/versioned schedule slots/планы, плановые и фактические упражнения, сессии/readiness/подходы/дискомфорт/прогрессию/PR, измерения, обычное расписание, плавание/интервалы и audit. В `training_programs` переносится `active_version_id`, в `program_versions` — lifecycle/lock/hash/timestamps, а отдельная секция `program_schedule_slots` хранит weekday → template внутри версии. Пароль, login attempts, cookie/session, offline receipts и technical `assistant_tool_calls` не экспортируются.
+`data` обязан содержать все секции v1.4: пользовательские упражнения, программы/версии/шаблоны/versioned schedule slots/планы, плановые и фактические упражнения, сессии/readiness/подходы/события отдыха/дискомфорт/прогрессию/PR, измерения, обычное расписание, плавание/интервалы и audit. В `training_programs` переносится `active_version_id`, в `program_versions` — lifecycle/lock/hash/timestamps, а отдельная секция `program_schedule_slots` хранит weekday → template внутри версии. Пароль, login attempts, cookie/session, offline receipts и technical `assistant_tool_calls` не экспортируются.
 
-В v1.2 добавлены `exercise_weight_preferences`, исходные пары веса у плановых упражнений и подходов, а также единица ввода `session_exercises.weight_unit`. В v1.3 сессия дополнена `active_duration_seconds` и `active_segment_started_at`, чтобы пауза после завершения не попадала в длительность возобновлённой тренировки. Restore принимает v1.0–v1.2: старые веса трактуются по правилам их версии, а активное время восстанавливается из `started_at`/`finished_at`.
+В v1.2 добавлены `exercise_weight_preferences`, исходные пары веса у плановых упражнений и подходов, а также единица ввода `session_exercises.weight_unit`. В v1.3 сессия дополнена `active_duration_seconds` и `active_segment_started_at`, чтобы пауза после завершения не попадала в длительность возобновлённой тренировки. В v1.4 добавлена секция `rest_events`, сохраняющая полное и досрочное завершение отдыха с привязкой к подходу. Restore принимает v1.0–v1.3: старые веса и активное время трактуются по правилам их версии.
 
 Restore также принимает точный legacy-контракт v1.0 без `program_schedule_slots` и новых lifecycle-полей. Такие версии восстанавливаются как `published` с `aggregate_hash=snapshot_hash`; pointer выставляется автоматически только при одной версии. Если legacy-программа содержит несколько версий, `active_version_id` остаётся `NULL` до явного reconciliation.
 

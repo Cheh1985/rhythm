@@ -37,7 +37,7 @@
 - отдельная модель плавания с блоками/интервалами, дистанцией, fatigue, самочувствием и безопасным редактированием;
 - недельное расписание с defaults «Пн/Ср зал, Чт бассейн» и создание плавания из него;
 - local-first autosave/outbox плавания, общая последовательность и `swimming-report` JSON/Markdown.
-- полная пользовательская backup-копия v1.3 JSON/ZIP с versioned program schedule slots, накопленным активным временем, checksum и строгим preview; restore совместим с v1.0–v1.2;
+- полная пользовательская backup-копия v1.4 JSON/ZIP с versioned program schedule slots, накопленным активным временем, событиями отдыха, checksum и строгим preview; restore совместим с v1.0–v1.3;
 - транзакционный restore в безопасном merge-режиме: без перезаписи/удаления, с remap внутренних ID, tenant isolation и идемпотентным receipt;
 - подтверждаемая отмена незавершённой тренировки и soft delete подходов, измерений и плавания с audit trail;
 - темы light/dark/system, safe-area, focus-visible, reduced motion и production security headers;
@@ -79,6 +79,8 @@ php tests/weight-plan-import.php
 php tests/weight-backup.php
 node --preserve-symlinks --preserve-symlinks-main tests/weight-units.js
 php tests/workout-progress.php
+node --preserve-symlinks --preserve-symlinks-main tests/rest-timer.js
+php tests/rest-events.php
 php tests/webmcp-e2e.php
 php -l public/index.php
 php bin/cleanup.php

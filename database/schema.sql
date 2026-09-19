@@ -310,6 +310,29 @@ CREATE TABLE offline_action_receipts (
     INDEX idx_offline_receipt_created (user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE rest_events (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    public_id VARCHAR(80) NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    workout_session_id BIGINT UNSIGNED NOT NULL,
+    session_exercise_id BIGINT UNSIGNED NOT NULL,
+    exercise_set_id BIGINT UNSIGNED NOT NULL,
+    duration_seconds SMALLINT UNSIGNED NOT NULL,
+    started_at DATETIME NOT NULL,
+    deadline_at DATETIME NOT NULL,
+    ended_at DATETIME NOT NULL,
+    outcome ENUM('completed','ended_early') NOT NULL,
+    trigger_kind ENUM('timer_elapsed','user','next_set','workout_finished') NOT NULL,
+    created_at DATETIME NOT NULL,
+    CONSTRAINT fk_rest_events_user FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_rest_events_session FOREIGN KEY (workout_session_id) REFERENCES workout_sessions(id),
+    CONSTRAINT fk_rest_events_exercise FOREIGN KEY (session_exercise_id) REFERENCES session_exercises(id),
+    CONSTRAINT fk_rest_events_set FOREIGN KEY (exercise_set_id) REFERENCES exercise_sets(id),
+    UNIQUE KEY uq_rest_event_public (user_id, public_id),
+    INDEX idx_rest_events_session_time (workout_session_id, ended_at),
+    INDEX idx_rest_events_set (exercise_set_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE discomfort_logs (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT UNSIGNED NOT NULL,

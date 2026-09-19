@@ -21,6 +21,8 @@
         'Не удалось сохранить изменение.': 'Could not save the change.',
         'Не удалось загрузить тренировку.': 'Could not load the workout.',
         'Не удалось синхронизировать изменения.': 'Could not sync changes.',
+        'Закрыть': 'Close',
+        'Отдых полностью завершён': 'Rest is complete',
         'Тренировка изменилась в другой вкладке. Обновляем данные.': 'The workout changed in another tab. Refreshing data.',
         'Подход': 'Set',
         'Разминка': 'Warm-up',

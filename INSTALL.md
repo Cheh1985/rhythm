@@ -26,7 +26,7 @@ GRANT ALL PRIVILEGES ON training_diary.* TO 'training_user'@'localhost';
 php bin/install.php
 ```
 
-Если база уже была создана на предыдущем этапе, не запускайте `schema.sql` повторно: после резервной копии примените по порядку все недостающие миграции до `database/migrations/013_localization.sql` штатным MySQL/MariaDB-клиентом. После `010` сначала выполните dry-run `php bin/reconcile-program-versions.php`; `--apply` связывает только однозначные single-version программы и не выбирает ambiguous cases.
+Если база уже была создана на предыдущем этапе, не запускайте `schema.sql` повторно: после резервной копии примените по порядку все недостающие миграции до `database/migrations/017_rest_timer_events.sql` штатным MySQL/MariaDB-клиентом. После `010` сначала выполните dry-run `php bin/reconcile-program-versions.php`; `--apply` связывает только однозначные single-version программы и не выбирает ambiguous cases.
 
 Для ручной установки последовательно импортируйте `database/schema.sql`, затем `database/seed.sql`.
 
@@ -91,6 +91,8 @@ php tests/stage7.php
 php tests/stage8.php
 php tests/stage19-localization.php
 node --preserve-symlinks --preserve-symlinks-main tests/stage4-queue.js
+node --preserve-symlinks --preserve-symlinks-main tests/rest-timer.js
+php tests/rest-events.php
 php tests/webmcp-e2e.php
 ```
 

@@ -55,6 +55,7 @@ $router->add('PATCH', '/api/sessions/{id}/exercise-status', [$api, 'exerciseStat
 $router->add('PATCH', '/api/sessions/{id}/weight-unit', [$api, 'changeWeightUnit']);
 $router->add('PATCH', '/api/sessions/{id}/replace-exercise', [$api, 'replaceExercise']);
 $router->add('POST', '/api/sessions/{id}/discomfort', [$api, 'discomfort']);
+$router->add('POST', '/api/sessions/{id}/rest-events', [$api, 'restEvent']);
 $router->add('POST', '/api/sessions/{id}/finish', [$api, 'finish']);
 $router->add('GET', '/programs', [$web, 'programs']);
 $router->add('GET', '/history', [$web, 'history']);

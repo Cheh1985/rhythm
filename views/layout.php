@@ -73,6 +73,7 @@ if ($currentUser) {
 <script src="<?= e(url('/assets/i18n.js')) ?>" defer></script>
 <script src="<?= e(url('/assets/offline-queue.js')) ?>" defer></script>
 <script src="<?= e(url('/assets/weight.js')) ?>" defer></script>
+<script src="<?= e(url('/assets/rest-timer.js')) ?>" defer></script>
 <script src="<?= e(url('/assets/workout.js')) ?>" defer></script>
 <script src="<?= e(url('/assets/swimming.js')) ?>" defer></script>
 <?php if ($webMcpAdapter ?? false): ?>

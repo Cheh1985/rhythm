@@ -630,6 +630,76 @@ SQL . ($forUpdate ? $this->lock() : ''));
         });
     }
 
+    public function logRestEvent(int $sessionId, int $userId, array $data): array
+    {
+        return $this->transaction(function (PDO $pdo) use ($sessionId, $userId, $data): array {
+            if (($receipt = $this->beginAction($pdo, $userId, $data, 'rest.finish')) !== null) return $receipt;
+
+            $timerId = $data['timer_id'] ?? null;
+            $setActionId = $data['source_set_client_action_id'] ?? null;
+            $exerciseId = $data['session_exercise_id'] ?? null;
+            $duration = $data['duration_seconds'] ?? null;
+            if (!is_string($timerId) || !preg_match('/^[a-zA-Z0-9._:-]{8,80}$/', $timerId)
+                || !is_string($setActionId) || !preg_match('/^[a-zA-Z0-9._:-]{8,80}$/', $setActionId)
+                || !is_int($exerciseId) || $exerciseId < 1
+                || !is_int($duration) || $duration < 1 || $duration > 3600) {
+                throw new InvalidArgumentException('Некорректные данные таймера отдыха.');
+            }
+
+            $startedAt = $this->clientUtc($data['started_at_utc'] ?? null, 'начала отдыха');
+            $deadlineAt = $this->clientUtc($data['deadline_at_utc'] ?? null, 'окончания таймера');
+            $reportedEndedAt = $this->clientUtc($data['ended_at_utc'] ?? null, 'завершения отдыха');
+            if ($deadlineAt['timestamp'] < $startedAt['timestamp'] || $reportedEndedAt['timestamp'] < $startedAt['timestamp']) {
+                throw new InvalidArgumentException('Время завершения отдыха не может быть раньше его начала.');
+            }
+
+            $derivedOutcome = $reportedEndedAt['timestamp'] >= $deadlineAt['timestamp'] ? 'completed' : 'ended_early';
+            if (($data['outcome'] ?? null) !== $derivedOutcome) {
+                throw new InvalidArgumentException('Результат отдыха не соответствует времени таймера.');
+            }
+            $trigger = (string) ($data['trigger'] ?? '');
+            if (!in_array($trigger, ['timer_elapsed', 'user', 'next_set', 'workout_finished'], true)
+                || ($derivedOutcome === 'completed' && $trigger !== 'timer_elapsed')
+                || ($derivedOutcome === 'ended_early' && $trigger === 'timer_elapsed')) {
+                throw new InvalidArgumentException('Некорректная причина завершения отдыха.');
+            }
+            $endedAt = $derivedOutcome === 'completed' ? $deadlineAt['database'] : $reportedEndedAt['database'];
+
+            $sessionQuery = $pdo->prepare("SELECT id,status FROM workout_sessions WHERE id=? AND user_id=? AND status IN ('in_progress','completed') AND deleted_at IS NULL" . $this->lock());
+            $sessionQuery->execute([$sessionId, $userId]);
+            if (!$sessionQuery->fetch()) throw new InvalidArgumentException('Тренировка для события отдыха не найдена.');
+
+            $exerciseQuery = $pdo->prepare('SELECT id FROM session_exercises WHERE id=? AND workout_session_id=?');
+            $exerciseQuery->execute([$exerciseId, $sessionId]);
+            if (!$exerciseQuery->fetchColumn()) throw new InvalidArgumentException('Упражнение таймера не найдено.');
+
+            $setQuery = $pdo->prepare('SELECT id FROM exercise_sets WHERE user_id=? AND workout_session_id=? AND session_exercise_id=? AND client_action_id=? AND deleted_at IS NULL');
+            $setQuery->execute([$userId, $sessionId, $exerciseId, $setActionId]);
+            $setId = $setQuery->fetchColumn();
+            if ($setId === false) throw new InvalidArgumentException('Исходный подход таймера не найден.');
+
+            $existingQuery = $pdo->prepare('SELECT id,outcome,trigger_kind FROM rest_events WHERE user_id=? AND public_id=?');
+            $existingQuery->execute([$userId, $timerId]);
+            $existing = $existingQuery->fetch();
+            if ($existing) {
+                if ($existing['outcome'] !== $derivedOutcome || $existing['trigger_kind'] !== $trigger) {
+                    throw new InvalidArgumentException('Таймер уже завершён с другим результатом.');
+                }
+                $result = ['id' => (int) $existing['id'], 'timer_id' => $timerId, 'outcome' => $derivedOutcome, 'trigger' => $trigger];
+                $this->completeAction($pdo, $userId, $data, 'rest.finish', $result);
+                return $result;
+            }
+
+            $insert = $pdo->prepare('INSERT INTO rest_events (public_id,user_id,workout_session_id,session_exercise_id,exercise_set_id,duration_seconds,started_at,deadline_at,ended_at,outcome,trigger_kind,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP())');
+            $insert->execute([$timerId, $userId, $sessionId, $exerciseId, (int) $setId, $duration, $startedAt['database'], $deadlineAt['database'], $endedAt, $derivedOutcome, $trigger]);
+            $id = (int) $pdo->lastInsertId();
+            $result = ['id' => $id, 'timer_id' => $timerId, 'outcome' => $derivedOutcome, 'trigger' => $trigger];
+            $this->audit($pdo, $userId, 'rest_event', (string) $id, 'create', null, $result);
+            $this->completeAction($pdo, $userId, $data, 'rest.finish', $result);
+            return $result;
+        });
+    }
+
     public function finish(int $sessionId, int $userId, array $data): array
     {
         $this->transaction(function (PDO $pdo) use ($sessionId, $userId, $data): void {
@@ -1481,6 +1551,16 @@ SQL);
             throw new InvalidArgumentException($label . ' слишком длинный.');
         }
         return $value === '' ? null : $value;
+    }
+
+    private function clientUtc(mixed $value, string $label): array
+    {
+        if (!is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/', $value)) {
+            throw new InvalidArgumentException('Некорректное время ' . $label . '.');
+        }
+        $timestamp = strtotime($value);
+        if ($timestamp === false) throw new InvalidArgumentException('Некорректное время ' . $label . '.');
+        return ['timestamp' => $timestamp, 'database' => gmdate('Y-m-d H:i:s', $timestamp)];
     }
 
     private function lockedExercise(PDO $pdo, int $sessionId, int $userId, array $data): array

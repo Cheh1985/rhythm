@@ -28,7 +28,10 @@ $check(str_contains($workoutJs, 'dataset.activeSeconds') && str_contains($workou
 $check(str_contains($summary, 'Возобновить тренировку') && str_contains($summary, "'/resume'"), 'экран итогов содержит форму возобновления');
 $check(str_contains($routes, "'/sessions/{id}/resume'"), 'серверный маршрут возобновления подключён');
 $check(str_contains($migration, 'active_duration_seconds') && str_contains($migration, 'active_segment_started_at'), 'миграция активного времени присутствует');
-$check(str_contains($serviceWorker, "rhythm-shell-v10.5"), 'версия PWA-кеша обновлена');
+$check(str_contains($view, 'data-timer-status') && str_contains($workoutJs, "terminal ? 'Закрыть' : 'Закончить раньше'"), 'после завершения таймера доступно только нейтральное закрытие');
+$check(str_contains($workoutJs, "'rest.finish'") && str_contains($routes, "'/api/sessions/{id}/rest-events'"), 'событие отдыха проходит через offline-first очередь и API');
+$check(str_contains($workoutJs, 'seconds < 1') && str_contains($workoutJs, 'dismissTimer(); return;'), 'нулевая пауза не создаёт некорректный таймер');
+$check(str_contains($serviceWorker, "rhythm-shell-v10.6") && str_contains($serviceWorker, "rest-timer.js"), 'версия PWA-кеша и модуль таймера обновлены');
 
 if ($failures !== []) {
     fwrite(STDERR, "Workout progress checks failed:\n- " . implode("\n- ", $failures) . "\n");
