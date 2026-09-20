@@ -802,7 +802,7 @@ WHERE ws.user_id=? AND ws.id<>? AND ws.status='completed' AND ws.deleted_at IS N
   AND EXISTS (
       SELECT 1
       FROM session_exercises se
-      JOIN exercise_sets es ON es.session_exercise_id=se.id AND es.workout_session_id=ws.id
+      JOIN exercise_sets es ON es.session_exercise_id=se.id AND es.workout_session_id=se.workout_session_id
       WHERE se.workout_session_id=ws.id AND se.actual_exercise_id=?
         AND es.user_id=ws.user_id AND es.set_type='working' AND es.deleted_at IS NULL
   )

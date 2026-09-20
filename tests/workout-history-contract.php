@@ -90,6 +90,8 @@ $emptyExercise = $current['exercises'][1];
 $history = $historyExercise['history_sessions'];
 
 $check(!array_key_exists('previous_sets', $historyExercise), 'плоский previous_sets удалён из серверного контракта');
+$repositorySource = (string) file_get_contents(dirname(__DIR__) . '/app/Repository/TrainingRepository.php');
+$check(str_contains($repositorySource, 'es.workout_session_id=se.workout_session_id') && !str_contains($repositorySource, 'es.session_exercise_id=se.id AND es.workout_session_id=ws.id'), 'коррелированный EXISTS не ссылается на внешний alias из ON и совместим с MySQL');
 $check(count($history) === 6, 'история ограничена шестью тренировками');
 $check(array_column($history, 'scheduled_date') === ['2026-09-03', '2026-09-04', '2026-09-05', '2026-09-06', '2026-09-07', '2026-09-08'], 'тренировки сгруппированы и отсортированы от старой к новой');
 $check($emptyExercise['history_sessions'] === [], 'отсутствие истории представлено пустым массивом');
