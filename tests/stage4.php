@@ -32,6 +32,14 @@ $waitingInput = ['client_action_id' => 'exercise.status:offline-1', 'session_ver
 $waiting = $repository->setExerciseStatus($offlineSession, 1, $waitingInput);
 $sameWaiting = $repository->setExerciseStatus($offlineSession, 1, [...$waitingInput, 'session_version' => 999]);
 $check($sameWaiting === $waiting, 'статус упражнения идемпотентен');
+$sameWaitingWithAnotherAction = $repository->setExerciseStatus($offlineSession, 1, [
+    'client_action_id' => 'exercise.status:offline-same-state',
+    'session_version' => 4,
+    'session_exercise_id' => $exerciseId,
+    'exercise_version' => 3,
+    'status' => 'waiting',
+]);
+$check($sameWaitingWithAnotherAction['session_version'] === 4 && $sameWaitingWithAnotherAction['exercise_version'] === 3, 'повтор целевого статуса с новым action id является no-op');
 
 $replacementInput = ['client_action_id' => 'exercise.replace:offline-1', 'session_version' => 4, 'session_exercise_id' => $exerciseId, 'exercise_version' => 3, 'actual_exercise_id' => 'row', 'reason' => 'Offline replacement'];
 $replacement = $repository->replaceExercise($offlineSession, 1, $replacementInput);

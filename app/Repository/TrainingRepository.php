@@ -497,6 +497,15 @@ SQL . ($forUpdate ? $this->lock() : ''));
             if (isset($data['exercise_version']) && (!is_int($data['exercise_version']) || $data['exercise_version'] !== (int) $before['version'])) {
                 throw new VersionConflictException('Упражнение уже изменено в другой вкладке.');
             }
+            if ($status === $before['status']) {
+                $result = [
+                    'session_version' => (int) $session['version'],
+                    'exercise_version' => (int) $before['version'],
+                    'status' => $status,
+                ];
+                $this->completeAction($pdo, $userId, $data, 'exercise.status', $result);
+                return $result;
+            }
             $transitions = [
                 'pending' => ['active', 'waiting', 'skipped', 'completed'],
                 'active' => ['waiting', 'completed', 'skipped'],
