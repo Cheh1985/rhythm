@@ -5,6 +5,16 @@ $exerciseIcon = static function (string $exerciseId): string {
     $filename = $exerciseId . '.svg';
     return is_file(APP_ROOT . '/public/assets/exercises/' . $filename) ? $filename : 'generic.svg';
 };
+$exerciseCount = count($session['exercises']);
+$initialExerciseId = $session['exercises'][0]['id'] ?? null;
+$initialExerciseIndex = 0;
+foreach ($session['exercises'] as $candidateIndex => $candidate) {
+    if (!in_array($candidate['status'], ['completed', 'skipped'], true)) {
+        $initialExerciseId = $candidate['id'];
+        $initialExerciseIndex = (int) $candidateIndex;
+        break;
+    }
+}
 ?>
 <?php if ($error ?? null): ?><div class="alert alert-error"><?= te($error) ?></div><?php endif; ?>
 <?php if ($success ?? null): ?><div class="alert alert-success"><?= te($success) ?></div><?php endif; ?>
@@ -21,8 +31,15 @@ $exerciseIcon = static function (string $exerciseId): string {
     <div class="progress-line" role="progressbar" aria-label="Завершено упражнений" aria-valuemin="0" aria-valuemax="<?= (int) $session['summary']['total_exercises'] ?>" aria-valuenow="<?= (int) $session['summary']['completed_exercises'] ?>" aria-valuetext="<?= (int) $session['summary']['completed_exercises'] ?> из <?= (int) $session['summary']['total_exercises'] ?> упражнений"><span style="width:<?= $session['summary']['total_exercises'] ? round($session['summary']['completed_exercises']/$session['summary']['total_exercises']*100) : 0 ?>%"></span></div>
 </section>
 
-<div class="exercise-stack">
-<?php foreach ($session['exercises'] as $exercise):
+<section class="exercise-carousel" data-exercise-carousel aria-label="<?= e(t('Карусель упражнений')) ?>">
+<nav class="exercise-carousel-nav" aria-label="<?= e(t('Навигация по упражнениям')) ?>">
+    <button class="carousel-step" type="button" data-carousel-previous aria-label="<?= e(t('Предыдущее упражнение')) ?>"<?= $initialExerciseIndex <= 0 ? ' disabled' : '' ?>>‹</button>
+    <button class="carousel-position" type="button" data-carousel-position aria-haspopup="dialog" aria-controls="exercise-picker-dialog"><span><?= e(t('Упражнение')) ?></span> <strong data-carousel-current><?= $exerciseCount ? $initialExerciseIndex + 1 : 0 ?></strong> <?= e(t('из')) ?> <strong data-carousel-total><?= $exerciseCount ?></strong></button>
+    <button class="carousel-step" type="button" data-carousel-next aria-label="<?= e(t('Следующее упражнение')) ?>"<?= $initialExerciseIndex >= $exerciseCount - 1 ? ' disabled' : '' ?>>›</button>
+</nav>
+<p class="sr-only" data-carousel-announcer aria-live="polite" aria-atomic="true"></p>
+<div class="exercise-stack" data-carousel-stack tabindex="0" aria-label="<?= e(t('Карточки упражнений. Используйте стрелки влево и вправо для перехода.')) ?>">
+<?php foreach ($session['exercises'] as $exerciseIndex => $exercise):
     $working = array_values(array_filter($exercise['sets'], static fn ($set) => $set['set_type'] === 'working'));
     $warmups = array_values(array_filter($exercise['sets'], static fn ($set) => $set['set_type'] === 'warmup'));
     $lastSet = $exercise['sets'] ? end($exercise['sets']) : null;
@@ -37,8 +54,11 @@ $exerciseIcon = static function (string $exerciseId): string {
     $bodyId = 'exercise-body-' . (int) $exercise['id'];
     $iconFile = $exerciseIcon((string) $exercise['actual_exercise_id']);
     $historyJson = json_encode($historySessions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    $isInitial = (string) $exercise['id'] === (string) $initialExerciseId;
+    $isPrevious = $exerciseIndex + 1 < $exerciseCount && (string) $session['exercises'][$exerciseIndex + 1]['id'] === (string) $initialExerciseId;
+    $isNext = $exerciseIndex > 0 && (string) $session['exercises'][$exerciseIndex - 1]['id'] === (string) $initialExerciseId;
 ?>
-<article class="exercise-card <?= e($exercise['status']) ?>" data-exercise-id="<?= (int) $exercise['id'] ?>" data-actual-exercise-id="<?= e($exercise['actual_exercise_id']) ?>" data-weight-unit="<?= e($weightUnit) ?>" data-exercise-version="<?= (int) $exercise['version'] ?>" data-planned-kg="<?= e($exercise['planned_weight_kg'] ?? '') ?>" data-rest="<?= (int) $exercise['rest_seconds'] ?>">
+<article class="exercise-card <?= e($exercise['status']) ?><?= $isInitial ? ' is-active' : '' ?><?= $isPrevious ? ' is-previous' : '' ?><?= $isNext ? ' is-next' : '' ?>" data-exercise-id="<?= (int) $exercise['id'] ?>" data-status="<?= e($exercise['status']) ?>" data-actual-exercise-id="<?= e($exercise['actual_exercise_id']) ?>" data-weight-unit="<?= e($weightUnit) ?>" data-exercise-version="<?= (int) $exercise['version'] ?>" data-planned-kg="<?= e($exercise['planned_weight_kg'] ?? '') ?>" data-rest="<?= (int) $exercise['rest_seconds'] ?>" role="group" aria-roledescription="<?= e(t('карточка')) ?>" aria-label="<?= e(t('Упражнение') . ' ' . ($exerciseIndex + 1) . ' ' . t('из') . ' ' . $exerciseCount . ': ' . $exercise['exercise_name']) ?>" aria-hidden="<?= $isInitial ? 'false' : 'true' ?>"<?= $isInitial ? '' : ' inert' ?>>
     <header class="exercise-card-head">
         <img class="exercise-icon" src="<?= e(url('/assets/exercises/' . $iconFile)) ?>" alt="<?= e(t('Пиктограмма упражнения') . ' ' . $exercise['exercise_name']) ?>" width="96" height="96">
         <div class="exercise-heading"><p class="exercise-order">Упражнение <?= (int) $exercise['sequence_no'] ?></p><h2><?= e($exercise['exercise_name']) ?></h2><?php if ($exercise['actual_exercise_id'] !== $exercise['original_exercise_id']): ?><small class="replacement-note">Вместо: <?= e($exercise['original_exercise_name']) ?></small><?php endif; ?></div>
@@ -95,6 +115,22 @@ $exerciseIcon = static function (string $exerciseId): string {
 </article>
 <?php endforeach; ?>
 </div>
+</section>
+
+<dialog class="exercise-picker" id="exercise-picker-dialog" aria-labelledby="exercise-picker-title">
+    <div class="exercise-picker-card">
+        <div class="exercise-picker-head"><h2 id="exercise-picker-title"><?= e(t('Все упражнения')) ?></h2><button type="button" data-carousel-picker-close aria-label="<?= e(t('Закрыть')) ?>">×</button></div>
+        <div class="exercise-picker-list">
+        <?php foreach ($session['exercises'] as $exerciseIndex => $exercise): $iconFile = $exerciseIcon((string) $exercise['actual_exercise_id']); ?>
+            <button type="button" data-carousel-go="<?= (int) $exercise['id'] ?>"<?= (string) $exercise['id'] === (string) $initialExerciseId ? ' class="is-current" aria-current="true"' : '' ?>>
+                <img src="<?= e(url('/assets/exercises/' . $iconFile)) ?>" alt="<?= e(t('Пиктограмма упражнения') . ' ' . $exercise['exercise_name']) ?>" width="48" height="48">
+                <span><small><?= e(t('Упражнение')) ?> <?= $exerciseIndex + 1 ?></small><strong data-carousel-item-name><?= e($exercise['exercise_name']) ?></strong></span>
+                <em data-carousel-item-status><?= e($statusLabels[$exercise['status']] ?? $exercise['status']) ?></em>
+            </button>
+        <?php endforeach; ?>
+        </div>
+    </div>
+</dialog>
 
 <section class="finish-card"><p class="eyebrow">Когда всё готово</p><h2>Завершить тренировку</h2><div class="field-row"><label>Общая тяжесть 1–10<input id="session-rpe" type="number" inputmode="numeric" min="1" max="10" value="<?= (int) ($session['session_rpe'] ?? 7) ?>"></label><label>Самочувствие 1–5<input id="session-wellbeing" type="number" inputmode="numeric" min="1" max="5" value="<?= (int) ($session['wellbeing'] ?? 4) ?>"></label></div><label>Комментарий<textarea id="session-comment" rows="3" maxlength="5000" placeholder="Что важно учесть в следующий раз?"><?= e($session['user_comment'] ?? '') ?></textarea></label><button id="finish-workout" class="button button-danger button-wide">Завершить и показать итоги</button></section>
 <details class="card danger-zone"><summary>Отменить незавершённую тренировку</summary><p class="muted">Подходы останутся в audit/backup, сессия получит статус «отменена», а план снова станет доступен.</p><form method="post" action="<?= e(url('/sessions/'.$session['id'].'/cancel')) ?>" class="stack-form"><input type="hidden" name="_csrf" value="<?= e(\App\Core\Csrf::token()) ?>"><input type="hidden" name="version" value="<?= (int)$session['version'] ?>"><label class="check-row"><input type="checkbox" name="confirm_cancel" value="1" required><span>Подтверждаю отмену</span></label><button class="button button-danger">Отменить тренировку</button></form></details>

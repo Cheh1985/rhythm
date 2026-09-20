@@ -56,13 +56,15 @@
     }
 
     const page = document.querySelector('.workout-page');
-    if (!page || !window.RhythmOffline || !window.RhythmRestTimer || !window.RhythmWorkoutCard || !window.RhythmWorkoutWheel || !userId) return;
+    if (!page || !window.RhythmOffline || !window.RhythmRestTimer || !window.RhythmWorkoutCard || !window.RhythmWorkoutWheel || !window.RhythmWorkoutCarousel || !userId) return;
     const sessionId = String(page.dataset.sessionId);
     let sessionVersion = Number(page.dataset.sessionVersion);
     let versions = {sessionVersion, exerciseVersions: {}, setVersions: {}};
     let sessionSnapshot = null;
     let syncRunning = false;
     let draftTimer = null;
+    let exerciseCarousel = null;
+    let carouselPersistenceEnabled = false;
     const tabId = RhythmOffline.uuid('tab');
     const saveState = page.querySelector('.autosave-state');
     const networkState = page.querySelector('[data-network-state]');
@@ -170,6 +172,7 @@
     function setCardStatus(card, status) {
         card.classList.remove('pending', 'active', 'waiting', 'completed', 'skipped');
         card.classList.add(status);
+        card.dataset.status = status;
         const labels = {pending: 'Ожидает', active: 'В работе', waiting: 'Оборудование занято', completed: 'Готово', skipped: 'Пропущено'};
         card.querySelector('.exercise-state').textContent = labels[status] || status;
         const waitingButton = card.querySelector('[data-status]');
@@ -184,6 +187,7 @@
             editor.querySelectorAll('button,input,select,textarea').forEach((control) => { control.disabled = closed; });
         }
         updateProgress();
+        exerciseCarousel?.syncCard(card);
     }
     function appendLocalNote(card, text) {
         if ([...card.querySelectorAll('.local-note')].some((item) => item.textContent === text)) return;
@@ -398,6 +402,7 @@
         }
         const toggle = card.querySelector('.exercise-toggle');
         if (toggle) toggle.setAttribute('aria-label', (window.RhythmI18n?.t(toggle.getAttribute('aria-expanded') === 'true' ? 'Свернуть упражнение' : 'Развернуть упражнение') || '') + ' ' + exerciseName);
+        exerciseCarousel?.syncCard(card);
     }
 
     function setCardExpanded(card, expanded) {
@@ -456,10 +461,11 @@
             const selectedHistory = card.querySelector('[data-history-chart]')?.dataset.selectedSessionId;
             if (selectedHistory) selectedHistorySessionByExercise[card.dataset.exerciseId] = Number(selectedHistory);
         });
-        return {forms, ui: {activeExerciseId: null, expandedExerciseIds, selectedHistorySessionByExercise}, finish: {rpe: page.querySelector('#session-rpe').value, wellbeing: page.querySelector('#session-wellbeing').value, comment: page.querySelector('#session-comment').value}};
+        return {forms, ui: {activeExerciseId: exerciseCarousel?.activeId() || null, expandedExerciseIds, selectedHistorySessionByExercise}, finish: {rpe: page.querySelector('#session-rpe').value, wellbeing: page.querySelector('#session-wellbeing').value, comment: page.querySelector('#session-comment').value}};
     }
     function restoreDraft(draft) {
         const cards = [...page.querySelectorAll('.exercise-card')];
+        exerciseCarousel?.restore(draft?.ui?.activeExerciseId);
         const expanded = RhythmWorkoutCard.normalizeExpandedIds(draft?.ui?.expandedExerciseIds, cards.map((card) => card.dataset.exerciseId));
         cards.forEach((card) => {
             setCardExpanded(card, expanded.includes(card.dataset.exerciseId));
@@ -499,6 +505,11 @@
         if (!sessionSnapshot) sessionSnapshot = {id: Number(sessionId), version: sessionVersion, exercises: []};
         await RhythmOffline.saveSession(userId, sessionId, sessionSnapshot, captureDraft());
     }
+    exerciseCarousel = RhythmWorkoutCarousel.createCarousel(page.querySelector('[data-exercise-carousel]'), {
+        onChange: () => {
+            if (carouselPersistenceEnabled) saveDraft().catch(() => {});
+        },
+    });
     window.rhythmPersistBeforeUpdate = saveDraft;
     page.addEventListener('input', (event) => {
         if (event.target.matches('.rir-input') && event.target.value !== '') event.target.closest('[data-workout-wheel]')?.classList.remove('invalid');
@@ -758,6 +769,7 @@
         const local = await RhythmOffline.getSession(userId, sessionId).catch(() => null);
         if (local?.snapshot) { sessionSnapshot = local.snapshot; restoreSnapshot(local.snapshot); }
         restoreDraft(local?.draft);
+        carouselPersistenceEnabled = true;
         const actions = await RhythmOffline.listActions(userId, sessionId);
         actions.forEach(applyOptimistic);
         paintSync(actions.length ? 'pending' : 'synced', actions.length);

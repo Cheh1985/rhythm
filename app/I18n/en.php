@@ -597,4 +597,7 @@ return [
     'Нажмите на подход, чтобы увидеть точные значения.' => 'Select a set to see exact values.', 'Легенда цветов' => 'Color legend',
     'Ниже RIR' => 'Below RIR', 'В цели' => 'In target', 'Выше RIR' => 'Above RIR', 'Цель неизвестна' => 'Unknown target',
     'Завершённых тренировок с этим упражнением пока нет.' => 'There are no completed workouts with this exercise yet.',
+    'Карусель упражнений' => 'Exercise carousel', 'Навигация по упражнениям' => 'Exercise navigation',
+    'Предыдущее упражнение' => 'Previous exercise', 'Следующее упражнение' => 'Next exercise', 'Все упражнения' => 'All exercises',
+    'Карточки упражнений. Используйте стрелки влево и вправо для перехода.' => 'Exercise cards. Use the left and right arrow keys to navigate.', 'карточка' => 'slide',
 ];

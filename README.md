@@ -86,6 +86,8 @@ php tests/workout-ui-stage2.php
 node --preserve-symlinks --preserve-symlinks-main tests/workout-ui-stage2.js
 php tests/workout-ui-stage3.php
 node --preserve-symlinks --preserve-symlinks-main tests/workout-ui-stage3.js
+php tests/workout-ui-stage4.php
+node --preserve-symlinks --preserve-symlinks-main tests/workout-ui-stage4.js
 node --preserve-symlinks --preserve-symlinks-main tests/rest-timer.js
 php tests/rest-events.php
 php tests/push-notifications.php

@@ -78,6 +78,7 @@ if ($currentUser) {
 <script src="<?= e(url('/assets/workout-card.js')) ?>" defer></script>
 <script src="<?= e(url('/assets/workout-history.js')) ?>" defer></script>
 <script src="<?= e(url('/assets/workout-wheel.js')) ?>" defer></script>
+<script src="<?= e(url('/assets/workout-carousel.js')) ?>" defer></script>
 <script src="<?= e(url('/assets/workout.js')) ?>" defer></script>
 <script src="<?= e(url('/assets/swimming.js')) ?>" defer></script>
 <?php if ($webMcpAdapter ?? false): ?>

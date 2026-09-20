@@ -47,7 +47,7 @@ $check(str_contains($files['css'], '.wheel-inputs{') && str_contains($files['css
 $check(str_contains($files['css'], 'touch-action:pan-x') && str_contains($files['css'], 'touch-action:manipulation'), 'вертикальный жест принадлежит колёсику, а кнопки защищены от double-tap zoom');
 $check(!str_contains($files['layout'], 'user-scalable=no') && !str_contains($files['view'], 'user-scalable=no'), 'pinch zoom не запрещён');
 $check(strpos($files['layout'], '/assets/workout-wheel.js') < strpos($files['layout'], '/assets/workout.js'), 'модуль колёсиков подключён до интеграционного скрипта');
-$check(str_contains($files['worker'], "rhythm-shell-v10.9") && str_contains($files['worker'], "asset('./assets/workout-wheel.js')"), 'новый модуль включён в обновлённый app shell');
+$check(str_contains($files['worker'], "rhythm-shell-v10.10") && str_contains($files['worker'], "asset('./assets/workout-wheel.js')"), 'новый модуль включён в обновлённый app shell');
 $check(str_contains($files['server_i18n'], "'Параметры подхода' => 'Set parameters'") && str_contains($files['client_i18n'], "'Не выбрано': 'Not selected'"), 'новые строки локализованы для RU/EN');
 $check(!preg_match('~(?:cdn|unpkg|jsdelivr|cdnjs)~i', $files['wheel'] . $files['view']), 'колёсики не используют внешние зависимости');
 
