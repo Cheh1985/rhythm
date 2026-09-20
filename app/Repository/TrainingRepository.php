@@ -686,6 +686,7 @@ SQL . ($forUpdate ? $this->lock() : ''));
                     throw new InvalidArgumentException('Таймер уже завершён с другим результатом.');
                 }
                 $result = ['id' => (int) $existing['id'], 'timer_id' => $timerId, 'outcome' => $derivedOutcome, 'trigger' => $trigger];
+                $this->cancelPendingRestNotifications($pdo, $userId, $sessionId, $timerId);
                 $this->completeAction($pdo, $userId, $data, 'rest.finish', $result);
                 return $result;
             }
@@ -695,6 +696,7 @@ SQL . ($forUpdate ? $this->lock() : ''));
             $id = (int) $pdo->lastInsertId();
             $result = ['id' => $id, 'timer_id' => $timerId, 'outcome' => $derivedOutcome, 'trigger' => $trigger];
             $this->audit($pdo, $userId, 'rest_event', (string) $id, 'create', null, $result);
+            $this->cancelPendingRestNotifications($pdo, $userId, $sessionId, $timerId);
             $this->completeAction($pdo, $userId, $data, 'rest.finish', $result);
             return $result;
         });
@@ -729,6 +731,7 @@ SQL . ($forUpdate ? $this->lock() : ''));
             $durationSeconds = max(0, (int) ($session['active_duration_seconds'] ?? 0)) + max(0, $finished - ($segmentStarted === false ? $finished : $segmentStarted));
             $pdo->prepare("UPDATE workout_sessions SET status='completed',finished_at=?,active_duration_seconds=?,active_segment_started_at=NULL,session_rpe=?,wellbeing=?,user_comment=?,version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=?")->execute([$finishedAt, $durationSeconds, $rpe, $wellbeing, $comment, $sessionId]);
             $pdo->prepare("UPDATE workout_plans SET status='completed',updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?")->execute([$session['workout_plan_id'], $userId]);
+            $this->cancelPendingRestNotifications($pdo, $userId, $sessionId);
             $this->audit($pdo, $userId, 'workout_session', (string) $sessionId, 'finish', null, ['session_rpe' => $rpe, 'wellbeing' => $wellbeing, 'active_duration_seconds' => $durationSeconds]);
             $this->completeAction($pdo, $userId, $data, 'session.finish', ['session_id' => $sessionId, 'status' => 'completed']);
         });
@@ -1398,6 +1401,7 @@ SQL);
             $durationSeconds = max(0, (int) ($before['active_duration_seconds'] ?? 0)) + max(0, $finished - ($segmentStarted === false ? $finished : $segmentStarted));
             $pdo->prepare("UPDATE workout_sessions SET status='cancelled',finished_at=?,active_duration_seconds=?,active_segment_started_at=NULL,version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?")->execute([$finishedAt, $durationSeconds, $sessionId, $userId]);
             $pdo->prepare("UPDATE workout_plans SET status='planned',version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?")->execute([$before['workout_plan_id'], $userId]);
+            $this->cancelPendingRestNotifications($pdo, $userId, $sessionId);
             $this->audit($pdo, $userId, 'workout_session', (string) $sessionId, 'cancel', $before, ['status' => 'cancelled']);
         });
     }
@@ -1632,6 +1636,18 @@ SQL);
         $query = $pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?');
         $query->execute([$table, $column]);
         return (int) $query->fetchColumn() > 0;
+    }
+
+    private function cancelPendingRestNotifications(PDO $pdo, int $userId, int $sessionId, ?string $timerId = null): void
+    {
+        if (!$this->hasColumn($pdo, 'rest_notification_jobs', 'id')) return;
+        $sql = "UPDATE rest_notification_jobs SET status='cancelled',lock_token=NULL,locked_at=NULL,updated_at=UTC_TIMESTAMP() WHERE user_id=? AND workout_session_id=? AND status IN ('scheduled','processing')";
+        $params = [$userId, $sessionId];
+        if ($timerId !== null) {
+            $sql .= ' AND timer_id=?';
+            $params[] = $timerId;
+        }
+        $pdo->prepare($sql)->execute($params);
     }
 
     private function audit(PDO $pdo, int $userId, string $entityType, string $entityId, string $action, ?array $before, ?array $after, ?string $source = null, ?string $requestId = null): void

@@ -1,0 +1,13 @@
+{
+  "name": "rhythm/training-diary",
+  "description": "Rhythm training diary PWA",
+  "type": "project",
+  "require": {
+    "php": "^8.2",
+    "minishlink/web-push": "^10.0"
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true
+  }
+}

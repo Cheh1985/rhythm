@@ -42,13 +42,15 @@
 - подтверждаемая отмена незавершённой тренировки и soft delete подходов, измерений и плавания с audit trail;
 - темы light/dark/system, safe-area, focus-visible, reduced motion и production security headers;
 - плановый cleanup login attempts, offline receipts и старого файлового cache.
+- Web Push об окончании отдыха с отдельной подпиской устройства, ревизиями таймера, отменой устаревших заданий и фоновым PHP-воркером.
 
 ## Быстрый старт
 
-Требуются PHP 8.2+ с `pdo_mysql`, MySQL 8 или MariaDB и права на уже созданную базу.
+Требуются PHP 8.2+ с `pdo_mysql`, `curl`, `openssl`, `mbstring`, MySQL 8 или MariaDB, Composer 2 и права на уже созданную базу.
 
 ```bash
 copy .env.example .env
+composer install
 php bin/install.php
 php -S 127.0.0.1:8000 router.php
 ```
@@ -81,6 +83,7 @@ node --preserve-symlinks --preserve-symlinks-main tests/weight-units.js
 php tests/workout-progress.php
 node --preserve-symlinks --preserve-symlinks-main tests/rest-timer.js
 php tests/rest-events.php
+php tests/push-notifications.php
 php tests/webmcp-e2e.php
 php -l public/index.php
 php bin/cleanup.php

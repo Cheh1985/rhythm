@@ -9,6 +9,14 @@
 
 <section class="card settings-card section-block"><h2>Язык</h2><p class="muted">Язык интерфейса сохраняется в аккаунте и применяется на всех устройствах после входа.</p><?php require APP_ROOT . '/views/partials/language-switch.php'; ?></section>
 
+<section class="card settings-card section-block" data-push-settings>
+    <h2>Уведомления об отдыхе</h2>
+    <p class="muted">После окончания таймера устройство покажет: «Отдых завершён — пора к следующему подходу». Разрешение запрашивается только по кнопке и действует на этом устройстве.</p>
+    <p class="push-status" data-push-status role="status">Проверяем поддержку уведомлений…</p>
+    <div class="button-row"><button type="button" class="button button-primary" data-push-enable disabled>Включить уведомления</button><button type="button" class="button button-quiet" data-push-disable hidden>Отключить на этом устройстве</button></div>
+    <small class="muted">На iPhone требуется iOS 16.4 или новее и приложение «Ритм», добавленное на экран «Домой». Доставка зависит от сети, режима фокусирования и системных настроек.</small>
+</section>
+
 <section class="card settings-card section-block"><h2>Резервная копия</h2><p class="muted">Экспорт v1.4 содержит полную историю текущего пользователя, версии программ, их расписание, активное время тренировок и события отдыха — без пароля, сессий входа и technical assistant audit. JSON подписан SHA-256 checksum; restore также читает v1.0–v1.3.</p><div class="button-row"><a class="button button-primary" href="<?= e(url('/backup')) ?>">Скачать JSON</a><a class="button button-quiet" href="<?= e(url('/backup?format=zip')) ?>">Скачать ZIP</a></div></section>
 
 <section class="card settings-card section-block"><h2>Восстановление</h2><p class="muted">Сначала файл строго проверяется и показывается превью. Restore работает транзакционно: только merge, без перезаписи и удаления существующих данных; внутренние ID переназначаются.</p>

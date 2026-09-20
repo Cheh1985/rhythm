@@ -50,6 +50,7 @@
             event.preventDefault();
             form.dataset.clearing = '1';
             try {
+                if (window.RhythmPush) await window.RhythmPush.disable({server: true});
                 if (userId && window.RhythmOffline) await RhythmOffline.clearUser(userId);
                 localStorage.removeItem('rhythm-active-user');
                 const keys = await caches.keys();

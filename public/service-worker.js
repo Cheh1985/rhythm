@@ -1,5 +1,5 @@
 'use strict';
-const SHELL_VERSION = 'rhythm-shell-v10.6';
+const SHELL_VERSION = 'rhythm-shell-v10.7';
 const USER_PAGES = 'rhythm-user-pages-v1';
 const LOCALE_META = 'rhythm-locale-meta-v1';
 const scope = self.registration.scope;
@@ -17,6 +17,7 @@ const APP_SHELL = [
     asset('./assets/pwa.js'),
     asset('./assets/weight.js'),
     asset('./assets/rest-timer.js'),
+    asset('./assets/push.js'),
     asset('./assets/workout.js'),
     asset('./assets/swimming.js'),
     asset('./icons/icon.svg'),
@@ -40,9 +41,19 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('message', (event) => {
     if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
     if (event.data?.type === 'CLEAR_USER_DATA') event.waitUntil(caches.delete(USER_PAGES));
+    if (event.data?.type === 'GET_CAPABILITIES') event.ports?.[0]?.postMessage({capabilities: ['push-v1']});
     if (event.data?.type === 'SET_LOCALE' && ['ru', 'en'].includes(event.data.locale)) {
         event.waitUntil(setLocale(event.data.locale));
     }
+});
+
+self.addEventListener('push', (event) => {
+    event.waitUntil(handlePush(event));
+});
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    event.waitUntil(openNotificationTarget(event.notification.data?.url));
 });
 
 self.addEventListener('fetch', (event) => {
@@ -84,4 +95,65 @@ async function offlineFallback() {
         .then((cache) => cache.match(asset('./__active_locale__')))
         .then((response) => response ? response.text() : 'ru');
     return caches.match(asset(locale === 'en' ? './offline.en.html' : './offline.html'));
+}
+
+async function handlePush(event) {
+    let payload;
+    try { payload = event.data?.json(); } catch (_) { return; }
+    if (!payload || payload.type !== 'rest-complete' || !/^[a-zA-Z0-9._:-]{8,80}$/.test(payload.timerId || '') || !Number.isInteger(payload.revision)) return;
+    const match = String(payload.url || '').match(/\/sessions\/(\d+)\/?$/);
+    if (!match || !/^\d+$/.test(String(payload.userId || ''))) return;
+    const state = await readTimerMeta(String(payload.userId), match[1]);
+    if (!state || state.id !== payload.timerId || Number(state.revision) !== payload.revision || state.status !== 'running' || state.paused) return;
+    const target = safeNotificationUrl(payload.url);
+    if (!target) return;
+    await self.registration.showNotification(String(payload.title || 'Ритм'), {
+        body: String(payload.body || 'Отдых завершён — пора к следующему подходу'),
+        icon: asset('./icons/icon-192.png'),
+        badge: asset('./icons/icon-192.png'),
+        tag: 'rest-' + payload.timerId,
+        renotify: false,
+        data: {url: target.href, timerId: payload.timerId, revision: payload.revision},
+    });
+}
+
+function safeNotificationUrl(value) {
+    try {
+        const target = new URL(String(value || ''), scope);
+        const scopeUrl = new URL(scope);
+        if (target.origin !== scopeUrl.origin || !target.pathname.startsWith(scopeUrl.pathname) || !/\/sessions\/\d+\/?$/.test(target.pathname)) return null;
+        return target;
+    } catch (_) { return null; }
+}
+
+async function openNotificationTarget(value) {
+    const target = safeNotificationUrl(value);
+    if (!target) return;
+    const windows = await clients.matchAll({type: 'window', includeUncontrolled: true});
+    const exact = windows.find((client) => client.url === target.href);
+    if (exact) return exact.focus();
+    const existing = windows.find((client) => client.url.startsWith(scope));
+    if (existing) {
+        if ('navigate' in existing) await existing.navigate(target.href);
+        return existing.focus();
+    }
+    return clients.openWindow(target.href);
+}
+
+function readTimerMeta(userId, sessionId) {
+    return new Promise((resolve) => {
+        const request = indexedDB.open('rhythm-offline-v1', 1);
+        request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', {keyPath: 'key'});
+        };
+        request.onerror = () => resolve(null);
+        request.onsuccess = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains('meta')) { db.close(); resolve(null); return; }
+            const query = db.transaction('meta').objectStore('meta').get('user:' + userId + ':meta:rest:' + sessionId);
+            query.onerror = () => { db.close(); resolve(null); };
+            query.onsuccess = () => { const value = query.result?.value || null; db.close(); resolve(value); };
+        };
+    });
 }

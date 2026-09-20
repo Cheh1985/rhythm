@@ -333,6 +333,56 @@ CREATE TABLE rest_events (
     INDEX idx_rest_events_set (exercise_set_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE push_subscriptions (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    public_id VARCHAR(80) NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    endpoint VARCHAR(2048) NOT NULL,
+    endpoint_hash CHAR(64) NOT NULL,
+    p256dh VARCHAR(255) NOT NULL,
+    auth_secret VARCHAR(255) NOT NULL,
+    content_encoding VARCHAR(32) NOT NULL DEFAULT 'aes128gcm',
+    expiration_time BIGINT NULL,
+    locale ENUM('ru','en') NOT NULL DEFAULT 'ru',
+    status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    failure_count SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    last_success_at DATETIME NULL,
+    last_failure_at DATETIME NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    CONSTRAINT fk_push_subscriptions_user FOREIGN KEY (user_id) REFERENCES users(id),
+    UNIQUE KEY uq_push_subscription_public (public_id),
+    UNIQUE KEY uq_push_subscription_endpoint (endpoint_hash),
+    INDEX idx_push_subscriptions_user_status (user_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE rest_notification_jobs (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    workout_session_id BIGINT UNSIGNED NOT NULL,
+    session_exercise_id BIGINT UNSIGNED NOT NULL,
+    push_subscription_id BIGINT UNSIGNED NOT NULL,
+    timer_id VARCHAR(80) NOT NULL,
+    revision BIGINT UNSIGNED NOT NULL,
+    deadline_at DATETIME NOT NULL,
+    status ENUM('scheduled','processing','sent','cancelled','failed') NOT NULL,
+    attempt_count SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    next_attempt_at DATETIME NULL,
+    lock_token VARCHAR(80) NULL,
+    locked_at DATETIME NULL,
+    sent_at DATETIME NULL,
+    last_error VARCHAR(1000) NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    CONSTRAINT fk_rest_notifications_user FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_rest_notifications_session FOREIGN KEY (workout_session_id) REFERENCES workout_sessions(id),
+    CONSTRAINT fk_rest_notifications_exercise FOREIGN KEY (session_exercise_id) REFERENCES session_exercises(id),
+    CONSTRAINT fk_rest_notifications_subscription FOREIGN KEY (push_subscription_id) REFERENCES push_subscriptions(id),
+    UNIQUE KEY uq_rest_notification_timer (push_subscription_id, timer_id),
+    INDEX idx_rest_notification_due (status, deadline_at, next_attempt_at),
+    INDEX idx_rest_notification_session (workout_session_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE discomfort_logs (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT UNSIGNED NOT NULL,

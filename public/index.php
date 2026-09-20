@@ -10,6 +10,7 @@ use App\Controller\AssistantController;
 use App\Controller\SiteToolsApiController;
 use App\Controller\ProgramDraftController;
 use App\Controller\WorkoutInstanceController;
+use App\Controller\PushController;
 use App\Controller\WebController;
 use App\Core\Router;
 use App\Core\Locale;
@@ -24,6 +25,7 @@ $assistant = new AssistantController();
 $siteTools = new SiteToolsApiController();
 $programDrafts = new ProgramDraftController();
 $workoutInstances = new WorkoutInstanceController();
+$push = new PushController();
 
 $router->add('GET', '/', [$web, 'home']);
 $router->add('GET', '/help', [$web, 'help']);
@@ -56,7 +58,11 @@ $router->add('PATCH', '/api/sessions/{id}/weight-unit', [$api, 'changeWeightUnit
 $router->add('PATCH', '/api/sessions/{id}/replace-exercise', [$api, 'replaceExercise']);
 $router->add('POST', '/api/sessions/{id}/discomfort', [$api, 'discomfort']);
 $router->add('POST', '/api/sessions/{id}/rest-events', [$api, 'restEvent']);
+$router->add('PUT', '/api/sessions/{id}/rest-notifications/{timerId}', [$push, 'syncRestTimer']);
 $router->add('POST', '/api/sessions/{id}/finish', [$api, 'finish']);
+$router->add('GET', '/api/push/config', [$push, 'config']);
+$router->add('POST', '/api/push/subscriptions', [$push, 'subscribe']);
+$router->add('DELETE', '/api/push/subscriptions/{subscriptionId}', [$push, 'unsubscribe']);
 $router->add('GET', '/programs', [$web, 'programs']);
 $router->add('GET', '/history', [$web, 'history']);
 $router->add('GET', '/analytics', [$web, 'analytics']);

@@ -2,6 +2,16 @@
     'use strict';
     const locale = document.documentElement.lang === 'en' ? 'en' : 'ru';
     const en = {
+        'Не удалось изменить настройку уведомлений.': 'Could not change the notification setting.',
+        'Этот браузер не поддерживает Web Push. На iPhone установите PWA на экран «Домой».': 'This browser does not support Web Push. On iPhone, add the PWA to the Home Screen.',
+        'Push-уведомления пока не настроены на сервере.': 'Push notifications are not configured on the server yet.',
+        'Сначала установите доступное обновление приложения.': 'Install the available app update first.',
+        'Уведомления запрещены системой. Разрешите их в настройках браузера или приложения.': 'Notifications are blocked by the system. Allow them in the browser or app settings.',
+        'Нажмите «Включить уведомления», чтобы подтвердить системный запрос.': 'Press “Enable notifications” to confirm the system prompt.',
+        'Уведомления об окончании отдыха включены на этом устройстве.': 'Rest completion notifications are enabled on this device.',
+        'Уведомления на этом устройстве отключены.': 'Notifications are disabled on this device.',
+        'Уведомления выключены. Разрешение будет запрошено только после нажатия кнопки.': 'Notifications are off. Permission will only be requested after you press the button.',
+        'Включаем уведомления…': 'Enabling notifications…',
         'Подход синхронизируется. Повторите сохранение через несколько секунд.': 'The set is syncing. Try saving again in a few seconds.',
         'Обновите тренировку, сохранив очередь.': 'Reload the workout while preserving the queue.',
         'Упражнение заменено на «': 'The exercise was replaced with “',

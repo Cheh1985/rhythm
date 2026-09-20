@@ -3,7 +3,8 @@
 ## Требования
 
 - PHP 8.2 или новее;
-- расширения `pdo_mysql`, `mbstring`, `json`, `openssl`, `session`;
+- Composer 2;
+- расширения `pdo_mysql`, `mbstring`, `json`, `curl`, `openssl`, `session`; `bcmath` или `gmp` желательны для Web Push;
 - MySQL 8 либо актуальная MariaDB;
 - web root, направленный на каталог `public/`;
 - HTTPS для production.
@@ -20,13 +21,14 @@ GRANT ALL PRIVILEGES ON training_diary.* TO 'training_user'@'localhost';
 
 2. Скопируйте `.env.example` в `.env` и задайте подключение. Для локальной диагностики можно временно установить `APP_ENV=development` и `APP_DEBUG=true`. Не публикуйте `.env` и не добавляйте его в Git.
 
-3. Установите схему и seed:
+3. Установите PHP-зависимости, затем схему и seed:
 
 ```bash
+composer install --no-dev --optimize-autoloader
 php bin/install.php
 ```
 
-Если база уже была создана на предыдущем этапе, не запускайте `schema.sql` повторно: после резервной копии примените по порядку все недостающие миграции до `database/migrations/017_rest_timer_events.sql` штатным MySQL/MariaDB-клиентом. После `010` сначала выполните dry-run `php bin/reconcile-program-versions.php`; `--apply` связывает только однозначные single-version программы и не выбирает ambiguous cases.
+Если база уже была создана на предыдущем этапе, не запускайте `schema.sql` повторно: после резервной копии примените по порядку все недостающие миграции до `database/migrations/018_push_notifications.sql` штатным MySQL/MariaDB-клиентом. После `010` сначала выполните dry-run `php bin/reconcile-program-versions.php`; `--apply` связывает только однозначные single-version программы и не выбирает ambiguous cases.
 
 Для ручной установки последовательно импортируйте `database/schema.sql`, затем `database/seed.sql`.
 
@@ -56,7 +58,7 @@ Service Worker работает только в secure context: production до�
 ### FASTPANEL
 
 1. Создайте сайт, базу MySQL/MariaDB и отдельного пользователя базы; запишите имя БД, логин, пароль и host из панели.
-2. Загрузите проект вне публичного каталога, выберите PHP 8.2+ и включите `pdo_mysql`, `mbstring`, `fileinfo`, `json`, `openssl`, `session`, `zip`.
+2. Загрузите проект вне публичного каталога, выберите PHP 8.2+ и включите `pdo_mysql`, `mbstring`, `fileinfo`, `json`, `curl`, `openssl`, `session`, `zip` и, если доступно, `bcmath` или `gmp`.
 3. В настройках сайта задайте корень ровно на каталог `public/`; PHP-FPM должен запускаться от пользователя сайта.
 4. Создайте `.env` из `.env.example`, укажите HTTPS `APP_URL` и параметры БД. `TRUST_PROXY=true` задавайте только если HTTPS действительно завершается на доверенном proxy FASTPANEL.
 5. Дайте пользователю PHP запись только в `storage/logs/` и `storage/cache/`, выполните `php bin/install.php`, откройте `/register` и создайте первого пользователя.
@@ -74,6 +76,52 @@ Service Worker работает только в secure context: production до�
 ```
 
 `prune-assistant-audit.php` удаляет только технический `assistant_tool_calls` старше `WEBMCP_AUDIT_RETENTION_DAYS` (по умолчанию 90 дней) и не затрагивает domain `audit_logs`. Перед cron обязательно выполните dry-run без `--apply`.
+
+## Push-уведомления об отдыхе
+
+После `composer install` один раз сгенерируйте VAPID-ключи:
+
+```bash
+php bin/generate-vapid-keys.php
+```
+
+Если локальная PHP-сборка Windows не находит `openssl.cnf`, укажите его до запуска PHP:
+
+```powershell
+$env:OPENSSL_CONF='C:\Program Files\PHP\current\extras\ssl\openssl.cnf'
+php bin/generate-vapid-keys.php
+```
+
+Перенесите обе строки в `.env`, задайте постоянный `VAPID_SUBJECT` вида `mailto:admin@example.com` или HTTPS URL и только затем включите `PUSH_ENABLED=true`. VAPID-ключи нельзя менять между deploy: существующие браузерные подписки используют публичный ключ, с которым были созданы.
+
+Для своевременной отправки запустите постоянный процесс под Supervisor или systemd:
+
+```bash
+php bin/send-rest-notifications.php --loop
+```
+
+Рекомендуемый интервал задаётся `PUSH_WORKER_SLEEP_SECONDS=3`. Если постоянный процесс недоступен, можно запускать `--once` каждую минуту через cron, но уведомление может задержаться до минуты. Серверу нужен исходящий HTTPS-доступ к endpoint браузерных push-служб, включая `*.push.apple.com` для устройств Apple.
+
+Пример unit для systemd:
+
+```ini
+[Unit]
+Description=Rhythm rest notification worker
+After=network.target mariadb.service
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/rhythm
+ExecStart=/usr/bin/php bin/send-rest-notifications.php --loop
+Restart=always
+RestartSec=3
+User=rhythm
+
+[Install]
+WantedBy=multi-user.target
+```
+
+На iPhone Web Push работает для приложения, добавленного на экран «Домой», на iOS 16.4 или новее. Разрешение запрашивается пользователем в `/settings`. Точный момент показа зависит от сети, системного режима Focus и push-службы.
 
 Первого пользователя создайте через HTTPS-страницу `/register`. После этого при необходимости ограничьте публичную регистрацию на уровне reverse proxy до появления отдельной admin-настройки.
 

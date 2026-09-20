@@ -13,6 +13,12 @@ $receipts = $pdo->prepare('DELETE FROM offline_action_receipts WHERE created_at 
 $receipts->execute([$beforeReceipts]);
 $assistantReceipts = $pdo->prepare('DELETE FROM assistant_write_receipts WHERE created_at < ?');
 $assistantReceipts->execute([$beforeReceipts]);
+$pushJobs = 0;
+try {
+    $pushJobs = (new \App\Repository\PushNotificationRepository($pdo))->cleanup(30);
+} catch (\Throwable) {
+    // A rolling deploy can run cleanup before migration 018 is applied.
+}
 
 $cacheDir = APP_ROOT . '/storage/cache';
 $cacheFiles = 0;
@@ -21,9 +27,10 @@ foreach (glob($cacheDir . '/*') ?: [] as $file) {
 }
 
 fwrite(STDOUT, sprintf(
-    "Cleanup complete: login_attempts=%d, offline_receipts=%d, assistant_write_receipts=%d, cache_files=%d\n",
+    "Cleanup complete: login_attempts=%d, offline_receipts=%d, assistant_write_receipts=%d, push_jobs=%d, cache_files=%d\n",
     $attempts->rowCount(),
     $receipts->rowCount(),
     $assistantReceipts->rowCount(),
+    $pushJobs,
     $cacheFiles,
 ));

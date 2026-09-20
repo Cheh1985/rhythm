@@ -9,6 +9,9 @@
     const validId = (value) => typeof value === 'string' && /^[a-zA-Z0-9._:-]{8,80}$/.test(value);
     const finite = (value) => Number.isFinite(Number(value));
     const copy = (state, changes = {}) => ({...state, ...changes});
+    const REVISION_SEED = Math.floor(Math.random() * 1000);
+    const clockRevision = (now) => Math.trunc(Number(now)) * 1000 + REVISION_SEED;
+    const nextRevision = (state, now) => Math.max(Number(state?.revision || 0) + 1, clockRevision(now));
 
     function create(input, now = Date.now()) {
         const duration = Math.trunc(Number(input?.duration));
@@ -16,7 +19,8 @@
             throw new TypeError('Некорректные параметры таймера отдыха.');
         }
         return {
-            version: 1,
+            version: 2,
+            revision: Math.max(1, clockRevision(now)),
             id: input.id,
             eventActionId: input.eventActionId || ('rest.finish:' + input.id),
             sourceSetActionId: input.sourceSetActionId || null,
@@ -36,7 +40,7 @@
     }
 
     function restore(value) {
-        if (!value || value.version !== 1 || !validId(value.id) || !validId(value.eventActionId)
+        if (!value || ![1, 2].includes(value.version) || !validId(value.id) || !validId(value.eventActionId)
             || !Number.isInteger(Number(value.duration)) || Number(value.duration) < 1 || Number(value.duration) > 3600
             || !finite(value.startedAt) || !finite(value.endAt) || !finite(value.remaining)
             || !['running', 'paused', 'completed', 'ended_early'].includes(value.status)) return null;
@@ -44,6 +48,8 @@
         if (terminal && (!finite(value.endedAt) || value.outcome !== value.status)) return null;
         return {
             ...value,
+            version: 2,
+            revision: Math.max(1, Number.isInteger(Number(value.revision)) ? Number(value.revision) : 1),
             duration: Number(value.duration),
             remaining: Math.max(0, Number(value.remaining)),
             startedAt: Number(value.startedAt),
@@ -70,6 +76,7 @@
 
     function complete(state, endedAt, trigger = 'timer_elapsed') {
         return copy(state, {
+            revision: nextRevision(state, endedAt),
             remaining: 0,
             paused: false,
             status: 'completed',
@@ -91,6 +98,7 @@
         if (!checked.state || isTerminal(checked.state)) return checked;
         return {
             state: copy(checked.state, {
+                revision: nextRevision(checked.state, now),
                 remaining: remainingSeconds(checked.state, now),
                 paused: false,
                 status: 'ended_early',
@@ -105,28 +113,28 @@
     function pause(state, now = Date.now()) {
         const checked = reconcile(state, now);
         if (!checked.state || isTerminal(checked.state)) return checked;
-        return {state: copy(checked.state, {remaining: remainingSeconds(checked.state, now), paused: true, status: 'paused'}), finalized: false};
+        return {state: copy(checked.state, {revision: nextRevision(checked.state, now), remaining: remainingSeconds(checked.state, now), paused: true, status: 'paused'}), finalized: false};
     }
 
     function resume(state, now = Date.now()) {
         if (!state || isTerminal(state) || !state.paused) return {state, finalized: false};
         const remaining = remainingSeconds(state, now);
         if (remaining <= 0) return {state: complete(state, now), finalized: true};
-        return {state: copy(state, {remaining, endAt: Number(now) + remaining * 1000, paused: false, status: 'running'}), finalized: false};
+        return {state: copy(state, {revision: nextRevision(state, now), remaining, endAt: Number(now) + remaining * 1000, paused: false, status: 'running'}), finalized: false};
     }
 
     function reset(state, now = Date.now()) {
         const checked = reconcile(state, now);
         if (!checked.state || isTerminal(checked.state)) return checked;
-        return {state: copy(checked.state, {remaining: checked.state.duration, endAt: Number(now) + checked.state.duration * 1000, paused: false, status: 'running'}), finalized: false};
+        return {state: copy(checked.state, {revision: nextRevision(checked.state, now), remaining: checked.state.duration, endAt: Number(now) + checked.state.duration * 1000, paused: false, status: 'running'}), finalized: false};
     }
 
     function add(state, seconds, now = Date.now()) {
         const checked = reconcile(state, now);
         const delta = Math.trunc(Number(seconds));
         if (!checked.state || isTerminal(checked.state) || !Number.isInteger(delta) || delta < 1 || delta > 3600) return checked;
-        if (checked.state.paused) return {state: copy(checked.state, {remaining: remainingSeconds(checked.state, now) + delta}), finalized: false};
-        return {state: copy(checked.state, {endAt: Number(checked.state.endAt) + delta * 1000}), finalized: false};
+        if (checked.state.paused) return {state: copy(checked.state, {revision: nextRevision(checked.state, now), remaining: remainingSeconds(checked.state, now) + delta}), finalized: false};
+        return {state: copy(checked.state, {revision: nextRevision(checked.state, now), endAt: Number(checked.state.endAt) + delta * 1000}), finalized: false};
     }
 
     function eventPayload(state) {

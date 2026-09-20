@@ -126,6 +126,29 @@
         return result || null;
     }
 
+    async function saveMeta(userId, name, value) {
+        const db = await openDb();
+        const tx = db.transaction('meta', 'readwrite');
+        tx.objectStore('meta').put({key: 'user:' + userId + ':meta:' + name, userId: String(userId), name, value, updatedAt: Date.now()});
+        await transactionDone(tx);
+        db.close();
+    }
+
+    async function getMeta(userId, name) {
+        const db = await openDb();
+        const result = await requestPromise(db.transaction('meta').objectStore('meta').get('user:' + userId + ':meta:' + name));
+        db.close();
+        return result?.value ?? null;
+    }
+
+    async function removeMeta(userId, name) {
+        const db = await openDb();
+        const tx = db.transaction('meta', 'readwrite');
+        tx.objectStore('meta').delete('user:' + userId + ':meta:' + name);
+        await transactionDone(tx);
+        db.close();
+    }
+
     async function enqueue(action, sessionRecord = null) {
         const db = await openDb();
         const tx = db.transaction(sessionRecord ? ['outbox', 'sessions'] : ['outbox'], 'readwrite');
@@ -207,5 +230,5 @@
         });
     }
 
-    return {DB_NAME, uuid, createAction, orderActions, rebaseAction, versionsFromSession, saveSession, getSession, enqueue, listActions, putAction, updateAction, removeAction, clearUser};
+    return {DB_NAME, uuid, createAction, orderActions, rebaseAction, versionsFromSession, saveSession, getSession, saveMeta, getMeta, removeMeta, enqueue, listActions, putAction, updateAction, removeAction, clearUser};
 });
