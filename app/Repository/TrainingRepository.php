@@ -336,18 +336,15 @@ SQL . ($forUpdate ? $this->lock() : ''));
         foreach ($sets->fetchAll() as $set) {
             $byExercise[$set['session_exercise_id']][] = $set;
         }
-        $historyQuery = $pdo->prepare("SELECT es.performed_weight_kg weight_kg,es.weight_value,es.weight_unit,es.reps,es.rir,se.actual_exercise_id FROM exercise_sets es JOIN session_exercises se ON se.id=es.session_exercise_id JOIN workout_sessions ws ON ws.id=es.workout_session_id WHERE ws.user_id=? AND ws.id<>? AND ws.status='completed' AND es.set_type='working' AND es.deleted_at IS NULL ORDER BY ws.finished_at DESC,es.set_number LIMIT 100");
-        $historyQuery->execute([$userId, $sessionId]);
-        $history = [];
-        foreach ($historyQuery->fetchAll() as $set) {
-            $history[$set['actual_exercise_id']] ??= [];
-            if (count($history[$set['actual_exercise_id']]) < 5) {
-                $history[$set['actual_exercise_id']][] = $set;
-            }
-        }
+        $history = $this->exerciseHistorySessions(
+            $pdo,
+            $sessionId,
+            $userId,
+            array_column($session['exercises'], 'actual_exercise_id'),
+        );
         foreach ($session['exercises'] as &$exercise) {
             $exercise['sets'] = $byExercise[$exercise['id']] ?? [];
-            $exercise['previous_sets'] = $history[$exercise['actual_exercise_id']] ?? [];
+            $exercise['history_sessions'] = $history[$exercise['actual_exercise_id']] ?? [];
         }
         unset($exercise);
         $available = $pdo->prepare("SELECT exercise_id,name FROM exercises WHERE status='active' AND deleted_at IS NULL AND (owner_user_id IS NULL OR owner_user_id=?) ORDER BY name");
@@ -780,6 +777,105 @@ SQL . ($forUpdate ? $this->lock() : ''));
         $session = $this->session($sessionId, $userId);
         if (!$session) throw new RuntimeException('Не удалось перечитать возобновлённую тренировку.');
         return $session;
+    }
+
+    /**
+     * Return at most six completed workouts per exercise, ordered oldest to newest.
+     * The first bounded query selects workouts; one shared query then loads their sets.
+     *
+     * @param list<string> $exerciseIds
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private function exerciseHistorySessions(PDO $pdo, int $sessionId, int $userId, array $exerciseIds): array
+    {
+        $exerciseIds = array_values(array_unique(array_map('strval', $exerciseIds)));
+        $history = array_fill_keys($exerciseIds, []);
+        if ($exerciseIds === []) {
+            return $history;
+        }
+
+        $recentSessions = $pdo->prepare(<<<'SQL'
+SELECT ws.id session_id,p.scheduled_date
+FROM workout_sessions ws
+JOIN workout_plans p ON p.id=ws.workout_plan_id AND p.user_id=ws.user_id
+WHERE ws.user_id=? AND ws.id<>? AND ws.status='completed' AND ws.deleted_at IS NULL
+  AND EXISTS (
+      SELECT 1
+      FROM session_exercises se
+      JOIN exercise_sets es ON es.session_exercise_id=se.id AND es.workout_session_id=ws.id
+      WHERE se.workout_session_id=ws.id AND se.actual_exercise_id=?
+        AND es.user_id=ws.user_id AND es.set_type='working' AND es.deleted_at IS NULL
+  )
+ORDER BY ws.finished_at DESC,ws.id DESC
+LIMIT 6
+SQL);
+
+        $groupIndexes = [];
+        $selectedSessionIds = [];
+        foreach ($exerciseIds as $exerciseId) {
+            $recentSessions->execute([$userId, $sessionId, $exerciseId]);
+            $rows = array_reverse($recentSessions->fetchAll());
+            foreach ($rows as $row) {
+                $historicalSessionId = (int) $row['session_id'];
+                $groupIndexes[$exerciseId][$historicalSessionId] = count($history[$exerciseId]);
+                $selectedSessionIds[$historicalSessionId] = $historicalSessionId;
+                $history[$exerciseId][] = [
+                    'session_id' => $historicalSessionId,
+                    'scheduled_date' => (string) $row['scheduled_date'],
+                    'target_rir_min' => null,
+                    'target_rir_max' => null,
+                    'sets' => [],
+                ];
+            }
+        }
+        if ($selectedSessionIds === []) {
+            return $history;
+        }
+
+        $sessionPlaceholders = implode(',', array_fill(0, count($selectedSessionIds), '?'));
+        $exercisePlaceholders = implode(',', array_fill(0, count($exerciseIds), '?'));
+        $setQuery = $pdo->prepare(<<<SQL
+SELECT ws.id session_id,se.actual_exercise_id,we.target_rir_min,we.target_rir_max,
+       es.id set_id,es.set_number,es.performed_weight_kg weight_kg,
+       es.weight_value,es.weight_unit,es.reps,es.rir
+FROM exercise_sets es
+JOIN workout_sessions ws ON ws.id=es.workout_session_id
+JOIN workout_plans p ON p.id=ws.workout_plan_id AND p.user_id=ws.user_id
+JOIN session_exercises se ON se.id=es.session_exercise_id AND se.workout_session_id=ws.id
+JOIN workout_exercises we ON we.id=se.workout_exercise_id AND we.workout_plan_id=p.id
+WHERE es.user_id=? AND ws.user_id=? AND ws.status='completed' AND ws.deleted_at IS NULL
+  AND es.set_type='working' AND es.deleted_at IS NULL
+  AND ws.id IN ({$sessionPlaceholders})
+  AND se.actual_exercise_id IN ({$exercisePlaceholders})
+ORDER BY ws.finished_at,ws.id,we.sequence_no,se.id,es.set_number,es.sequence_no,es.id
+SQL);
+        $setQuery->execute([$userId, $userId, ...array_values($selectedSessionIds), ...$exerciseIds]);
+
+        $targetAssigned = [];
+        foreach ($setQuery->fetchAll() as $row) {
+            $exerciseId = (string) $row['actual_exercise_id'];
+            $historicalSessionId = (int) $row['session_id'];
+            if (!isset($groupIndexes[$exerciseId][$historicalSessionId])) {
+                continue;
+            }
+            $index = $groupIndexes[$exerciseId][$historicalSessionId];
+            if (!isset($targetAssigned[$exerciseId][$historicalSessionId])) {
+                $history[$exerciseId][$index]['target_rir_min'] = $row['target_rir_min'] === null ? null : (float) $row['target_rir_min'];
+                $history[$exerciseId][$index]['target_rir_max'] = $row['target_rir_max'] === null ? null : (float) $row['target_rir_max'];
+                $targetAssigned[$exerciseId][$historicalSessionId] = true;
+            }
+            $history[$exerciseId][$index]['sets'][] = [
+                'set_id' => (int) $row['set_id'],
+                'set_number' => (int) $row['set_number'],
+                'weight_kg' => $row['weight_kg'] === null ? null : (float) $row['weight_kg'],
+                'weight_value' => $row['weight_value'] === null ? null : (float) $row['weight_value'],
+                'weight_unit' => (string) $row['weight_unit'],
+                'reps' => $row['reps'] === null ? null : (int) $row['reps'],
+                'rir' => $row['rir'] === null ? null : (float) $row['rir'],
+            ];
+        }
+
+        return $history;
     }
 
     public function updateCompletedSession(int $sessionId, int $userId, array $data): array
