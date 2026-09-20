@@ -66,12 +66,27 @@ $exerciseIcon = static function (string $exerciseId): string {
     <?php if (!in_array($exercise['status'], ['completed', 'skipped'], true)): ?>
     <form class="set-entry" data-working-next="<?= count($working) + 1 ?>" data-warmup-next="<?= count($warmups) + 1 ?>">
         <div class="set-type-toggle"><button type="button" data-type="working" class="active">Рабочий</button><button type="button" data-type="warmup">Разминка</button></div>
-        <div class="entry-grid">
-            <label><span>Вес <select class="weight-unit" aria-label="Единица веса"><option value="kg" <?= $weightUnit === 'kg' ? 'selected' : '' ?>><?= e(unit('kg')) ?></option><option value="lb" <?= $weightUnit === 'lb' ? 'selected' : '' ?>>lb</option></select></span><input class="weight-input" aria-label="Вес" type="number" inputmode="decimal" min="0" max="2000" step="0.01" value="<?= e($prefillWeight) ?>" required></label>
-            <label><span>Повторы</span><input class="reps-input" type="number" inputmode="numeric" min="1" max="1000" value="<?= e($prefillReps) ?>" required></label>
+        <div class="wheel-inputs" role="group" aria-label="Параметры подхода">
+            <section class="workout-wheel" data-workout-wheel data-wheel-kind="weight" data-min="0" data-max="2000" data-step="<?= e($weightStep) ?>" data-wheel-unit="<?= e(unit($weightUnit)) ?>">
+                <div class="wheel-label"><span id="weight-label-<?= (int) $exercise['id'] ?>">Вес</span><select class="weight-unit" aria-label="Единица веса"><option value="kg" <?= $weightUnit === 'kg' ? 'selected' : '' ?>><?= e(unit('kg')) ?></option><option value="lb" <?= $weightUnit === 'lb' ? 'selected' : '' ?>>lb</option></select></div>
+                <button class="wheel-adjust" type="button" data-wheel-adjust="-1" aria-label="Уменьшить вес">−</button>
+                <div class="wheel-window"><div class="wheel-values" data-wheel-values></div><button class="wheel-selected" type="button" role="spinbutton" aria-labelledby="weight-label-<?= (int) $exercise['id'] ?>" aria-label="Ввести вес вручную" data-wheel-selected></button><input class="weight-input wheel-manual-input" data-wheel-input aria-label="Вес" type="number" inputmode="decimal" min="0" max="2000" step="0.01" value="<?= e($prefillWeight) ?>" required hidden></div>
+                <button class="wheel-adjust" type="button" data-wheel-adjust="1" aria-label="Увеличить вес">+</button>
+            </section>
+            <section class="workout-wheel" data-workout-wheel data-wheel-kind="reps" data-min="1" data-max="1000" data-step="1">
+                <div class="wheel-label"><span id="reps-label-<?= (int) $exercise['id'] ?>">Повторы</span></div>
+                <button class="wheel-adjust" type="button" data-wheel-adjust="-1" aria-label="Уменьшить повторы">−</button>
+                <div class="wheel-window"><div class="wheel-values" data-wheel-values></div><button class="wheel-selected" type="button" role="spinbutton" aria-labelledby="reps-label-<?= (int) $exercise['id'] ?>" aria-label="Ввести повторы вручную" data-wheel-selected></button><input class="reps-input wheel-manual-input" data-wheel-input aria-label="Повторы" type="number" inputmode="numeric" min="1" max="1000" step="1" value="<?= e($prefillReps) ?>" required hidden></div>
+                <button class="wheel-adjust" type="button" data-wheel-adjust="1" aria-label="Увеличить повторы">+</button>
+            </section>
+            <section class="workout-wheel" data-workout-wheel data-wheel-kind="rir" data-min="0" data-max="10" data-step="0.5" data-allow-empty="true">
+                <div class="wheel-label"><span id="rir-label-<?= (int) $exercise['id'] ?>">RIR</span></div>
+                <button class="wheel-adjust" type="button" data-wheel-adjust="-1" aria-label="Уменьшить RIR">−</button>
+                <div class="wheel-window"><div class="wheel-values" data-wheel-values></div><button class="wheel-selected" type="button" role="spinbutton" aria-labelledby="rir-label-<?= (int) $exercise['id'] ?>" aria-label="Ввести RIR вручную" data-wheel-selected></button><input class="rir-input wheel-manual-input" data-wheel-input aria-label="RIR" type="number" inputmode="decimal" min="0" max="10" step="0.5" hidden></div>
+                <button class="wheel-adjust" type="button" data-wheel-adjust="1" aria-label="Увеличить RIR">+</button>
+                <span class="wheel-error">Выберите значение</span>
+            </section>
         </div>
-        <div class="quick-row weight-quick"><button type="button" data-weight-direction="-1" data-delta="<?= -$weightStep ?>">−<?= e($weightStep) ?></button><button type="button" data-weight-direction="1" data-delta="<?= $weightStep ?>">+<?= e($weightStep) ?></button><button type="button" class="reps-delta" data-delta="-1">−1 повт.</button><button type="button" class="reps-delta" data-delta="1">+1 повт.</button></div>
-        <fieldset class="rir-picker"><legend>Повторы в запасе (RIR)</legend><div><?php foreach ([0,1,2,3,4,5] as $rir): ?><button type="button" data-rir="<?= $rir ?>"><?= $rir === 5 ? '5+' : $rir ?></button><?php endforeach; ?></div><input type="hidden" class="rir-input" required></fieldset>
         <button class="button button-primary button-wide save-set" type="submit">Готово · запустить отдых</button>
     </form>
     <div class="exercise-actions"><?php if ($exercise['status'] === 'waiting'): ?><button type="button" data-status="active">Оборудование свободно</button><?php else: ?><button type="button" data-status="waiting">Оборудование занято</button><?php endif; ?><button type="button" data-open-action="skip">Пропустить</button><button type="button" data-open-action="replace">Заменить</button><button type="button" data-open-action="discomfort">Дискомфорт</button><button type="button" data-open-action="complete" class="complete-exercise">Завершить</button></div>

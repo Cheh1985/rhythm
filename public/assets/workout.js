@@ -56,7 +56,7 @@
     }
 
     const page = document.querySelector('.workout-page');
-    if (!page || !window.RhythmOffline || !window.RhythmRestTimer || !window.RhythmWorkoutCard || !userId) return;
+    if (!page || !window.RhythmOffline || !window.RhythmRestTimer || !window.RhythmWorkoutCard || !window.RhythmWorkoutWheel || !userId) return;
     const sessionId = String(page.dataset.sessionId);
     let sessionVersion = Number(page.dataset.sessionVersion);
     let versions = {sessionVersion, exerciseVersions: {}, setVersions: {}};
@@ -408,17 +408,23 @@
         toggle.setAttribute('aria-label', (window.RhythmI18n?.t(expanded ? 'Свернуть упражнение' : 'Развернуть упражнение') || '') + ' ' + card.querySelector('h2').textContent);
         body.hidden = !expanded;
         card.classList.toggle('expanded', expanded);
+        if (expanded) {
+            RhythmWorkoutWheel.mountWithin(body);
+            setWeightUnit(card, card.dataset.weightUnit || 'kg');
+        }
     }
 
     function setWeightUnit(card, unit) {
         card.dataset.weightUnit = unit;
         const select = card.querySelector('.weight-unit');
         if (select) select.value = unit;
-        card.querySelectorAll('[data-weight-direction]').forEach((button) => {
-            const delta = RhythmWeight.step(unit) * Number(button.dataset.weightDirection);
-            button.dataset.delta = String(delta);
-            button.textContent = (delta > 0 ? '+' : '−') + Math.abs(delta);
-        });
+        const wheel = card.querySelector('[data-wheel-kind="weight"]');
+        if (wheel) {
+            wheel.dataset.step = String(RhythmWeight.step(unit));
+            wheel.dataset.wheelUnit = RhythmWeight.label(unit);
+            wheel._rhythmWorkoutWheel?.setStep(RhythmWeight.step(unit));
+            wheel._rhythmWorkoutWheel?.setUnit(RhythmWeight.label(unit));
+        }
         const planned = card.querySelector('[data-planned-weight]');
         if (planned && card.dataset.plannedKg !== '') planned.textContent = RhythmWeight.fromKg(Number(card.dataset.plannedKg), unit) + ' ' + RhythmWeight.label(unit);
     }
@@ -481,7 +487,7 @@
             form.dataset.workingNext = values.workingNext;
             form.dataset.warmupNext = values.warmupNext;
             form.querySelectorAll('[data-type]').forEach((button) => button.classList.toggle('active', button.dataset.type === values.type));
-            form.querySelectorAll('[data-rir]').forEach((button) => button.classList.toggle('active', button.dataset.rir === values.rir));
+            RhythmWorkoutWheel.refreshWithin(form);
         }
         if (draft.finish) {
             page.querySelector('#session-rpe').value = draft.finish.rpe;
@@ -494,7 +500,11 @@
         await RhythmOffline.saveSession(userId, sessionId, sessionSnapshot, captureDraft());
     }
     window.rhythmPersistBeforeUpdate = saveDraft;
-    page.addEventListener('input', () => { clearTimeout(draftTimer); draftTimer = setTimeout(() => saveDraft().catch(() => {}), 180); });
+    page.addEventListener('input', (event) => {
+        if (event.target.matches('.rir-input') && event.target.value !== '') event.target.closest('[data-workout-wheel]')?.classList.remove('invalid');
+        clearTimeout(draftTimer);
+        draftTimer = setTimeout(() => saveDraft().catch(() => {}), 180);
+    });
     page.addEventListener('change', () => { clearTimeout(draftTimer); draftTimer = setTimeout(() => saveDraft().catch(() => {}), 50); });
     window.addEventListener('rhythm-before-update', () => saveDraft().catch(() => {}));
 
@@ -519,28 +529,31 @@
         const button = event.target.closest('button'), form = button?.closest('.set-entry');
         if (!button) return;
         if (button.dataset.type && form) form.querySelectorAll('[data-type]').forEach((item) => item.classList.toggle('active', item === button));
-        else if (button.dataset.rir !== undefined && form) {
-            form.querySelectorAll('[data-rir]').forEach((item) => item.classList.toggle('active', item === button));
-            form.querySelector('.rir-input').value = button.dataset.rir;
-        } else if (button.dataset.delta !== undefined && form) {
-            const input = button.classList.contains('reps-delta') ? form.querySelector('.reps-input') : form.querySelector('.weight-input');
-            input.value = String(Math.round(Math.min(Number(input.max || 2000), Math.max(Number(input.min || 0), Number(input.value || 0) + Number(button.dataset.delta))) * 100) / 100);
-        }
     });
 
     page.querySelectorAll('.set-entry').forEach((form) => form.addEventListener('submit', async (event) => {
         event.preventDefault();
+        RhythmWorkoutWheel.commitWithin(form);
         if (!form.reportValidity()) return;
         const rir = form.querySelector('.rir-input');
-        if (rir.value === '') { rir.closest('fieldset').classList.add('invalid'); return; }
-        const card = form.closest('.exercise-card'), type = form.querySelector('[data-type].active').dataset.type;
-        const nextKey = type === 'working' ? 'workingNext' : 'warmupNext', submit = form.querySelector('[type="submit"]');
-        submit.disabled = true;
-        const setAction = await queueMutation('set.create', '/api/sessions/' + sessionId + '/sets', 'POST', {session_version: sessionVersion, session_exercise_id: Number(card.dataset.exerciseId), set_number: Number(form.dataset[nextKey]), set_type: type, weight_value: Number(form.querySelector('.weight-input').value), weight_unit: form.querySelector('.weight-unit').value, reps: Number(form.querySelector('.reps-input').value), rir: Number(rir.value)});
-        rir.value = '';
-        form.querySelectorAll('[data-rir]').forEach((item) => item.classList.remove('active'));
-        await startTimer(Number(card.dataset.rest), setAction.id, Number(card.dataset.exerciseId));
-        submit.disabled = false;
+        const rirWheel = rir.closest('[data-workout-wheel]');
+        if (rir.value === '') { rirWheel.classList.add('invalid'); rirWheel.querySelector('[data-wheel-selected]')?.focus(); return; }
+        rirWheel.classList.remove('invalid');
+        await RhythmWorkoutWheel.runOnce(form, async () => {
+            const card = form.closest('.exercise-card'), type = form.querySelector('[data-type].active').dataset.type;
+            const nextKey = type === 'working' ? 'workingNext' : 'warmupNext', submit = form.querySelector('[type="submit"]');
+            submit.disabled = true;
+            try {
+                const setAction = await queueMutation('set.create', '/api/sessions/' + sessionId + '/sets', 'POST', {session_version: sessionVersion, session_exercise_id: Number(card.dataset.exerciseId), set_number: Number(form.dataset[nextKey]), set_type: type, weight_value: Number(form.querySelector('.weight-input').value), weight_unit: form.querySelector('.weight-unit').value, reps: Number(form.querySelector('.reps-input').value), rir: Number(rir.value)});
+                rirWheel._rhythmWorkoutWheel?.setValue(null);
+                await startTimer(Number(card.dataset.rest), setAction.id, Number(card.dataset.exerciseId));
+                await saveDraft();
+            } catch (error) {
+                paintSync('error', (await RhythmOffline.listActions(userId, sessionId)).length, error.message);
+            } finally {
+                submit.disabled = false;
+            }
+        });
     }));
 
     async function queueStatus(card, status, extra = {}) {

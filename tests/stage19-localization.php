@@ -71,7 +71,7 @@ $manifest = json_decode((string) file_get_contents($root . '/public/manifest.en.
 $serviceWorker = (string) file_get_contents($root . '/public/service-worker.js');
 $check(($manifest['lang'] ?? null) === 'en' && ($manifest['short_name'] ?? null) === 'Rhythm', 'EN manifest содержит локализованный бренд');
 $check(is_file($root . '/public/offline.en.html') && is_file($root . '/public/icons/icon-en-512.png'), 'EN offline fallback и иконки существуют');
-$check(str_contains($serviceWorker, 'SET_LOCALE') && str_contains($serviceWorker, 'offline.en.html') && str_contains($serviceWorker, "rhythm-shell-v10.8"), 'Service Worker хранит locale и кеширует EN shell');
+$check(str_contains($serviceWorker, 'SET_LOCALE') && str_contains($serviceWorker, 'offline.en.html') && str_contains($serviceWorker, "rhythm-shell-v10.9"), 'Service Worker хранит locale и кеширует EN shell');
 $check(str_contains((string) file_get_contents($root . '/public/assets/i18n.js'), 'window.RhythmI18n'), 'JS-каталог подключён');
 
 if ($failures !== []) {

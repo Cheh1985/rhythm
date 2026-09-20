@@ -31,7 +31,7 @@ $check(str_contains($files['card'], "return /^[a-z0-9_]{1,80}$/") && str_contain
 $check(str_contains($files['layout'], '/assets/workout-card.js') && str_contains($files['layout'], '/assets/workout-history.js'), 'локальные модули подключены до интеграционного скрипта');
 $check(str_contains($files['css'], '@media(max-width:34rem)') && str_contains($files['css'], '@media(max-width:23rem)') && str_contains($files['css'], 'minmax(0,1fr)'), 'карточка защищена от переполнения на ширинах 320–430 px');
 $check(!preg_match('~(?:cdn|unpkg|jsdelivr|cdnjs)~i', $files['history'] . $files['card'] . $files['view']) && !str_contains($files['history'], 'd3.'), 'график не использует CDN или D3');
-$check(str_contains($files['worker'], "rhythm-shell-v10.8") && str_contains($files['worker'], "asset('./assets/workout-history.js')") && str_contains($files['worker'], "asset('./assets/exercises/generic.svg')"), 'версия app shell повышена, новые модули и fallback кешируются');
+$check(str_contains($files['worker'], "rhythm-shell-v10.9") && str_contains($files['worker'], "asset('./assets/workout-history.js')") && str_contains($files['worker'], "asset('./assets/exercises/generic.svg')"), 'версия app shell актуальна, новые модули и fallback кешируются');
 
 $icons = glob($root . '/public/assets/exercises/*.svg') ?: [];
 $check(count($icons) === 15, 'добавлены 14 seed-пиктограмм и generic fallback');
