@@ -56,7 +56,7 @@
     }
 
     const page = document.querySelector('.workout-page');
-    if (!page || !window.RhythmOffline || !window.RhythmRestTimer || !userId) return;
+    if (!page || !window.RhythmOffline || !window.RhythmRestTimer || !window.RhythmWorkoutCard || !userId) return;
     const sessionId = String(page.dataset.sessionId);
     let sessionVersion = Number(page.dataset.sessionVersion);
     let versions = {sessionVersion, exerciseVersions: {}, setVersions: {}};
@@ -214,7 +214,7 @@
         }
         else if (action.type === 'exercise.replace' && card) {
             const option = replacementOptions().find((item) => item.value === String(body.actual_exercise_id));
-            if (option) { card.querySelector('h2').textContent = option.textContent; card.dataset.actualExerciseId = body.actual_exercise_id; setWeightUnit(card, option.dataset.weightUnit || 'kg'); }
+            if (option) { updateCardIdentity(card, body.actual_exercise_id, option.textContent); setWeightUnit(card, option.dataset.weightUnit || 'kg'); }
             appendLocalNote(card, 'Замена ожидает синхронизации');
         } else if (action.type === 'discomfort.create' && card) appendLocalNote(card, 'Дискомфорт записан локально');
         else if (action.type === 'session.finish') {
@@ -371,7 +371,7 @@
             card.dataset.actualExerciseId = exercise.actual_exercise_id;
             // A refresh must not overwrite an unsaved form or a queued unit selection.
             if (!card.querySelector('.set-entry')) card.dataset.weightUnit = exercise.weight_unit || 'kg';
-            card.querySelector('h2').textContent = exercise.exercise_name;
+            updateCardIdentity(card, exercise.actual_exercise_id, exercise.exercise_name);
             setCardStatus(card, exercise.status);
             for (const set of exercise.sets || []) renderSet(card, set);
             const form = card.querySelector('.set-entry');
@@ -386,6 +386,28 @@
 
     function replacementOptions() {
         return [...document.querySelector('#replace-fields').content.querySelectorAll('option')];
+    }
+
+    function updateCardIdentity(card, actualExerciseId, exerciseName) {
+        card.dataset.actualExerciseId = actualExerciseId;
+        card.querySelector('h2').textContent = exerciseName;
+        const icon = card.querySelector('.exercise-icon');
+        if (icon) {
+            icon.src = RhythmWorkoutCard.iconUrl(actualExerciseId, page.dataset.iconBase);
+            icon.alt = (window.RhythmI18n?.t('Пиктограмма упражнения') || 'Пиктограмма упражнения') + ' ' + exerciseName;
+        }
+        const toggle = card.querySelector('.exercise-toggle');
+        if (toggle) toggle.setAttribute('aria-label', (window.RhythmI18n?.t(toggle.getAttribute('aria-expanded') === 'true' ? 'Свернуть упражнение' : 'Развернуть упражнение') || '') + ' ' + exerciseName);
+    }
+
+    function setCardExpanded(card, expanded) {
+        const toggle = card.querySelector('.exercise-toggle');
+        const body = card.querySelector('.exercise-card-body');
+        if (!toggle || !body) return;
+        toggle.setAttribute('aria-expanded', String(expanded));
+        toggle.setAttribute('aria-label', (window.RhythmI18n?.t(expanded ? 'Свернуть упражнение' : 'Развернуть упражнение') || '') + ' ' + card.querySelector('h2').textContent);
+        body.hidden = !expanded;
+        card.classList.toggle('expanded', expanded);
     }
 
     function setWeightUnit(card, unit) {
@@ -419,20 +441,41 @@
 
     function captureDraft() {
         const forms = {};
+        const expandedExerciseIds = [];
+        const selectedHistorySessionByExercise = {};
         page.querySelectorAll('.exercise-card').forEach((card) => {
             const form = card.querySelector('.set-entry');
             if (form) forms[card.dataset.exerciseId] = {weight: form.querySelector('.weight-input').value, weightUnit: form.querySelector('.weight-unit').value, actualExerciseId: card.dataset.actualExerciseId, reps: form.querySelector('.reps-input').value, rir: form.querySelector('.rir-input').value, type: form.querySelector('[data-type].active')?.dataset.type || 'working', workingNext: form.dataset.workingNext, warmupNext: form.dataset.warmupNext};
+            if (card.querySelector('.exercise-toggle')?.getAttribute('aria-expanded') === 'true') expandedExerciseIds.push(card.dataset.exerciseId);
+            const selectedHistory = card.querySelector('[data-history-chart]')?.dataset.selectedSessionId;
+            if (selectedHistory) selectedHistorySessionByExercise[card.dataset.exerciseId] = Number(selectedHistory);
         });
-        return {forms, finish: {rpe: page.querySelector('#session-rpe').value, wellbeing: page.querySelector('#session-wellbeing').value, comment: page.querySelector('#session-comment').value}};
+        return {forms, ui: {activeExerciseId: null, expandedExerciseIds, selectedHistorySessionByExercise}, finish: {rpe: page.querySelector('#session-rpe').value, wellbeing: page.querySelector('#session-wellbeing').value, comment: page.querySelector('#session-comment').value}};
     }
     function restoreDraft(draft) {
+        const cards = [...page.querySelectorAll('.exercise-card')];
+        const expanded = RhythmWorkoutCard.normalizeExpandedIds(draft?.ui?.expandedExerciseIds, cards.map((card) => card.dataset.exerciseId));
+        cards.forEach((card) => {
+            setCardExpanded(card, expanded.includes(card.dataset.exerciseId));
+            const selectedHistory = draft?.ui?.selectedHistorySessionByExercise?.[card.dataset.exerciseId];
+            const history = card.querySelector('[data-history-chart]');
+            if (history && selectedHistory) {
+                history.dataset.selectedSessionId = String(selectedHistory);
+                history.dispatchEvent(new CustomEvent('rhythm-history-select', {detail: Number(selectedHistory)}));
+            }
+        });
         if (!draft) return;
         for (const [exerciseId, values] of Object.entries(draft.forms || {})) {
             const form = page.querySelector('.exercise-card[data-exercise-id="' + exerciseId + '"] .set-entry');
             if (!form) continue;
             form.querySelector('.weight-input').value = values.weight;
             setWeightUnit(form.closest('.exercise-card'), values.weightUnit || 'kg');
-            if (values.actualExerciseId) form.closest('.exercise-card').dataset.actualExerciseId = values.actualExerciseId;
+            if (values.actualExerciseId) {
+                const card = form.closest('.exercise-card');
+                const option = replacementOptions().find((item) => item.value === String(values.actualExerciseId));
+                if (option) updateCardIdentity(card, values.actualExerciseId, option.textContent);
+                else card.dataset.actualExerciseId = values.actualExerciseId;
+            }
             form.querySelector('.reps-input').value = values.reps;
             form.querySelector('.rir-input').value = values.rir;
             form.dataset.workingNext = values.workingNext;
@@ -454,6 +497,14 @@
     page.addEventListener('input', () => { clearTimeout(draftTimer); draftTimer = setTimeout(() => saveDraft().catch(() => {}), 180); });
     page.addEventListener('change', () => { clearTimeout(draftTimer); draftTimer = setTimeout(() => saveDraft().catch(() => {}), 50); });
     window.addEventListener('rhythm-before-update', () => saveDraft().catch(() => {}));
+
+    page.addEventListener('click', (event) => {
+        const toggle = event.target.closest('.exercise-toggle');
+        if (!toggle) return;
+        const card = toggle.closest('.exercise-card');
+        setCardExpanded(card, toggle.getAttribute('aria-expanded') !== 'true');
+        saveDraft().catch(() => {});
+    });
 
     const elapsed = page.querySelector('[data-active-seconds]');
     const updateElapsed = () => {

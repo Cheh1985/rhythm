@@ -1,9 +1,14 @@
 <?php
 $statusLabels = array_map('t', ['pending' => 'Ожидает', 'active' => 'В работе', 'waiting' => 'Оборудование занято', 'completed' => 'Готово', 'skipped' => 'Пропущено']);
+$exerciseIcon = static function (string $exerciseId): string {
+    if (!preg_match('/^[a-z0-9_]{1,80}$/D', $exerciseId)) return 'generic.svg';
+    $filename = $exerciseId . '.svg';
+    return is_file(APP_ROOT . '/public/assets/exercises/' . $filename) ? $filename : 'generic.svg';
+};
 ?>
 <?php if ($error ?? null): ?><div class="alert alert-error"><?= te($error) ?></div><?php endif; ?>
 <?php if ($success ?? null): ?><div class="alert alert-success"><?= te($success) ?></div><?php endif; ?>
-<div class="workout-page" data-session-id="<?= (int) $session['id'] ?>" data-session-version="<?= (int) $session['version'] ?>">
+<div class="workout-page" data-session-id="<?= (int) $session['id'] ?>" data-session-version="<?= (int) $session['version'] ?>" data-icon-base="<?= e(url('/assets/exercises/')) ?>">
 <section class="workout-head">
     <div><p class="eyebrow"><?= e(local_date($session['scheduled_date'])) ?></p><h1><?= e($session['name']) ?></h1><small class="autosave-state" role="status">Проверяем синхронизацию…</small><div class="sync-strip"><span data-network-state>Онлайн</span><button type="button" data-sync-retry hidden>Повторить</button></div></div>
     <div class="elapsed"><span>Время</span><strong data-active-seconds="<?= (int) ($session['active_duration_seconds'] ?? 0) ?>" data-segment-started-at="<?= e(gmdate('c', strtotime(($session['active_segment_started_at'] ?? $session['started_at']) . ' UTC'))) ?>">00:00</strong></div>
@@ -29,11 +34,31 @@ $statusLabels = array_map('t', ['pending' => 'Ожидает', 'active' => 'В �
     $prefillWeight = $prefillWeight === '' ? '' : \App\Domain\Weight::fromKg((float) $prefillWeight, $weightUnit);
     $weightStep = $weightUnit === 'lb' ? 5 : 0.5;
     $prefillReps = $lastSet['reps'] ?? $previous['reps'] ?? $exercise['rep_min'];
+    $bodyId = 'exercise-body-' . (int) $exercise['id'];
+    $iconFile = $exerciseIcon((string) $exercise['actual_exercise_id']);
+    $historyJson = json_encode($historySessions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 ?>
 <article class="exercise-card <?= e($exercise['status']) ?>" data-exercise-id="<?= (int) $exercise['id'] ?>" data-actual-exercise-id="<?= e($exercise['actual_exercise_id']) ?>" data-weight-unit="<?= e($weightUnit) ?>" data-exercise-version="<?= (int) $exercise['version'] ?>" data-planned-kg="<?= e($exercise['planned_weight_kg'] ?? '') ?>" data-rest="<?= (int) $exercise['rest_seconds'] ?>">
-    <header><div><p class="exercise-order">Упражнение <?= (int) $exercise['sequence_no'] ?></p><h2><?= e($exercise['exercise_name']) ?></h2><?php if ($exercise['actual_exercise_id'] !== $exercise['original_exercise_id']): ?><small class="replacement-note">Вместо: <?= e($exercise['original_exercise_name']) ?></small><?php endif; ?></div><span class="exercise-state"><?= e($statusLabels[$exercise['status']] ?? $exercise['status']) ?></span></header>
-    <div class="prescription"><?php if ($exercise['planned_weight_kg'] !== null): ?><span><small>Вес</small><strong data-planned-weight><?= e(\App\Domain\Weight::fromKg((float) $exercise['planned_weight_kg'], $weightUnit)) ?> <?= e(unit($weightUnit)) ?></strong></span><?php endif; ?><span><small>План</small><strong><?= (int) $exercise['planned_sets'] ?> × <?= (int) $exercise['rep_min'] ?>–<?= (int) $exercise['rep_max'] ?></strong></span><span><small>RIR</small><strong><?= e($exercise['target_rir_min']) ?>–<?= e($exercise['target_rir_max']) ?></strong></span><span><small>Отдых</small><strong><?= (int) $exercise['rest_seconds'] ?> сек</strong></span></div>
-    <?php if ($previousSession): ?><p class="previous"><span>В прошлый раз · <?= e(local_date($previousSession['scheduled_date'])) ?></span><?php foreach ($previousSession['sets'] as $set): ?><b><?= e(\App\Domain\Weight::text($set)) ?> ×<?= (int) $set['reps'] ?> · RIR <?= e($set['rir']) ?></b><?php endforeach; ?></p><?php endif; ?>
+    <header class="exercise-card-head">
+        <img class="exercise-icon" src="<?= e(url('/assets/exercises/' . $iconFile)) ?>" alt="<?= e(t('Пиктограмма упражнения') . ' ' . $exercise['exercise_name']) ?>" width="96" height="96">
+        <div class="exercise-heading"><p class="exercise-order">Упражнение <?= (int) $exercise['sequence_no'] ?></p><h2><?= e($exercise['exercise_name']) ?></h2><?php if ($exercise['actual_exercise_id'] !== $exercise['original_exercise_id']): ?><small class="replacement-note">Вместо: <?= e($exercise['original_exercise_name']) ?></small><?php endif; ?></div>
+        <span class="exercise-state"><?= e($statusLabels[$exercise['status']] ?? $exercise['status']) ?></span>
+        <button class="exercise-toggle" type="button" aria-expanded="false" aria-controls="<?= e($bodyId) ?>" aria-label="<?= e(t('Развернуть упражнение') . ' ' . $exercise['exercise_name']) ?>"><span aria-hidden="true"></span></button>
+        <div class="prescription"><?php if ($exercise['planned_weight_kg'] !== null): ?><span><small>Вес</small><strong data-planned-weight><?= e(\App\Domain\Weight::fromKg((float) $exercise['planned_weight_kg'], $weightUnit)) ?> <?= e(unit($weightUnit)) ?></strong></span><?php endif; ?><span><small>План</small><strong><?= (int) $exercise['planned_sets'] ?> × <?= (int) $exercise['rep_min'] ?>–<?= (int) $exercise['rep_max'] ?></strong></span><span><small>RIR</small><strong><?= e($exercise['target_rir_min']) ?>–<?= e($exercise['target_rir_max']) ?></strong></span></div>
+        <p class="rest-prescription"><span>Отдых</span> <strong><?= (int) $exercise['rest_seconds'] ?> сек</strong></p>
+    </header>
+    <div class="exercise-card-body" id="<?= e($bodyId) ?>" hidden>
+    <section class="history-panel" data-history-chart aria-labelledby="history-title-<?= (int) $exercise['id'] ?>">
+        <div class="history-head"><h3 id="history-title-<?= (int) $exercise['id'] ?>">Прошлые тренировки</h3><div class="history-navigation"><?php if ($historySessions): ?><button type="button" data-history-previous aria-label="Предыдущие даты">‹</button><button type="button" data-history-next aria-label="Следующие даты">›</button><?php endif; ?></div></div>
+        <p class="history-summary sr-only"></p>
+        <?php if ($historySessions): ?>
+            <div class="history-dates" aria-label="Выбор даты тренировки"></div>
+            <div class="history-canvas"></div>
+            <p class="history-detail" role="status" aria-live="polite">Нажмите на подход, чтобы увидеть точные значения.</p>
+            <div class="history-legend" aria-label="Легенда цветов"><span class="below">Ниже RIR</span><span class="within">В цели</span><span class="above">Выше RIR</span><span class="unknown">Цель неизвестна</span></div>
+        <?php else: ?><p class="history-empty">Завершённых тренировок с этим упражнением пока нет.</p><?php endif; ?>
+        <script type="application/json" class="history-data"><?= $historyJson ?: '[]' ?></script>
+    </section>
     <?php if ($exercise['instructions']): ?><details class="instructions"><summary>Инструкция</summary><p><?= nl2br(e($exercise['instructions'])) ?></p></details><?php endif; ?>
     <div class="saved-sets">
     <?php foreach ($exercise['sets'] as $set): ?><div class="saved-set" data-set-id="<?= (int) $set['id'] ?>" data-set-version="<?= (int) $set['version'] ?>" data-weight="<?= e($set['weight_value'] ?? $set['weight_kg']) ?>" data-weight-unit="<?= e($set['weight_unit'] ?? 'kg') ?>" data-set-type="<?= e($set['set_type']) ?>" data-reps="<?= (int) $set['reps'] ?>" data-rir="<?= e($set['rir']) ?>"><span><?= $set['set_type']==='warmup'?(locale()==='en'?'W':'Р'):(locale()==='en'?'S':'П') ?><?= (int) $set['set_number'] ?></span><strong><?= e(\App\Domain\Weight::text($set)) ?> × <?= (int) $set['reps'] ?></strong><small>RIR <?= e($set['rir']) ?></small><button type="button" data-edit-set aria-label="Изменить подход">Изменить</button></div><?php endforeach; ?>
@@ -51,6 +76,7 @@ $statusLabels = array_map('t', ['pending' => 'Ожидает', 'active' => 'В �
     </form>
     <div class="exercise-actions"><?php if ($exercise['status'] === 'waiting'): ?><button type="button" data-status="active">Оборудование свободно</button><?php else: ?><button type="button" data-status="waiting">Оборудование занято</button><?php endif; ?><button type="button" data-open-action="skip">Пропустить</button><button type="button" data-open-action="replace">Заменить</button><button type="button" data-open-action="discomfort">Дискомфорт</button><button type="button" data-open-action="complete" class="complete-exercise">Завершить</button></div>
     <?php endif; ?>
+    </div>
 </article>
 <?php endforeach; ?>
 </div>

@@ -82,6 +82,8 @@ php tests/weight-backup.php
 node --preserve-symlinks --preserve-symlinks-main tests/weight-units.js
 php tests/workout-progress.php
 php tests/workout-history-contract.php
+php tests/workout-ui-stage2.php
+node --preserve-symlinks --preserve-symlinks-main tests/workout-ui-stage2.js
 node --preserve-symlinks --preserve-symlinks-main tests/rest-timer.js
 php tests/rest-events.php
 php tests/push-notifications.php

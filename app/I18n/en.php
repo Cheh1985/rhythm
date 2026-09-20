@@ -589,4 +589,9 @@ return [
     'Иногда открывайте' => 'Occasionally open', '«Настройки»' => 'Settings', 'и скачивайте резервную копию. Это файл со всей вашей историей. Храните его в надёжном месте.' => 'and download a backup containing your full history. Keep it in a safe place.',
     'План исчезнет с Dashboard, но запись останется в audit. Повторный импорт с тем же' => 'The plan disappears from the dashboard, but its audit entry remains. Re-importing with the same',
     'не допускается — если изменилась только дата, используйте перенос выше.' => 'is not allowed; if only the date changed, use rescheduling above.',
+    'Пиктограмма упражнения' => 'Exercise icon', 'Развернуть упражнение' => 'Expand exercise', 'Свернуть упражнение' => 'Collapse exercise',
+    'Прошлые тренировки' => 'Previous workouts', 'Предыдущие даты' => 'Previous dates', 'Следующие даты' => 'Next dates', 'Выбор даты тренировки' => 'Choose workout date',
+    'Нажмите на подход, чтобы увидеть точные значения.' => 'Select a set to see exact values.', 'Легенда цветов' => 'Color legend',
+    'Ниже RIR' => 'Below RIR', 'В цели' => 'In target', 'Выше RIR' => 'Above RIR', 'Цель неизвестна' => 'Unknown target',
+    'Завершённых тренировок с этим упражнением пока нет.' => 'There are no completed workouts with this exercise yet.',
 ];

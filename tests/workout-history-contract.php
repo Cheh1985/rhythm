@@ -112,7 +112,8 @@ require dirname(__DIR__) . '/views/sessions/workout.php';
 $html = (string) ob_get_clean();
 $check((bool) preg_match('/class="weight-input"[^>]+value="50"/', $html), 'форма предзаполняет вес последним подходом последней исторической тренировки');
 $check((bool) preg_match('/class="reps-input"[^>]+value="7"/', $html), 'форма предзаполняет повторы последним историческим подходом');
-$check(str_contains($html, 'В прошлый раз') && str_contains($html, '100 lb') && str_contains($html, '50 кг'), 'временная строка прошлого раза читает последний history_sessions');
+$check(str_contains($html, 'data-history-chart') && str_contains($html, '"session_id":108') && !str_contains($html, 'В прошлый раз'), 'структурированная история передана локальному графику');
+$check(str_contains($html, '/assets/exercises/generic.svg') && str_contains($html, 'aria-expanded="false"'), 'неизвестное упражнение получает fallback-пиктограмму и свёрнутую карточку');
 
 // Even when the inspected workout is completed, it must never appear in its own history.
 $setInsert->execute(['history-current-working', 1, 130, 130, 1, 'working', 999, 999, 'kg', 1, 0, '2026-09-11 10:10:00', null]);
