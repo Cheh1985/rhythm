@@ -38,7 +38,7 @@ $check(str_contains($files['wheel'], 'async function runOnce') && str_contains($
 
 $check(str_contains($files['workout'], 'if (expanded)') && str_contains($files['workout'], 'RhythmWorkoutWheel.mountWithin(body)'), 'DOM-контролы лениво создаются только при раскрытии карточки');
 $check(str_contains($files['workout'], 'wheel._rhythmWorkoutWheel?.setStep(RhythmWeight.step(unit))'), 'смена единицы обновляет шаг активного колёсика');
-$check(str_contains($files['workout'], 'RhythmWorkoutWheel.refreshWithin(form)') && str_contains($files['workout'], 'values.rir'), 'значения draft восстанавливаются в колёсики');
+$check(str_contains($files['workout'], 'RhythmWorkoutWheel.restoreValuesWithin(form, values') && str_contains($files['wheel'], 'return refreshWithin(scope)'), 'значения draft восстанавливаются в колёсики после настройки единицы');
 $check(str_contains($files['workout'], 'rirWheel._rhythmWorkoutWheel?.setValue(null)') && !str_contains($files['workout'], "form.querySelector('.weight-input').value = ''") && !str_contains($files['workout'], "form.querySelector('.reps-input').value = ''"), 'после подхода очищается только RIR');
 $check(substr_count($files['workout'], "queueMutation('set.create'") === 1 && substr_count($files['workout'], 'await startTimer(Number(card.dataset.rest), setAction.id') === 1, 'submit создаёт один set.create и запускает один таймер');
 $check(str_contains($files['workout'], "queueMutation('set.create'") && str_contains($files['workout'], 'applyOptimistic(action)') && str_contains($files['workout'], 'RhythmOffline.enqueue(action, sessionRecord)') && str_contains($files['workout'], 'captureDraft()'), 'offline queue и optimistic restore остаются в основном pipeline');
@@ -47,7 +47,7 @@ $check(str_contains($files['css'], '.wheel-inputs{') && str_contains($files['css
 $check(str_contains($files['css'], 'touch-action:pan-x') && str_contains($files['css'], 'touch-action:manipulation'), 'вертикальный жест принадлежит колёсику, а кнопки защищены от double-tap zoom');
 $check(!str_contains($files['layout'], 'user-scalable=no') && !str_contains($files['view'], 'user-scalable=no'), 'pinch zoom не запрещён');
 $check(strpos($files['layout'], '/assets/workout-wheel.js') < strpos($files['layout'], '/assets/workout.js'), 'модуль колёсиков подключён до интеграционного скрипта');
-$check(str_contains($files['worker'], "rhythm-shell-v10.10") && str_contains($files['worker'], "asset('./assets/workout-wheel.js')"), 'новый модуль включён в обновлённый app shell');
+$check(str_contains($files['worker'], "rhythm-shell-v10.11") && str_contains($files['worker'], "asset('./assets/workout-wheel.js')"), 'новый модуль включён в обновлённый app shell');
 $check(str_contains($files['server_i18n'], "'Параметры подхода' => 'Set parameters'") && str_contains($files['client_i18n'], "'Не выбрано': 'Not selected'"), 'новые строки локализованы для RU/EN');
 $check(!preg_match('~(?:cdn|unpkg|jsdelivr|cdnjs)~i', $files['wheel'] . $files['view']), 'колёсики не используют внешние зависимости');
 

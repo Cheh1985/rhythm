@@ -262,6 +262,21 @@
         return [...scope.querySelectorAll('[data-workout-wheel]')].map((element) => element._rhythmWorkoutWheel?.refresh()).filter((value) => value !== undefined);
     }
 
+    function restoreValuesWithin(scope, values = {}, prepare = null) {
+        if (!scope?.querySelector) return [];
+        if (typeof prepare === 'function') prepare();
+        const fields = [
+            ['.weight-input', values.weight],
+            ['.reps-input', values.reps],
+            ['.rir-input', values.rir],
+        ];
+        fields.forEach(([selector, value]) => {
+            const input = scope.querySelector(selector);
+            if (input && value !== undefined && value !== null) input.value = String(value);
+        });
+        return refreshWithin(scope);
+    }
+
     function commitWithin(scope) {
         if (!scope?.querySelectorAll) return;
         scope.querySelectorAll('[data-workout-wheel]').forEach((element) => element._rhythmWorkoutWheel?.commit());
@@ -288,6 +303,7 @@
         createControl,
         mountWithin,
         refreshWithin,
+        restoreValuesWithin,
         commitWithin,
         runOnce,
     };

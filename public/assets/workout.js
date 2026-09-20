@@ -3,6 +3,7 @@
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const base = document.querySelector('meta[name="app-url"]')?.content || '';
     const userId = document.querySelector('meta[name="rhythm-user-id"]')?.content || '';
+    const tr = (text) => window.RhythmI18n?.t(text) || text;
 
     async function request(path, options = {}) {
         let response;
@@ -36,7 +37,7 @@
             const data = new FormData(form);
             const button = form.querySelector('button[type="submit"]');
             button.disabled = true;
-            button.textContent = 'Сохраняем готовность…';
+            button.textContent = tr('Сохраняем готовность…');
             message.hidden = true;
             const weight = data.get('body_weight_kg');
             try {
@@ -50,7 +51,7 @@
                 message.textContent = error.message;
                 message.hidden = false;
                 button.disabled = false;
-                button.textContent = 'Начать тренировку';
+                button.textContent = tr('Начать тренировку');
             }
         });
     }
@@ -94,24 +95,24 @@
     versions = collectDomVersions();
 
     function paintSync(mode, count = 0, detail = '') {
-        networkState.textContent = navigator.onLine ? 'Онлайн' : 'Офлайн';
+        networkState.textContent = tr(navigator.onLine ? 'Онлайн' : 'Офлайн');
         networkState.classList.toggle('offline', !navigator.onLine);
         saveState.classList.remove('saving', 'save-error');
         retryButton.hidden = true;
         if (mode === 'syncing') {
-            saveState.textContent = 'Сохраняем локально и синхронизируем…';
+            saveState.textContent = tr('Сохраняем локально и синхронизируем…');
             saveState.classList.add('saving');
         } else if (mode === 'pending') {
-            saveState.textContent = (navigator.onLine ? 'Ожидает синхронизации' : 'Офлайн · ожидает синхронизации') + (count ? ' · ' + count : '');
+            saveState.textContent = tr(navigator.onLine ? 'Ожидает синхронизации' : 'Офлайн · ожидает синхронизации') + (count ? ' · ' + count : '');
             retryButton.hidden = false;
         } else if (mode === 'conflict') {
-            saveState.textContent = 'Ошибка · конфликт версий';
+            saveState.textContent = tr('Ошибка · конфликт версий');
             saveState.classList.add('save-error');
         } else if (mode === 'error') {
-            saveState.textContent = 'Ошибка синхронизации' + (detail ? ' · ' + detail : '');
+            saveState.textContent = tr('Ошибка синхронизации') + (detail ? ' · ' + detail : '');
             saveState.classList.add('save-error');
             retryButton.hidden = false;
-        } else saveState.textContent = 'Синхронизировано';
+        } else saveState.textContent = tr('Синхронизировано');
     }
 
     function showConflict(action) {
@@ -120,7 +121,7 @@
         if (action.type === 'exercise.weight-unit' && current && current.actual_exercise_id !== action.body.actual_exercise_id) {
             detail = 'Упражнение заменено на «' + current.exercise_name + '». Повтор применит выбранную единицу к этому упражнению. Число в форме сохранится.';
         }
-        conflictBanner.querySelector('span').textContent = detail;
+        conflictBanner.querySelector('span').textContent = tr(detail);
         conflictBanner.hidden = false;
         paintSync('conflict');
     }
@@ -151,7 +152,7 @@
         row.dataset.rir = String(set.rir);
         row.dataset.setType = set.set_type || row.dataset.setType || 'working';
         row.classList.toggle('pending-sync', pending);
-        row.querySelector('span').textContent = (row.dataset.setType === 'warmup' ? 'Р' : 'П') + set.set_number;
+        row.querySelector('span').textContent = (window.RhythmI18n?.locale === 'en' ? (row.dataset.setType === 'warmup' ? 'W' : 'S') : (row.dataset.setType === 'warmup' ? 'Р' : 'П')) + set.set_number;
         row.querySelector('strong').textContent = weight.value + ' ' + RhythmWeight.label(weight.unit) + ' × ' + set.reps;
         row.querySelector('small').textContent = 'RIR ' + set.rir;
         return row;
@@ -167,18 +168,18 @@
         progress.querySelector('span').style.width = (total ? completed / total * 100 : 0) + '%';
         progress.setAttribute('aria-valuemax', String(total));
         progress.setAttribute('aria-valuenow', String(completed));
-        progress.setAttribute('aria-valuetext', completed + ' из ' + total + ' упражнений');
+        progress.setAttribute('aria-valuetext', completed + ' ' + tr('из') + ' ' + total + ' ' + tr('упражнений'));
     }
     function setCardStatus(card, status) {
         card.classList.remove('pending', 'active', 'waiting', 'completed', 'skipped');
         card.classList.add(status);
         card.dataset.status = status;
         const labels = {pending: 'Ожидает', active: 'В работе', waiting: 'Оборудование занято', completed: 'Готово', skipped: 'Пропущено'};
-        card.querySelector('.exercise-state').textContent = labels[status] || status;
+        card.querySelector('.exercise-state').textContent = tr(labels[status] || status);
         const waitingButton = card.querySelector('[data-status]');
         if (waitingButton && ['waiting', 'active'].includes(status)) {
             waitingButton.dataset.status = status === 'waiting' ? 'active' : 'waiting';
-            waitingButton.textContent = status === 'waiting' ? 'Оборудование свободно' : 'Оборудование занято';
+            waitingButton.textContent = tr(status === 'waiting' ? 'Оборудование свободно' : 'Оборудование занято');
         }
         const closed = status === 'completed' || status === 'skipped';
         for (const editor of [card.querySelector('.set-entry'), card.querySelector('.exercise-actions')]) {
@@ -219,12 +220,12 @@
         else if (action.type === 'exercise.replace' && card) {
             const option = replacementOptions().find((item) => item.value === String(body.actual_exercise_id));
             if (option) { updateCardIdentity(card, body.actual_exercise_id, option.textContent); setWeightUnit(card, option.dataset.weightUnit || 'kg'); }
-            appendLocalNote(card, 'Замена ожидает синхронизации');
-        } else if (action.type === 'discomfort.create' && card) appendLocalNote(card, 'Дискомфорт записан локально');
+            appendLocalNote(card, tr('Замена ожидает синхронизации'));
+        } else if (action.type === 'discomfort.create' && card) appendLocalNote(card, tr('Дискомфорт записан локально'));
         else if (action.type === 'session.finish') {
             const finish = page.querySelector('#finish-workout');
             finish.disabled = true;
-            finish.textContent = 'Завершение ожидает синхронизации';
+            finish.textContent = tr('Завершение ожидает синхронизации');
         }
     }
 
@@ -480,20 +481,16 @@
         for (const [exerciseId, values] of Object.entries(draft.forms || {})) {
             const form = page.querySelector('.exercise-card[data-exercise-id="' + exerciseId + '"] .set-entry');
             if (!form) continue;
-            form.querySelector('.weight-input').value = values.weight;
-            setWeightUnit(form.closest('.exercise-card'), values.weightUnit || 'kg');
             if (values.actualExerciseId) {
                 const card = form.closest('.exercise-card');
                 const option = replacementOptions().find((item) => item.value === String(values.actualExerciseId));
                 if (option) updateCardIdentity(card, values.actualExerciseId, option.textContent);
                 else card.dataset.actualExerciseId = values.actualExerciseId;
             }
-            form.querySelector('.reps-input').value = values.reps;
-            form.querySelector('.rir-input').value = values.rir;
+            RhythmWorkoutWheel.restoreValuesWithin(form, values, () => setWeightUnit(form.closest('.exercise-card'), values.weightUnit || 'kg'));
             form.dataset.workingNext = values.workingNext;
             form.dataset.warmupNext = values.warmupNext;
             form.querySelectorAll('[data-type]').forEach((button) => button.classList.toggle('active', button.dataset.type === values.type));
-            RhythmWorkoutWheel.refreshWithin(form);
         }
         if (draft.finish) {
             page.querySelector('#session-rpe').value = draft.finish.rpe;
@@ -576,7 +573,7 @@
     dialog.querySelectorAll('[data-dialog-cancel]').forEach((button) => button.addEventListener('click', () => dialog.close()));
     function openDialog(type, card, setRow = null) {
         dialogContext = {type, card, setRow};
-        dialog.querySelector('[data-dialog-title]').textContent = dialogTitles[type];
+        dialog.querySelector('[data-dialog-title]').textContent = tr(dialogTitles[type]);
         dialogFields.replaceChildren(document.querySelector('#' + type + '-fields').content.cloneNode(true));
         dialogForm.querySelector('.form-message').hidden = true;
         if (type === 'edit') { dialogForm.elements.weight_value.value = setRow.dataset.weight; dialogForm.elements.weight_unit.value = setRow.dataset.weightUnit || 'kg'; dialogForm.elements.reps.value = setRow.dataset.reps; dialogForm.elements.rir.value = setRow.dataset.rir; }
@@ -738,9 +735,9 @@
         timerDisplay.textContent = String(Math.floor(remaining / 60)).padStart(2, '0') + ':' + String(remaining % 60).padStart(2, '0');
         const terminal = RhythmRestTimer.isTerminal(timerState), completed = timerState.status === 'completed';
         timer.classList.toggle('expired', completed);
-        timer.querySelector('[data-timer="pause"]').textContent = timerState.paused ? 'Продолжить' : 'Пауза';
-        timer.querySelector('[data-timer="stop"]').textContent = terminal ? 'Закрыть' : 'Закончить раньше';
-        timerStatus.textContent = completed ? 'Отдых полностью завершён' : 'Таймер продолжит считать по времени окончания';
+        timer.querySelector('[data-timer="pause"]').textContent = tr(timerState.paused ? 'Продолжить' : 'Пауза');
+        timer.querySelector('[data-timer="stop"]').textContent = tr(terminal ? 'Закрыть' : 'Закончить раньше');
+        timerStatus.textContent = tr(completed ? 'Отдых полностью завершён' : 'Таймер продолжит считать по времени окончания');
         timer.querySelectorAll('[data-timer="pause"],[data-timer="reset"],[data-timer="add"]').forEach((button) => { button.hidden = terminal; });
         if (completed) notifyTimerCompletion();
     }

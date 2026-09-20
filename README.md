@@ -88,6 +88,8 @@ php tests/workout-ui-stage3.php
 node --preserve-symlinks --preserve-symlinks-main tests/workout-ui-stage3.js
 php tests/workout-ui-stage4.php
 node --preserve-symlinks --preserve-symlinks-main tests/workout-ui-stage4.js
+php tests/workout-ui-stage5.php
+node --preserve-symlinks --preserve-symlinks-main tests/workout-ui-stage5.js
 node --preserve-symlinks --preserve-symlinks-main tests/rest-timer.js
 php tests/rest-events.php
 php tests/push-notifications.php
@@ -96,6 +98,14 @@ php -l public/index.php
 php bin/cleanup.php
 php bin/prune-assistant-audit.php
 ```
+
+Повторяемый браузерный smoke экрана тренировки запускается без подключения к пользовательской БД:
+
+```bash
+php -S 127.0.0.1:8127 tests/fixtures/workout-ui-browser-router.php
+```
+
+Откройте `http://127.0.0.1:8127/sessions/9001`. Фикстура использует production-шаблон и ассеты, содержит пустую/одиночную/шестисессионную историю и состояния pending/waiting/completed/skipped. URL `/__fixture/conflict` включает один ответ HTTP 409 для следующей мутации; остановка локального сервера после онлайн-загрузки позволяет повторить pending и offline reload через Service Worker.
 
 После входа импортируйте план через `/plans/import` или создайте плавание через `/swimming`; недельный ритм меняется на `/schedule`. Backup, restore, тема и язык интерфейса находятся на `/settings`. RU/EN можно выбрать и до входа: гостевой выбор хранится в cookie, а после входа применяется настройка профиля. Для offline smoke используйте сценарии из [docs/offline-first.md](docs/offline-first.md). Форматы импорта/экспорта описаны в [docs/json-format.md](docs/json-format.md).
 

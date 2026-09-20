@@ -600,4 +600,11 @@ return [
     'Карусель упражнений' => 'Exercise carousel', 'Навигация по упражнениям' => 'Exercise navigation',
     'Предыдущее упражнение' => 'Previous exercise', 'Следующее упражнение' => 'Next exercise', 'Все упражнения' => 'All exercises',
     'Карточки упражнений. Используйте стрелки влево и вправо для перехода.' => 'Exercise cards. Use the left and right arrow keys to navigate.', 'карточка' => 'slide',
+    'Прогресс' => 'Progress', 'Синхронизировано' => 'Synced', 'Сохраняем локально и синхронизируем…' => 'Saving locally and syncing…',
+    'Ожидает синхронизации' => 'Waiting to sync', 'Офлайн · ожидает синхронизации' => 'Offline · waiting to sync',
+    'Ошибка · конфликт версий' => 'Error · version conflict', 'Ошибка синхронизации' => 'Sync failed',
+    'Замена ожидает синхронизации' => 'Replacement is waiting to sync', 'Дискомфорт записан локально' => 'Discomfort was saved locally',
+    'Завершение ожидает синхронизации' => 'Workout completion is waiting to sync', 'Пропустить упражнение' => 'Skip exercise',
+    'Оценить упражнение' => 'Rate exercise', 'Заменить упражнение' => 'Replace exercise', 'Записать дискомфорт' => 'Log discomfort', 'Изменить подход' => 'Edit set',
+    'Сохраняем готовность…' => 'Saving readiness…',
 ];
