@@ -1,8 +1,33 @@
 <?php
 $statusLabels = array_map('t', ['pending' => 'Ожидает', 'active' => 'В работе', 'waiting' => 'Оборудование занято', 'completed' => 'Готово', 'skipped' => 'Пропущено']);
-$exerciseIcon = static function (string $exerciseId): string {
+$exerciseIconFiles = [
+    'leg_press_001' => 'leg_press_001.png',
+    'bench_press_001' => 'bench_press_001.png',
+    'incline_db_press_001' => 'incline_db_press_001.png',
+    'lat_pulldown_001' => 'lat_pulldown_001.png',
+    'seated_cable_row_001' => 'seated_cable_row_001.png',
+    'leg_curl_001' => 'leg_curl_001.png',
+    'biceps_curl_001' => 'biceps_curl_001.png',
+    'triceps_pushdown_001' => 'triceps_pushdown_001.png',
+    'db_shoulder_press_001' => 'db_shoulder_press_001.png',
+    'hack_squat_001' => 'hack_squat_001.png',
+    'romanian_deadlift_001' => 'romanian_deadlift_001.png',
+    'calf_raise_001' => 'calf_raise_001.png',
+    'lateral_raise_001' => 'lateral_raise_001.png',
+    'face_pull_001' => 'face_pull_001.png',
+    'rhythm_demo_bench_press' => 'bench_press_001.png',
+    'rhythm_demo_face_pull' => 'face_pull_001.png',
+    'rhythm_demo_lateral_raise' => 'lateral_raise_001.png',
+    'rhythm_demo_shoulder_press' => 'db_shoulder_press_001.png',
+    'rhythm_demo_lat_pulldown' => 'lat_pulldown_001.png',
+    'rhythm_demo_leg_press' => 'leg_press_001.png',
+    'rhythm_demo_leg_curl' => 'leg_curl_001.png',
+    'rhythm_demo_romanian_deadlift' => 'romanian_deadlift_001.png',
+    'rhythm_demo_cable_row' => 'seated_cable_row_001.png',
+];
+$exerciseIcon = static function (string $exerciseId) use ($exerciseIconFiles): string {
     if (!preg_match('/^[a-z0-9_]{1,80}$/D', $exerciseId)) return 'generic.svg';
-    $filename = $exerciseId . '.svg';
+    $filename = $exerciseIconFiles[$exerciseId] ?? 'generic.svg';
     return is_file(APP_ROOT . '/public/assets/exercises/' . $filename) ? $filename : 'generic.svg';
 };
 $exerciseCount = count($session['exercises']);

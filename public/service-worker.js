@@ -1,5 +1,5 @@
 'use strict';
-const SHELL_VERSION = 'rhythm-shell-v10.12';
+const SHELL_VERSION = 'rhythm-shell-v10.14';
 const USER_PAGES = 'rhythm-user-pages-v1';
 const LOCALE_META = 'rhythm-locale-meta-v1';
 const scope = self.registration.scope;
@@ -33,20 +33,20 @@ const APP_SHELL = [
     asset('./icons/icon-en-192.png'),
     asset('./icons/icon-en-512.png'),
     asset('./assets/exercises/generic.svg'),
-    asset('./assets/exercises/leg_press_001.svg'),
-    asset('./assets/exercises/bench_press_001.svg'),
-    asset('./assets/exercises/incline_db_press_001.svg'),
-    asset('./assets/exercises/lat_pulldown_001.svg'),
-    asset('./assets/exercises/seated_cable_row_001.svg'),
-    asset('./assets/exercises/leg_curl_001.svg'),
-    asset('./assets/exercises/biceps_curl_001.svg'),
-    asset('./assets/exercises/triceps_pushdown_001.svg'),
-    asset('./assets/exercises/db_shoulder_press_001.svg'),
-    asset('./assets/exercises/hack_squat_001.svg'),
-    asset('./assets/exercises/romanian_deadlift_001.svg'),
-    asset('./assets/exercises/calf_raise_001.svg'),
-    asset('./assets/exercises/lateral_raise_001.svg'),
-    asset('./assets/exercises/face_pull_001.svg'),
+    asset('./assets/exercises/leg_press_001.png'),
+    asset('./assets/exercises/bench_press_001.png'),
+    asset('./assets/exercises/incline_db_press_001.png'),
+    asset('./assets/exercises/lat_pulldown_001.png'),
+    asset('./assets/exercises/seated_cable_row_001.png'),
+    asset('./assets/exercises/leg_curl_001.png'),
+    asset('./assets/exercises/biceps_curl_001.png'),
+    asset('./assets/exercises/triceps_pushdown_001.png'),
+    asset('./assets/exercises/db_shoulder_press_001.png'),
+    asset('./assets/exercises/hack_squat_001.png'),
+    asset('./assets/exercises/romanian_deadlift_001.png'),
+    asset('./assets/exercises/calf_raise_001.png'),
+    asset('./assets/exercises/lateral_raise_001.png'),
+    asset('./assets/exercises/face_pull_001.png'),
 ];
 
 self.addEventListener('install', (event) => {

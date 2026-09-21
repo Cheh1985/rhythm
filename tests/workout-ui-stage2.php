@@ -31,21 +31,22 @@ $check(str_contains($files['card'], "return /^[a-z0-9_]{1,80}$/") && str_contain
 $check(str_contains($files['layout'], '/assets/workout-card.js') && str_contains($files['layout'], '/assets/workout-history.js'), 'локальные модули подключены до интеграционного скрипта');
 $check(str_contains($files['css'], '@media(max-width:34rem)') && str_contains($files['css'], '@media(max-width:23rem)') && str_contains($files['css'], 'minmax(0,1fr)'), 'карточка защищена от переполнения на ширинах 320–430 px');
 $check(!preg_match('~(?:cdn|unpkg|jsdelivr|cdnjs)~i', $files['history'] . $files['card'] . $files['view']) && !str_contains($files['history'], 'd3.'), 'график не использует CDN или D3');
-$check(str_contains($files['worker'], "rhythm-shell-v10.12") && str_contains($files['worker'], "asset('./assets/workout-history.js')") && str_contains($files['worker'], "asset('./assets/exercises/generic.svg')"), 'версия app shell актуальна, новые модули и fallback кешируются');
+$check(str_contains($files['worker'], "rhythm-shell-v10.14") && str_contains($files['worker'], "asset('./assets/workout-history.js')") && str_contains($files['worker'], "asset('./assets/exercises/generic.svg')"), 'версия app shell актуальна, новые модули и fallback кешируются');
 
-$icons = glob($root . '/public/assets/exercises/*.svg') ?: [];
-$check(count($icons) === 15, 'добавлены 14 seed-пиктограмм и generic fallback');
+$icons = glob($root . '/public/assets/exercises/*.png') ?: [];
+$check(count($icons) === 14, 'добавлены 14 растровых иллюстраций упражнений');
 foreach ($icons as $icon) {
-    $svg = (string) file_get_contents($icon);
-    $check(str_contains($svg, 'viewBox="0 0 96 96"'), basename($icon) . ' имеет единый viewBox');
-    $check(!preg_match('~<(?:script|image)\b|(?:href|src)\s*=|data:image~i', $svg), basename($icon) . ' не содержит скриптов, ссылок или растра');
+    $size = getimagesize($icon);
+    $check($size !== false && $size[0] === 512 && $size[1] === 512 && $size['mime'] === 'image/png', basename($icon) . ' является оптимизированным квадратным PNG 512×512');
 }
+$generic = (string) file_get_contents($root . '/public/assets/exercises/generic.svg');
+$check(str_contains($generic, 'viewBox="0 0 96 96"') && !preg_match('~<(?:script|image)\b|(?:href|src)\s*=|data:image~i', $generic), 'generic fallback остаётся безопасным локальным SVG');
 foreach ([
     'leg_press_001', 'bench_press_001', 'incline_db_press_001', 'lat_pulldown_001', 'seated_cable_row_001', 'leg_curl_001', 'biceps_curl_001',
     'triceps_pushdown_001', 'db_shoulder_press_001', 'hack_squat_001', 'romanian_deadlift_001', 'calf_raise_001', 'lateral_raise_001', 'face_pull_001',
 ] as $exerciseId) {
-    $check(is_file($root . '/public/assets/exercises/' . $exerciseId . '.svg'), $exerciseId . ' имеет локальную пиктограмму');
-    $check(str_contains($files['worker'], "asset('./assets/exercises/{$exerciseId}.svg')"), $exerciseId . ' включён в app shell');
+    $check(is_file($root . '/public/assets/exercises/' . $exerciseId . '.png'), $exerciseId . ' имеет локальную иллюстрацию');
+    $check(str_contains($files['worker'], "asset('./assets/exercises/{$exerciseId}.png')"), $exerciseId . ' включён в app shell');
 }
 
 if ($failures !== []) {

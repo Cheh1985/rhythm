@@ -27,10 +27,11 @@ assert.deepStrictEqual(card.normalizeExpandedIds(['20', 10, 20, 'missing'], [10,
 assert.deepStrictEqual(card.normalizeExpandedIds(undefined, [10]), []);
 assert.deepStrictEqual(card.setExpanded(['10'], 20, true), ['10', '20']);
 assert.deepStrictEqual(card.setExpanded(['10', '20'], 10, false), ['20']);
-assert.strictEqual(card.iconFilename('bench_press_001'), 'bench_press_001.svg');
+assert.strictEqual(card.iconFilename('bench_press_001'), 'bench_press_001.png');
+assert.strictEqual(card.iconFilename('rhythm_demo_bench_press'), 'bench_press_001.png');
 assert.strictEqual(card.iconFilename('custom-user-exercise'), 'generic.svg');
 assert.strictEqual(card.iconFilename('../bench_press_001'), 'generic.svg');
 assert.strictEqual(card.iconFilename('bench_press_001.svg'), 'generic.svg');
-assert.strictEqual(card.iconUrl('bench_press_001', '/assets/exercises'), '/assets/exercises/bench_press_001.svg');
+assert.strictEqual(card.iconUrl('bench_press_001', '/assets/exercises'), '/assets/exercises/bench_press_001.png');
 
-console.log('Workout UI stage 2 JS checks passed (27).');
+console.log('Workout UI stage 2 JS checks passed (28).');
