@@ -1,5 +1,5 @@
 'use strict';
-const SHELL_VERSION = 'rhythm-shell-v10.11';
+const SHELL_VERSION = 'rhythm-shell-v10.12';
 const USER_PAGES = 'rhythm-user-pages-v1';
 const LOCALE_META = 'rhythm-locale-meta-v1';
 const scope = self.registration.scope;

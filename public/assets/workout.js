@@ -176,7 +176,7 @@
         card.dataset.status = status;
         const labels = {pending: 'Ожидает', active: 'В работе', waiting: 'Оборудование занято', completed: 'Готово', skipped: 'Пропущено'};
         card.querySelector('.exercise-state').textContent = tr(labels[status] || status);
-        const waitingButton = card.querySelector('[data-status]');
+        const waitingButton = card.querySelector('button[data-status]');
         if (waitingButton && ['waiting', 'active'].includes(status)) {
             waitingButton.dataset.status = status === 'waiting' ? 'active' : 'waiting';
             waitingButton.textContent = tr(status === 'waiting' ? 'Оборудование свободно' : 'Оборудование занято');
@@ -580,7 +580,7 @@
         dialog.showModal();
     }
     page.addEventListener('click', async (event) => {
-        const direct = event.target.closest('[data-status]');
+        const direct = event.target.closest('button[data-status]');
         if (direct) return queueStatus(direct.closest('.exercise-card'), direct.dataset.status);
         const open = event.target.closest('[data-open-action]');
         if (open) openDialog(open.dataset.openAction, open.closest('.exercise-card'));

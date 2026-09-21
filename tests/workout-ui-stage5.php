@@ -33,8 +33,10 @@ foreach (['Синхронизировано', 'Ожидает', 'Готово', 
 }
 $check(str_contains($files['workout'], "const tr = (text) =>") && str_contains($files['workout'], "textContent = tr('Синхронизировано')") && str_contains($files['workout'], "textContent = tr(labels[status]"), 'динамические sync/status строки проходят через клиентскую локализацию');
 $check(str_contains($files['workout'], "window.RhythmI18n?.locale === 'en'") && str_contains($files['workout'], "? 'W' : 'S'"), 'optimistic-подход получает английский W/S вместо русских букв');
+$check(substr_count($files['workout'], "querySelector('button[data-status]')") === 1 && substr_count($files['workout'], "closest('button[data-status]')") === 1, 'клики действий карточки не перехватываются её собственным data-status');
+$check(strpos($files['workout'], "closest('button[data-status]')") < strpos($files['workout'], "closest('[data-open-action]')"), 'обработчик различает прямую кнопку статуса и кнопки диалоговых действий');
 
-$check(str_contains($files['worker'], "rhythm-shell-v10.11") && str_contains($files['worker'], "asset('./assets/workout.js')") && str_contains($files['worker'], "asset('./assets/workout.css')"), 'изменённые UI-ассеты опубликованы новой версией app shell');
+$check(str_contains($files['worker'], "rhythm-shell-v10.12") && str_contains($files['worker'], "asset('./assets/workout.js')") && str_contains($files['worker'], "asset('./assets/workout.css')"), 'изменённые UI-ассеты опубликованы новой версией app shell');
 $check(str_contains($files['fixture'], "'/sessions/9001'") && str_contains($files['fixture'], "'/__fixture/conflict'") && str_contains($files['fixture'], "X-Rhythm-Private: 1"), 'браузерная фикстура покрывает страницу, 409 и private-page cache');
 $check(str_contains($files['fixture'], "'pending'") && str_contains($files['fixture'], "'waiting'") && str_contains($files['fixture'], "'completed'") && str_contains($files['fixture'], "'skipped'"), 'браузерная фикстура содержит все состояния упражнения');
 $check(str_contains($files['fixture'], "array_slice(\$history, 0, 3)") && str_contains($files['fixture'], "\$history[5]") && str_contains($files['fixture'], "'history_sessions' => \$historySessions"), 'браузерная фикстура содержит пустую, одиночную и шестисессионную историю');

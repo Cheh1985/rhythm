@@ -48,7 +48,7 @@ $check(substr_count($files['workout'], 'exerciseCarousel?.syncCard(card)') >= 2,
 $check(str_contains($files['css'], '.exercise-stack>.exercise-card.is-active') && str_contains($files['css'], '.exercise-card.is-previous') && str_contains($files['css'], '.exercise-card.is-next'), 'показывается одна активная карточка и декоративные края соседних');
 $check(str_contains($files['css'], 'touch-action:pan-y') && str_contains($files['css'], '.workout-wheel{') && str_contains($files['css'], 'touch-action:pan-x'), 'вертикальная прокрутка карусели и вертикальный жест колёсика разведены через touch-action');
 $check(strpos($files['layout'], '/assets/workout-carousel.js') < strpos($files['layout'], '/assets/workout.js'), 'модуль карусели подключён до интеграционного скрипта');
-$check(str_contains($files['worker'], "rhythm-shell-v10.11") && str_contains($files['worker'], "asset('./assets/workout-carousel.js')"), 'модуль карусели добавлен в новую версию app shell');
+$check(str_contains($files['worker'], "rhythm-shell-v10.12") && str_contains($files['worker'], "asset('./assets/workout-carousel.js')"), 'модуль карусели добавлен в новую версию app shell');
 $check(str_contains($files['server_i18n'], "'Карусель упражнений' => 'Exercise carousel'") && str_contains($files['client_i18n'], "'Следующее упражнение': 'Next exercise'"), 'новые строки локализованы для RU/EN');
 $check(!preg_match('~(?:cdn|unpkg|jsdelivr|cdnjs)~i', $files['carousel'] . $files['view']), 'карусель не использует внешние зависимости');
 
